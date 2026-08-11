@@ -45,6 +45,31 @@ export function computeRecord(matches) {
   return { wins, losses }
 }
 
+// Groups a deck's matches by opponent legend and computes the same win
+// rate/record/streak stats used everywhere else in the app, once per
+// legend, for the Matchup Record section. `matches` must already be
+// sorted most-recent-first (matches:list's natural order, preserved by a
+// plain .filter()) so each group's streak comes out correct without a
+// second sort pass. Matches with no opponent_legend recorded still get
+// grouped, under "Unknown Legend", rather than silently dropped.
+export function computeMatchupRecords(matches) {
+  const groups = new Map()
+  for (const match of matches) {
+    const legend = match.opponent_legend?.trim() || 'Unknown Legend'
+    if (!groups.has(legend)) groups.set(legend, [])
+    groups.get(legend).push(match)
+  }
+
+  return Array.from(groups.entries()).map(([legend, legendMatches]) => ({
+    legend,
+    matches: legendMatches,
+    record: computeRecord(legendMatches),
+    winRate: computeWinRate(legendMatches),
+    streak: computeStreak(legendMatches),
+    gamesPlayed: legendMatches.length
+  }))
+}
+
 // Picks the deck with the best win rate among decks that have at least
 // one decided match. Returns null when no deck has any match history yet.
 export function findBestDeck(decks, matchesByDeckId) {

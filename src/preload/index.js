@@ -13,9 +13,23 @@ import { contextBridge, ipcRenderer } from 'electron'
 // else in this file's scope.
 contextBridge.exposeInMainWorld('api', {
   decks: {
-    list: () => ipcRenderer.invoke('decks:list')
+    list: () => ipcRenderer.invoke('decks:list'),
+    get: (id) => ipcRenderer.invoke('decks:get', id),
+    create: (deck) => ipcRenderer.invoke('decks:create', deck),
+    update: (id, deck) => ipcRenderer.invoke('decks:update', id, deck),
+    delete: (id) => ipcRenderer.invoke('decks:delete', id)
   },
   matches: {
-    list: () => ipcRenderer.invoke('matches:list')
+    list: () => ipcRenderer.invoke('matches:list'),
+    get: (id) => ipcRenderer.invoke('matches:get', id),
+    create: (match) => ipcRenderer.invoke('matches:create', match),
+    update: (id, match) => ipcRenderer.invoke('matches:update', id, match),
+    delete: (id) => ipcRenderer.invoke('matches:delete', id)
+  },
+  deckNotes: {
+    list: (deckId) => ipcRenderer.invoke('deck-notes:list', deckId),
+    create: (note) => ipcRenderer.invoke('deck-notes:create', note),
+    update: (id, patch) => ipcRenderer.invoke('deck-notes:update', id, patch),
+    delete: (id) => ipcRenderer.invoke('deck-notes:delete', id)
   }
 })

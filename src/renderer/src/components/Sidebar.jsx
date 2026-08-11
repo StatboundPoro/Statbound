@@ -1,11 +1,12 @@
-// Matches/Insights/Settings have no screens behind them yet — this is the
-// nav shell for a single-screen app. They render as inert (non-clickable)
-// until those screens exist, rather than pretending to navigate anywhere.
+// Insights/Settings have no screens behind them yet — they render as inert
+// (non-clickable) nav items rather than pretending to navigate anywhere.
+// Decks and Matches now both have real screens, so they're clickable and
+// their `key` doubles as the `screen` value App.jsx switches on.
 const NAV_ITEMS = [
   {
     key: 'decks',
     label: 'Decks',
-    active: true,
+    navigable: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none">
         <rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
@@ -18,7 +19,7 @@ const NAV_ITEMS = [
   {
     key: 'matches',
     label: 'Matches',
-    active: false,
+    navigable: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none">
         <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
@@ -30,7 +31,7 @@ const NAV_ITEMS = [
   {
     key: 'insights',
     label: 'Insights',
-    active: false,
+    navigable: false,
     icon: (
       <svg viewBox="0 0 24 24" fill="none">
         <path d="M4 12 Q4 4 12 4 Q20 4 20 12 Q20 20 12 20" stroke="currentColor" strokeWidth="1.6" />
@@ -40,7 +41,7 @@ const NAV_ITEMS = [
   }
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ active, onNavigate }) {
   return (
     <div className="rail">
       <div className="rail-mark">
@@ -57,7 +58,20 @@ export default function Sidebar() {
 
       <div className="rail-nav">
         {NAV_ITEMS.map((item) => (
-          <div key={item.key} className={`rail-item ${item.active ? 'active' : ''}`}>
+          <div
+            key={item.key}
+            className={`rail-item ${item.navigable ? 'clickable' : ''} ${active === item.key ? 'active' : ''}`}
+            role={item.navigable ? 'button' : undefined}
+            tabIndex={item.navigable ? 0 : undefined}
+            onClick={item.navigable ? () => onNavigate(item.key) : undefined}
+            onKeyDown={
+              item.navigable
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') onNavigate(item.key)
+                  }
+                : undefined
+            }
+          >
             {item.icon}
             <div className="rail-label">{item.label}</div>
           </div>
