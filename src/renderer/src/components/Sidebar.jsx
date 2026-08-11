@@ -1,0 +1,83 @@
+// Matches/Insights/Settings have no screens behind them yet — this is the
+// nav shell for a single-screen app. They render as inert (non-clickable)
+// until those screens exist, rather than pretending to navigate anywhere.
+const NAV_ITEMS = [
+  {
+    key: 'decks',
+    label: 'Decks',
+    active: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="13" y="3" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="13" y="13" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    )
+  },
+  {
+    key: 'matches',
+    label: 'Matches',
+    active: false,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M3 9h18" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M7 13h4M7 16h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
+    key: 'insights',
+    label: 'Insights',
+    active: false,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M4 12 Q4 4 12 4 Q20 4 20 12 Q20 20 12 20" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M12 8v4l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    )
+  }
+]
+
+export default function Sidebar() {
+  return (
+    <div className="rail">
+      <div className="rail-mark">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 2 L21 7 L21 17 L12 22 L3 17 L3 7 Z" stroke="#ECE9E2" strokeWidth="1.4" />
+          <path
+            d="M12 2 V22 M3 7 L21 17 M21 7 L3 17"
+            stroke="#ECE9E2"
+            strokeWidth="1"
+            opacity="0.35"
+          />
+        </svg>
+      </div>
+
+      <div className="rail-nav">
+        {NAV_ITEMS.map((item) => (
+          <div key={item.key} className={`rail-item ${item.active ? 'active' : ''}`}>
+            {item.icon}
+            <div className="rail-label">{item.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rail-bottom">
+        <div className="rail-item">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+            <path
+              d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="rail-label">Settings</div>
+        </div>
+      </div>
+    </div>
+  )
+}

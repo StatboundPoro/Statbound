@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { listDecks } from './decks.js'
+import { listMatches } from './matches.js'
 
 /**
  * Registers every ipcMain.handle() endpoint the renderer is allowed to call.
@@ -10,4 +11,5 @@ import { listDecks } from './decks.js'
  */
 export function registerIpcHandlers() {
   ipcMain.handle('decks:list', () => listDecks())
+  ipcMain.handle('matches:list', () => listMatches())
 }

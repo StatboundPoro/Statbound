@@ -14,5 +14,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('api', {
   decks: {
     list: () => ipcRenderer.invoke('decks:list')
+  },
+  matches: {
+    list: () => ipcRenderer.invoke('matches:list')
   }
 })
