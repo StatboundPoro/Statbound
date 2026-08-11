@@ -1,0 +1,29 @@
+{
+  "name": "rifttrack",
+  "version": "0.1.0",
+  "description": "Local-only desktop companion app for the Riftbound TCG",
+  "main": "./out/main/index.js",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.3.0",
+    "electron-vite": "^5.0.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "vite": "^7.3.6"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  }
+}

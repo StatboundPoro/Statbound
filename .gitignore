@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+dist-electron/
+release/
+
+# Local SQLite database files (this app's data lives in the OS user-data
+# dir at runtime, but any .db files that end up in the repo during dev
+# should never be committed)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Env / secrets
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS junk
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
