@@ -187,8 +187,12 @@ export default function DeckDetail({ deckId, onBack }) {
         </div>
 
         <div className="deck-detail-heading">
-          <h1>{deck.legend_name ?? deck.name}</h1>
-          {championName && <div className="deck-detail-champion">{championName}</div>}
+          <h1>{deck.name}</h1>
+          {(deck.legend_name || championName) && (
+            <div className="deck-detail-champion">
+              {[deck.legend_name, championName].filter(Boolean).join(' — ')}
+            </div>
+          )}
           <div className="deck-detail-domains">
             {[deck.domain_1, deck.domain_2].filter(Boolean).map((domain) => (
               <span key={domain} className="domain-pill" style={{ '--pill-color': domainColor(domain) }}>
