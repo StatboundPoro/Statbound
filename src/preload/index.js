@@ -31,5 +31,27 @@ contextBridge.exposeInMainWorld('api', {
     create: (note) => ipcRenderer.invoke('deck-notes:create', note),
     update: (id, patch) => ipcRenderer.invoke('deck-notes:update', id, patch),
     delete: (id) => ipcRenderer.invoke('deck-notes:delete', id)
+  },
+  settings: {
+    export: () => ipcRenderer.invoke('settings:export'),
+    pickImportFile: () => ipcRenderer.invoke('settings:pick-import-file'),
+    import: (filePath) => ipcRenderer.invoke('settings:import', filePath),
+    reset: () => ipcRenderer.invoke('settings:reset'),
+    getAutoBackup: () => ipcRenderer.invoke('settings:get-auto-backup'),
+    updateAutoBackup: (patch) => ipcRenderer.invoke('settings:update-auto-backup', patch),
+    chooseAutoBackupDirectory: () => ipcRenderer.invoke('settings:choose-auto-backup-directory')
+  },
+  play: {
+    show: () => ipcRenderer.send('play:show'),
+    hide: () => ipcRenderer.send('play:hide'),
+    // Only plain numbers cross this bridge, not a live DOMRect instance —
+    // DOMRect doesn't structured-clone cleanly over Electron IPC.
+    setBounds: (rect) =>
+      ipcRenderer.send('play:set-bounds', {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height
+      })
   }
 })

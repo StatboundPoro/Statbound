@@ -8,7 +8,7 @@ import { computeStreak, computeWinRate, findBestDeck, formatRelativeTime } from 
 // This screen is the proof that the whole pipeline works end to end:
 // React -> window.api (preload) -> ipcRenderer.invoke -> main process ->
 // better-sqlite3 -> back again. Nothing here talks to SQLite directly.
-export default function DeckLibrary({ onOpenDeck }) {
+export default function DeckLibrary({ onOpenDeck, onPlay }) {
   const [decks, setDecks] = useState([])
   const [matches, setMatches] = useState([])
   const [status, setStatus] = useState('loading')
@@ -113,7 +113,7 @@ export default function DeckLibrary({ onOpenDeck }) {
             </svg>
             Import Deck
           </button>
-          <button className="btn btn-primary" disabled title="Not built yet">
+          <button className="btn btn-primary" onClick={onPlay}>
             <svg viewBox="0 0 24 24" fill="#151313" width="12" height="12">
               <path d="M6 4l14 8-14 8V4z" />
             </svg>

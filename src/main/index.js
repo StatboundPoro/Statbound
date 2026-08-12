@@ -3,6 +3,8 @@ import { fileURLToPath } from 'url'
 import { app, BrowserWindow } from 'electron'
 import { getDb } from './db.js'
 import { registerIpcHandlers } from './ipc.js'
+import { initPlayView } from './playView.js'
+import { initAutoBackup } from './autoBackup.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -13,8 +15,14 @@ const RENDERER_DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL']
 
 function createMainWindow() {
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    // The size the window restores to if the user un-maximizes it — not
+    // the on-launch size. We always launch maximized (below) so the app
+    // fills whatever screen it's on rather than assuming every display is
+    // 1080p; 1920x1080 is just a sane default to land on if they later
+    // click restore-down.
+    width: 1920,
+    height: 1080,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -23,11 +31,20 @@ function createMainWindow() {
     }
   })
 
+  // Maximize before the first paint so there's no visible flash of a
+  // smaller window snapping to full size.
+  win.once('ready-to-show', () => {
+    win.maximize()
+    win.show()
+  })
+
   if (RENDERER_DEV_SERVER_URL) {
     win.loadURL(RENDERER_DEV_SERVER_URL)
   } else {
     win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
+
+  return win
 }
 
 app.whenReady().then(() => {
@@ -35,11 +52,12 @@ app.whenReady().then(() => {
   // ask for data.
   getDb()
   registerIpcHandlers()
+  initAutoBackup()
 
-  createMainWindow()
+  initPlayView(createMainWindow())
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+    if (BrowserWindow.getAllWindows().length === 0) initPlayView(createMainWindow())
   })
 })
 

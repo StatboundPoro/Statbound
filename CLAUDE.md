@@ -42,7 +42,9 @@ Standard Electron security posture:
 ```
 src/
   main/       Electron main process (Node): window management, SQLite, IPC handlers
-    db.js       opens/creates the SQLite file, schema, seeds a demo deck if empty
+    db.js       opens/creates the SQLite file, schema, seeds a demo deck if empty;
+                also exports getDbPath()/closeDb() so settings.js can back up,
+                replace, or reopen the live file for import/reset
     decks.js    deck queries (listDecks, getDeckById, createDeck, updateDeck, deleteDeck)
     matches.js  match + game queries (listMatches, getMatchById, createMatch,
                 updateMatch, deleteMatch) — also where a match's result/score
@@ -50,14 +52,29 @@ src/
     deckNotes.js  deck_notes CRUD (listDeckNotesByDeck, createDeckNote,
                   updateDeckNote, deleteDeckNote) — backs the Deck Detail
                   Notes section
-    ipc.js      registers every ipcMain.handle() endpoint
+    settings.js  Settings screen's backend: exportBackup, pickImportFile,
+                 importBackup, resetAllData, chooseAutoBackupDirectory, and
+                 writeCleanBackup (the shared, WAL-header-stripping backup
+                 writer every one of those funnels through) — see Current
+                 State's Settings entry for the full import/reset safety
+                 story
+    autoBackup.js  the scheduled-backup poller — see Current State's
+                   Automatic Backups entry
+    preferences.js  reads/writes userData/preferences.json (currently just
+                    the auto-backup schedule) — deliberately separate from
+                    the SQLite database; see Current State's Automatic
+                    Backups entry for why
+    playView.js  manages the Play tab's embedded WebContentsView (create,
+                 show/hide, bounds-sync) — see Current State for how it works
+    ipc.js      registers every ipcMain.handle()/ipcMain.on() endpoint
     index.js    app bootstrap, BrowserWindow creation
   preload/    preload script — the only bridge between renderer and main
   renderer/   React UI (sandboxed, no Node/Electron/filesystem access)
     src/components/  DeckLibrary, DeckCard, DeckDetail, MatchHistory,
                       RecentMatches, Sidebar, ImportDeckModal (create + edit),
                       LogMatchModal (create + edit), MatchDetailModal,
-                      MatchupRecord, ConfirmDialog, DeckNotes
+                      MatchupRecord, ConfirmDialog, DeckNotes, PlayScreen,
+                      SettingsScreen
     src/lib/          domains.jsx (Domain colors/icons), stats.js (win rate/streak
                        math), parseDecklist.js (paste-import parser + serializer)
 ```
@@ -207,8 +224,21 @@ create, but replaces the match's games wholesale: delete-then-reinsert
 rather than diffing, since Bo1↔Bo3 edits can freely add/remove games),
 `matches:delete`, `deck-notes:list` (all notes for one deck id),
 `deck-notes:create`, `deck-notes:update` (content/title only —
-scope/category/battlefield_name are fixed at creation), `deck-notes:delete`.
-There is nothing for `replays` yet.
+scope/category/battlefield_name are fixed at creation), `deck-notes:delete`,
+`settings:export` (save-dialog + snapshot the live database), `settings:pick-
+import-file` (open-dialog + validates the chosen file's schema in the same
+round trip), `settings:import` (re-validates, safety-backs-up the current
+database, then replaces it wholesale), `settings:reset` (deletes every deck,
+cascading to everything else), `settings:get-auto-backup`/`settings:update-
+auto-backup` (read/write `preferences.json` via `preferences.js` — see
+Current State's Automatic Backups entry), `settings:choose-auto-backup-
+directory` (open-dialog scoped to `openDirectory`). There is nothing for
+`replays` yet.
+
+Also registered on `ipcMain.on()` rather than `.handle()` — fire-and-forget
+UI sync events with no return value, not data requests: `play:show`,
+`play:hide`, `play:set-bounds` (see Current State's Play tab entry for what
+these drive).
 
 ## Deck import format
 
@@ -297,24 +327,27 @@ rather than assuming this is the only valid shape.
 *(Update this section at the end of each significant feature — see Standing
 Rules.)*
 
-Three real screens exist: **Deck Library**
-([DeckLibrary.jsx](src/renderer/src/components/DeckLibrary.jsx)), **Deck
-Detail** ([DeckDetail.jsx](src/renderer/src/components/DeckDetail.jsx)), and
-**Match History** ([MatchHistory.jsx](src/renderer/src/components/MatchHistory.jsx)).
+Five real screens exist: **Play**
+([PlayScreen.jsx](src/renderer/src/components/PlayScreen.jsx)), **Deck
+Library** ([DeckLibrary.jsx](src/renderer/src/components/DeckLibrary.jsx)),
+**Deck Detail** ([DeckDetail.jsx](src/renderer/src/components/DeckDetail.jsx)),
+**Match History** ([MatchHistory.jsx](src/renderer/src/components/MatchHistory.jsx)),
+and **Settings** ([SettingsScreen.jsx](src/renderer/src/components/SettingsScreen.jsx)).
 There's still no router — [App.jsx](src/renderer/src/App.jsx) holds a
-`screen` state (`'decks'` or `'matches'`, driven by which rail nav item was
-clicked) plus the pre-existing `selectedDeckId` state for the library/detail
-toggle within the Decks screen; clicking the "Decks" nav item resets
-`selectedDeckId` back to the library rather than leaving whatever deck was
-previously open. A real routing library still isn't worth it for two rail
-destinations plus one nested toggle — revisit if a fourth screen needs its
-own navigable state (e.g. deep-linking into a specific deck or match).
-[Sidebar.jsx](src/renderer/src/components/Sidebar.jsx) shows
-Decks/Matches/Insights/Settings; Decks and Matches are now clickable
-(`onNavigate` prop from `App.jsx`, active state highlighted via an `active`
-prop), while Insights and Settings still render as inert (non-clickable) nav
-items with no screen behind them yet, by design, rather than pretending to
-navigate anywhere.
+`screen` state (`'play'`, `'decks'`, `'matches'`, or `'settings'`, driven by
+which rail nav item was clicked) plus the pre-existing `selectedDeckId` state
+for the library/detail toggle within the Decks screen; clicking the "Decks"
+nav item resets `selectedDeckId` back to the library rather than leaving
+whatever deck was previously open. A real routing library still isn't worth
+it for four rail destinations plus one nested toggle — revisit if a further
+screen needs its own navigable state (e.g. deep-linking into a specific deck
+or match). [Sidebar.jsx](src/renderer/src/components/Sidebar.jsx) shows
+Play/Decks/Matches/Insights, plus Settings pinned in its own `rail-bottom`
+slot below them (gear icon), with Play listed first (above Decks); Play,
+Decks, Matches, and Settings are all clickable (`onNavigate` prop from
+`App.jsx`, active state highlighted via an `active` prop), while Insights
+still renders as an inert (non-clickable) nav item with no screen behind it
+yet, by design, rather than pretending to navigate anywhere.
 
 The app shell itself (`.app` in `styles.css`) is sized to exactly `100vh`
 rather than `min-height: 100vh`, and `.main` scrolls independently
@@ -325,7 +358,78 @@ sizing/overflow split, not `position: sticky`/`fixed`; it relies on `.app`
 being a single-row CSS grid so both `.rail` and `.main` size to the same
 viewport-height row.
 
+The window ([index.js](src/main/index.js)) is created hidden (`show: false`)
+and maximized on `ready-to-show` before its first paint, so it always opens
+filling whatever screen it's on rather than assuming every display is
+1080p, with no visible flash of a smaller window snapping to full size.
+`width`/`height: 1920x1080` in the `BrowserWindow` constructor aren't the
+launch size (maximize wins on launch) — they're just the size the window
+restores to if the user later clicks restore-down.
+
+`.main` centers its content instead of hugging the left edge, which
+otherwise looked distinctly off once the window is routinely maximized/
+wide rather than the old fixed 1280×800: `width: 100%; max-width: 1640px;
+margin: 0 auto;`. The `width: 100%` is load-bearing, not redundant — `.main`
+is a CSS Grid item (child of `.app`'s grid), and a grid item with an auto
+margin drops the default stretch-to-fill-column sizing in favor of
+shrinking to fit its own content, so *without* an explicit `width` the rule
+quietly renders far narrower than `max-width` regardless of how large
+`max-width` is. `.main-play` (the Play tab) overrides `max-width: none` so
+the embed still fills the track edge-to-edge with no cap to center within.
+Chromium's default (light-colored) scrollbar was also replaced everywhere
+in the app with a themed one matching the dark palette, via a global
+`::-webkit-scrollbar` rule near the top of `styles.css` — safe to rely on
+with no fallback since Electron's renderer is always Chromium.
+
 **Built and working:**
+- **Play tab**, reached via the Sidebar's new "Play" nav item (top of the
+  rail, above Decks) or the Deck Library topbar's "Play" button (now
+  enabled — both are the same destination, not separate views). Embeds
+  https://play.riftatlas.com filling the screen's content area, via an
+  Electron `WebContentsView` rather than a `<webview>` tag — see
+  [playView.js](src/main/playView.js). `WebContentsView` was chosen because
+  it's a separate `WebContents` the main process attaches directly to the
+  `BrowserWindow`, with its own independent `webPreferences`
+  (`contextIsolation`/`nodeIntegration`/`sandbox` set the same as the main
+  window, no preload at all); it never requires touching the main window's
+  own hardened `webPreferences` the way `<webview>` would (`<webview>`
+  needs `webviewTag: true` set on the window that hosts it, which Electron's
+  own security guidance recommends against). The tradeoff is that
+  `WebContentsView` is positioned by pixel bounds from the main process
+  rather than living in the DOM, so [PlayScreen.jsx](src/renderer/src/components/PlayScreen.jsx)
+  syncs its container div's `getBoundingClientRect()` to main on
+  mount/resize (`ResizeObserver` + a `window resize` listener) via the new
+  `play:set-bounds` IPC channel, and calls `play:show`/`play:hide` on
+  mount/unmount so the embed doesn't render on top of other screens.
+  `playView.js` lazily creates the `WebContentsView` and only calls
+  `loadURL()` the first time the user actually opens the Play tab — not at
+  app startup — so the app makes zero requests to any third party until the
+  user has explicitly asked for this embed, matching the "no network calls
+  without exception" standing rule (the *user* choosing to open a browser-
+  like embed of a site they asked for is not the app calling home). Hiding
+  the tab detaches the view but doesn't destroy it, so login/session state
+  on play.riftatlas.com survives switching to another screen and back. This
+  is a **plain, read-only embed only** — no `webRequest`/`session` network
+  interception, no `webContents.debugger` attachment, no reading of the
+  embedded page's data of any kind; it behaves like visiting the site in an
+  ordinary browser tab, just hosted inside this window. No recording/
+  capture of any kind exists yet (a deliberately separate future feature),
+  and there's no TCG Arena embed and no linking to decks/matches from this
+  screen — this pass is purely "can I play Rift Atlas inside RiftTrack."
+  Two non-obvious fixes were needed to get it actually rendering, both
+  worth knowing before touching this code again: (1) `playView.js` calls
+  `webContents.setBackgroundThrottling(false)` on the embed — Chromium
+  otherwise treats an attached-but-secondary `WebContentsView` as
+  "backgrounded" (throttled timers/animations, `document.visibilityState`
+  stuck on `'hidden'`) purely because it isn't the window's primary content
+  view, even though it's fully visible on screen, which stalled Rift
+  Atlas's own loading sequence forever. (2) `PlayScreen.jsx` reads
+  `el.getBoundingClientRect()`'s fields into a plain `{x, y, width,
+  height}` object before calling `window.api.play.setBounds()` — passing
+  the `DOMRect` itself arrives in preload as all-`undefined`, because its
+  `x`/`y`/`width`/`height` are getters on `DOMRect.prototype`, not the
+  instance's own properties, and `contextBridge` only clones an object's
+  *own* enumerable properties across the isolated-world boundary.
 - Deck Library loads decks + matches over real IPC → SQLite on mount and
   renders the full pipeline end to end (no mock data).
 - Stat strip: overall win rate, current streak, best deck by win rate, last
@@ -525,10 +629,107 @@ viewport-height row.
   exist for the narrower result set, and the current page is clamped
   against the actual (post-filter) match count so a mid-session delete via
   `MatchDetailModal` can't leave it pointing past the new last page.
+- **Settings**, the screen reached via the Sidebar's gear icon
+  ([SettingsScreen.jsx](src/renderer/src/components/SettingsScreen.jsx)).
+  A General section (Export Backup, Import Backup) and a visually distinct
+  red-tinted Danger Zone section (Reset All Data) — `.settings-danger-zone`
+  in `styles.css`, the app's first use of that treatment; Delete Deck/Match
+  predate it and still use a plain outline button with no surrounding panel.
+  **Export** (`settings:export` → `exportBackup()` in
+  [settings.js](src/main/settings.js)) shows a native save dialog, then
+  writes a consistent snapshot of the live database to the chosen path via
+  better-sqlite3's online-backup API (`db.backup(path)`) rather than a raw
+  file copy — safe to use against a live WAL-mode connection, since a plain
+  `fs.copyFile` could catch pages mid-write. Every backup this app writes
+  (Export, the pre-import safety copy below, and Automatic Backups) actually
+  goes through one shared `writeCleanBackup()` in `settings.js`, not
+  `db.backup()` directly: the live database runs in WAL mode for write
+  concurrency, and that mode is recorded in the database file's own header,
+  so a plain `.backup()` copy inherits it — meaning the moment anything
+  opens the exported file at all, even read-only, SQLite spawns `-wal`/
+  `-shm` sidecar files next to it. `writeCleanBackup()` runs `PRAGMA
+  journal_mode = DELETE` against the destination immediately after backing
+  it up, which strips that flag back out, so an exported file is exactly
+  the one clean file a user expects at the location they picked — no
+  surprise siblings, whether they open it themselves or the app later
+  re-opens it for import validation. **Import** is a three-step
+  round trip, all through `settings.js`: `pickImportFile()` opens a native
+  open dialog and validates the chosen file in the same call (checks for the
+  five expected tables plus a column spot-check on `decks`, via a read-only
+  connection that's always closed afterward) so the renderer has real
+  `{decks, matches, notes}` row counts before the user ever sees a confirm
+  dialog; an invalid file is rejected with a specific inline error and
+  nothing is touched. If valid, `SettingsScreen.jsx` shows a warning
+  ConfirmDialog spelling out — by name, in full sentences, not just a title —
+  that this **completely replaces** every deck/match/note with the backup's
+  contents and that current data is unrecoverable unless separately
+  exported. Confirming requires typing the literal word `REPLACE` into a
+  text field before the button enables — see `requireText` below — and only
+  then does `importBackup()` re-validate the file (never trusts the
+  renderer's earlier check), snapshot the *current* database to
+  `userData/backups/pre-import-<timestamp>-<uuid>.db` as a recovery path,
+  close the live connection, delete stale `-wal`/`-shm` sidecars, copy the
+  backup over the live file, and reopen it. `getDb({ seed: false })` is used
+  for that reopen (and for Reset, below) — the normal empty-database
+  demo-deck seed in `db.js` must NOT fire here, since an empty result is a
+  deliberate "this is what the backup/reset actually contains," not a fresh
+  install. On success the modal shows the safety-backup path, then the
+  renderer calls `window.location.reload()` so every screen refetches from
+  the new database with no manual app restart. If the file swap itself fails
+  partway, `importBackup()` copies the safety snapshot back over the live
+  file before returning an error, so a bad import can't leave the app
+  pointed at a half-written database. **Reset All Data** (`settings:reset` →
+  `resetAllData()`) is one `DELETE FROM decks`, relying on the schema's
+  existing `ON DELETE CASCADE` chain (decks → matches → games, decks →
+  deck_notes, decks → replays) to clear everything in one statement; no
+  pre-reset safety backup is taken (only Import got that treatment, since
+  that's the flow this feature was actually built around) — Export first is
+  how a user protects themselves before resetting. Both Import and Reset
+  gate their destructive confirm button on a new `requireText` prop on
+  [ConfirmDialog.jsx](src/renderer/src/components/ConfirmDialog.jsx) (`type
+  RESET` / `type REPLACE` into a field before the button enables) rather
+  than the plain Cancel/Confirm click Delete Deck/Match use — deliberately a
+  stronger gate, since these two actions affect every row in the database
+  at once instead of one. Verified end-to-end with a Playwright `_electron`
+  driver against an isolated `--user-data-dir` (native save/open dialogs
+  mocked via `electronApp.evaluate` rather than a real OS file picker):
+  export writes a real file, an invalid file is rejected untouched, both
+  typed-confirmation gates actually block the button, reset empties the
+  library, and importing the earlier export restores it — including the
+  reload-without-restart behavior.
+- **Automatic Backups**, a third Settings section between General and
+  Danger Zone. An enable toggle (styled as `.checkbox-pill`, the same
+  control Log Match's flag tag-input uses), a Backup Interval segmented
+  control (Hourly / Every 6 Hours / Daily / Weekly, i.e. 1/6/24/168 hours —
+  defaults to Daily), and a Backup Folder row (defaults to `Documents/
+  RiftTrack Backups`, changeable via a native folder picker,
+  `settings:choose-auto-backup-directory` → `chooseAutoBackupDirectory()`
+  in `settings.js`) all backed by
+  [preferences.js](src/main/preferences.js), which reads/writes a plain
+  `userData/preferences.json` — **deliberately not a SQLite table.** This
+  schedule is a setting about *this installation*, not TCG data, so it must
+  survive Import and Reset untouched (importing someone else's backup, or
+  resetting your own data, shouldn't silently redirect or wipe where your
+  own auto-backups are going). The scheduler itself
+  ([autoBackup.js](src/main/autoBackup.js)) is started once from
+  `app.whenReady()` in `index.js`: it polls every 5 minutes (not one
+  `setTimeout` sized to the user's chosen interval) and runs a backup — via
+  the same `writeCleanBackup()` Export uses, so auto-backups are just as
+  free of stray `-wal`/`-shm` files — whenever `now >= lastBackupAt +
+  intervalHours`, including immediately on the very next poll after
+  `lastBackupAt` is `null` (never backed up) or the app was closed past the
+  due time; there's no separate "missed backup" handling because polling
+  already covers it. After each run it prunes old backups in that folder
+  down to `retainCount` (10, not currently user-configurable), matching by
+  filename prefix (`rifttrack-auto-backup-`) only — it will never delete a
+  manual Export or any other file a user keeps in the same folder, even an
+  old `.db`. There's no "back up now" button; Export already covers
+  on-demand, so this is purely the unattended background path. Verified by
+  actually letting the real 5-minute poll fire (not by shortening the
+  interval for the test) and confirming a real file landed in a redirected
+  folder with no sidecars.
 
 **Stubbed/placeholder:**
-- The "Play" button on the Deck Library topbar is present but `disabled`
-  — no Play flow exists yet.
 - The seeded "Demo Deck (sample data)" row still appears in a fresh
   database alongside any real imported decks. Its `decklist` JSON predates
   the import feature and has no `legend`/`champion` keys and no
@@ -544,7 +745,7 @@ working above).
 **Doesn't exist yet:**
 - Replay logging/import (the `replays` table exists in the schema; there is
   no IPC handler or UI for it at all).
-- The Insights and Settings screens.
+- The Insights screen.
 - Any sync feature — deliberately not started; only the reserved
   `sync_status` columns exist.
 

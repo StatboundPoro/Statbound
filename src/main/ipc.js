@@ -2,6 +2,9 @@ import { ipcMain } from 'electron'
 import { createDeck, deleteDeck, getDeckById, listDecks, updateDeck } from './decks.js'
 import { createMatch, deleteMatch, getMatchById, listMatches, updateMatch } from './matches.js'
 import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } from './deckNotes.js'
+import { hidePlayView, setPlayBounds, showPlayView } from './playView.js'
+import { chooseAutoBackupDirectory, exportBackup, importBackup, pickImportFile, resetAllData } from './settings.js'
+import { getAutoBackupPrefs, updateAutoBackupPrefs } from './preferences.js'
 
 /**
  * Registers every ipcMain.handle() endpoint the renderer is allowed to call.
@@ -25,4 +28,17 @@ export function registerIpcHandlers() {
   ipcMain.handle('deck-notes:create', (_event, note) => createDeckNote(note))
   ipcMain.handle('deck-notes:update', (_event, id, patch) => updateDeckNote(id, patch))
   ipcMain.handle('deck-notes:delete', (_event, id) => deleteDeckNote(id))
+  ipcMain.handle('settings:export', () => exportBackup())
+  ipcMain.handle('settings:pick-import-file', () => pickImportFile())
+  ipcMain.handle('settings:import', (_event, filePath) => importBackup(filePath))
+  ipcMain.handle('settings:reset', () => resetAllData())
+  ipcMain.handle('settings:get-auto-backup', () => getAutoBackupPrefs())
+  ipcMain.handle('settings:update-auto-backup', (_event, patch) => updateAutoBackupPrefs(patch))
+  ipcMain.handle('settings:choose-auto-backup-directory', () => chooseAutoBackupDirectory())
+
+  // One-way (send/on, not invoke/handle) since these are fire-and-forget UI
+  // sync events, not requests with a return value.
+  ipcMain.on('play:show', () => showPlayView())
+  ipcMain.on('play:hide', () => hidePlayView())
+  ipcMain.on('play:set-bounds', (_event, rect) => setPlayBounds(rect))
 }

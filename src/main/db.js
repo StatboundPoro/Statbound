@@ -87,25 +87,57 @@ function migrateLegacyMatchesTable(db) {
 }
 
 /**
+ * The on-disk path of the live database file — also used by settings.js to
+ * back it up, replace it wholesale on import, or validate a candidate
+ * import file's schema without disturbing the live connection.
+ */
+export function getDbPath() {
+  return path.join(app.getPath('userData'), 'rifttrack.db')
+}
+
+function openDatabase(dbPath) {
+  const instance = new Database(dbPath)
+  instance.pragma('journal_mode = WAL')
+  instance.pragma('foreign_keys = ON')
+
+  migrateLegacyMatchesTable(instance)
+  instance.exec(SCHEMA)
+
+  return instance
+}
+
+/**
  * Opens (or creates) the SQLite database file in Electron's per-user data
  * directory and ensures the schema exists. Safe to call multiple times —
  * the connection is cached after the first call.
+ *
+ * `seed: false` skips the empty-database demo-deck seed. Only settings.js
+ * passes this, when reopening the connection right after an import or a
+ * reset — both are deliberate "make the database look like exactly this"
+ * actions, so a database that's genuinely empty afterward (an empty backup,
+ * or a reset) must stay empty rather than silently growing a demo deck the
+ * user never asked for.
  */
-export function getDb() {
+export function getDb({ seed = true } = {}) {
   if (db) return db
 
-  const dbPath = path.join(app.getPath('userData'), 'rifttrack.db')
-  db = new Database(dbPath)
-
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-
-  migrateLegacyMatchesTable(db)
-  db.exec(SCHEMA)
-
-  seedDemoDeckIfEmpty(db)
+  db = openDatabase(getDbPath())
+  if (seed) seedDemoDeckIfEmpty(db)
 
   return db
+}
+
+/**
+ * Closes the live connection and clears the cache so the next getDb() call
+ * reopens it from disk. Used by settings.js to release the file (and let
+ * WAL mode checkpoint its -wal/-shm sidecar files back into the main file)
+ * before the underlying file is replaced by an import.
+ */
+export function closeDb() {
+  if (!db) return
+  db.pragma('wal_checkpoint(TRUNCATE)')
+  db.close()
+  db = null
 }
 
 // Inserts one sample deck on a brand-new database so the Deck Library

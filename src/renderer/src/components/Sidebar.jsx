@@ -1,8 +1,21 @@
-// Insights/Settings have no screens behind them yet — they render as inert
-// (non-clickable) nav items rather than pretending to navigate anywhere.
-// Decks and Matches now both have real screens, so they're clickable and
-// their `key` doubles as the `screen` value App.jsx switches on.
+// Insights has no screen yet — it renders as an inert (non-clickable) nav
+// item rather than pretending to navigate anywhere. Play, Decks, Matches,
+// and Settings all have real screens, so they're clickable and their `key`
+// doubles as the `screen` value App.jsx switches on. Settings stays in its
+// own `rail-bottom` slot (gear icon, pinned below the main nav list) rather
+// than joining NAV_ITEMS, since that's a deliberate, distinct part of the
+// rail's layout, not an oversight.
 const NAV_ITEMS = [
+  {
+    key: 'play',
+    label: 'Play',
+    navigable: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M7 4l12 8-12 8V4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      </svg>
+    )
+  },
   {
     key: 'decks',
     label: 'Decks',
@@ -79,7 +92,15 @@ export default function Sidebar({ active, onNavigate }) {
       </div>
 
       <div className="rail-bottom">
-        <div className="rail-item">
+        <div
+          className={`rail-item clickable ${active === 'settings' ? 'active' : ''}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate('settings')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') onNavigate('settings')
+          }}
+        >
           <svg viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
             <path

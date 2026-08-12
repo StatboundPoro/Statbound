@@ -40,6 +40,29 @@ body {
   height: 100%;
 }
 
+/* Chromium's default scrollbar is light/system-themed and reads as a
+   stray white bar against this app's dark palette, especially now that
+   wider windows make scrollable panes (.main, .rail, modals) more
+   noticeable. -webkit-scrollbar is safe to rely on with no fallback since
+   Electron's renderer is always Chromium. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* .app fills the viewport height exactly (not min-height) so its two grid
    items — the rail and the scrollable main content — both size to it. The
    rail then never scrolls out of view; only .main scrolls internally. */
@@ -132,9 +155,23 @@ body {
 }
 
 /* ---------- MAIN ---------- */
+/* width: 100% + max-width + margin: 0 auto centers the capped-width column
+   inside the (now frequently much wider than 1640px, on a maximized/
+   1080p+ window) .rail-adjacent grid track, instead of the content
+   hugging the left edge with a wide gutter of bare background on the
+   right. The explicit width: 100% is load-bearing, not redundant: a grid
+   item with an auto-margin drops the default stretch-to-fill-column
+   sizing and instead shrinks to fit its own content — so without it,
+   .main quietly renders far narrower than max-width regardless of how
+   large max-width is, only ever "coincidentally" reaching it if its
+   content happens to be that wide on its own. Has no visible effect on
+   .main-play, which drops max-width entirely so the embed still fills the
+   full track edge-to-edge. */
 .main {
+  width: 100%;
   padding: 28px 40px 60px;
-  max-width: 1360px;
+  max-width: 1640px;
+  margin: 0 auto;
   height: 100vh;
   overflow-y: auto;
 }
@@ -227,6 +264,25 @@ body {
 .btn-danger-outline:hover {
   background: rgba(214, 72, 63, 0.12);
   border-color: var(--fury);
+}
+
+/* ---------- PLAY ---------- */
+/* The embed itself is a native WebContentsView the main process positions
+   over .play-embed's screen rect (see PlayScreen.jsx), not DOM content —
+   so this area must never scroll or be clipped by a max-width, or the
+   native view would drift out of alignment with its placeholder div. */
+.main-play {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  overflow: hidden;
+}
+.play-embed {
+  flex: 1;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
 /* ---------- STAT STRIP ---------- */
@@ -1772,4 +1828,95 @@ body {
 .match-detail-actions-right {
   display: flex;
   gap: 10px;
+}
+
+/* ---------- SETTINGS ---------- */
+.settings-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.settings-row:last-child {
+  border-bottom: none;
+}
+.settings-row-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.settings-row-desc {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+  max-width: 480px;
+}
+.settings-row-actions {
+  flex-shrink: 0;
+}
+.settings-status {
+  padding: 12px 20px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-soft);
+}
+.settings-status.error {
+  color: var(--fury);
+}
+.settings-path {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+/* Same red-tinted "this section is not routine" treatment used nowhere
+   else yet — Delete Deck/Match use a plain outline button with no
+   surrounding panel, but Reset All Data sits next to Import in the same
+   screen, so it needs a stronger visual break from it. */
+.settings-danger-zone {
+  border-color: rgba(214, 72, 63, 0.4);
+  background: rgba(214, 72, 63, 0.05);
+}
+.settings-danger-zone .settings-row-title {
+  color: var(--fury);
+}
+
+/* ---------- CONFIRM DIALOG TYPE-TO-CONFIRM GUARD ---------- */
+.confirm-type-guard {
+  margin-top: 14px;
+}
+.confirm-type-guard label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.confirm-type-guard label strong {
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+}
+.confirm-type-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding: 9px 12px;
+}
+.confirm-type-input:focus {
+  outline: none;
+  border-color: var(--fury);
 }
