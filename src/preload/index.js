@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('api', {
     update: (id, patch) => ipcRenderer.invoke('deck-notes:update', id, patch),
     delete: (id) => ipcRenderer.invoke('deck-notes:delete', id)
   },
+  legends: {
+    list: () => ipcRenderer.invoke('legends:list')
+  },
   settings: {
     export: () => ipcRenderer.invoke('settings:export'),
     pickImportFile: () => ipcRenderer.invoke('settings:pick-import-file'),

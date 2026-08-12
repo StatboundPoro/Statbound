@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LegendAutocomplete from './LegendAutocomplete'
 
 const EXTRA_BATTLEFIELD_OPTIONS = ['Baron Pit', 'Brush']
 
@@ -455,10 +456,9 @@ export default function LogMatchModal({ initialDeckId, mode = 'create', match, o
             </label>
             <label className="form-field">
               <span>Opponent Legend</span>
-              <input
-                type="text"
+              <LegendAutocomplete
                 value={opponentLegend}
-                onChange={(e) => setOpponentLegend(e.target.value)}
+                onChange={setOpponentLegend}
                 placeholder="Optional"
               />
             </label>

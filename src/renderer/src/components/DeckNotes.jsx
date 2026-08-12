@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LegendAutocomplete from './LegendAutocomplete'
 
 const GENERAL_SCOPE = 'general'
 
@@ -343,10 +344,9 @@ export default function DeckNotes({ deckId, battlefields }) {
           </button>
         ) : (
           <div className="notes-add-matchup-form">
-            <input
-              type="text"
+            <LegendAutocomplete
               value={addMatchupValue}
-              onChange={(e) => setAddMatchupValue(e.target.value)}
+              onChange={setAddMatchupValue}
               placeholder="Opponent legend…"
               autoFocus
               onKeyDown={(e) => {

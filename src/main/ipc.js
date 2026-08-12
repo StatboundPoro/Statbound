@@ -3,6 +3,7 @@ import { getDbPath } from './db.js'
 import { createDeck, deleteDeck, getDeckById, listDecks, updateDeck } from './decks.js'
 import { createMatch, deleteMatch, getMatchById, listMatches, updateMatch } from './matches.js'
 import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } from './deckNotes.js'
+import { listLegends } from './legends.js'
 import { hidePlayView, setPlayBounds, showPlayView } from './playView.js'
 import {
   chooseAutoBackupDirectory,
@@ -43,6 +44,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('deck-notes:create', (_event, note) => createDeckNote(note))
   ipcMain.handle('deck-notes:update', (_event, id, patch) => updateDeckNote(id, patch))
   ipcMain.handle('deck-notes:delete', (_event, id) => deleteDeckNote(id))
+  ipcMain.handle('legends:list', () => listLegends())
   ipcMain.handle('settings:export', () => exportBackup())
   ipcMain.handle('settings:pick-import-file', () => pickImportFile())
   ipcMain.handle('settings:import', (_event, filePath) => importBackup(filePath))

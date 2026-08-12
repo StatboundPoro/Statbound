@@ -2,6 +2,7 @@ import path from 'path'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import Database from 'better-sqlite3'
+import { LEGEND_NAMES } from './data/legends.js'
 
 let db = null
 
@@ -70,10 +71,22 @@ const SCHEMA = `
     sync_status TEXT NOT NULL DEFAULT 'local_only'
   );
 
+  -- Static reference data (real Riftbound Legend names, bundled in
+  -- data/legends.js) surfaced as autocomplete suggestions on the free-text
+  -- deck_notes.scope and matches.opponent_legend columns. No sync_status —
+  -- this is shipped reference data, not user-generated content, so it isn't
+  -- a sync candidate (see CLAUDE.md's sync_status convention).
+  CREATE TABLE IF NOT EXISTS legends (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_matches_deck_id ON matches(deck_id);
   CREATE INDEX IF NOT EXISTS idx_games_match_id ON games(match_id);
   CREATE INDEX IF NOT EXISTS idx_replays_match_id ON replays(match_id);
   CREATE INDEX IF NOT EXISTS idx_deck_notes_deck_id ON deck_notes(deck_id);
+  CREATE INDEX IF NOT EXISTS idx_legends_name ON legends(name);
 `
 
 /**
@@ -111,6 +124,7 @@ export function getDb({ seed = true } = {}) {
   if (db) return db
 
   db = openDatabase(getDbPath())
+  syncLegends(db)
   if (seed) seedDemoDeckIfEmpty(db)
 
   return db
@@ -127,6 +141,28 @@ export function closeDb() {
   db.pragma('wal_checkpoint(TRUNCATE)')
   db.close()
   db = null
+}
+
+// Inserts any LEGEND_NAMES not already present in the legends table, keyed
+// on an exact (case-sensitive) match against `name`. Runs on every startup
+// regardless of the `seed` option — unlike the demo deck, this is bundled
+// reference data rather than user data, so it isn't part of the "does this
+// database look freshly imported/reset" decision, and rows are only ever
+// added here, never removed, so a name dropped from LEGEND_NAMES later
+// doesn't retroactively delete anyone's existing matchup data referencing
+// it.
+function syncLegends(db) {
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO legends (id, name, created_at) VALUES (@id, @name, @created_at)'
+  )
+  const now = new Date().toISOString()
+
+  const syncAll = db.transaction((names) => {
+    for (const name of names) {
+      insert.run({ id: randomUUID(), name, created_at: now })
+    }
+  })
+  syncAll(LEGEND_NAMES)
 }
 
 // Inserts one sample deck on a brand-new database so the Deck Library
