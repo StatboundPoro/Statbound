@@ -1863,6 +1863,10 @@ body {
 .settings-row-actions {
   flex-shrink: 0;
 }
+.settings-button-group {
+  display: flex;
+  gap: 10px;
+}
 .settings-status {
   padding: 12px 20px;
   font-size: 12.5px;

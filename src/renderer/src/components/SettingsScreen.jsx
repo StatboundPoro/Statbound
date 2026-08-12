@@ -145,6 +145,16 @@ export default function SettingsScreen() {
     }
   }
 
+  async function handleResetVideoCaptureDirectory() {
+    setVideoCaptureError(null)
+    try {
+      setVideoCapture(await window.api.settings.resetVideoCaptureDirectory())
+    } catch (err) {
+      console.error('Failed to reset the save location:', err)
+      setVideoCaptureError('Could not reset the save location.')
+    }
+  }
+
   async function handleExport() {
     setExportStatus(null)
     try {
@@ -362,9 +372,12 @@ export default function SettingsScreen() {
               )}
             </div>
           </div>
-          <div className="settings-row-actions">
+          <div className="settings-row-actions settings-button-group">
             <button className="btn" onClick={handleChooseVideoCaptureDirectory} disabled={!videoCapture}>
               Choose Folder
+            </button>
+            <button className="btn" onClick={handleResetVideoCaptureDirectory} disabled={!videoCapture}>
+              Reset to Default
             </button>
           </div>
         </div>

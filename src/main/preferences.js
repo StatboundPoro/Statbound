@@ -104,3 +104,12 @@ export function updateVideoCapturePrefs(patch) {
   writeRaw({ ...raw, videoCapture })
   return videoCapture
 }
+
+/**
+ * Points the video-capture save directory back at
+ * `defaultVideoCaptureDirectory()`, for the Settings screen's "Reset to
+ * Default" button next to its folder picker.
+ */
+export function resetVideoCaptureDirectory() {
+  return updateVideoCapturePrefs({ directory: defaultVideoCaptureDirectory() })
+}

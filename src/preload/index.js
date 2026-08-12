@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('api', {
     getVideoCapture: () => ipcRenderer.invoke('settings:get-video-capture'),
     updateVideoCapture: (patch) => ipcRenderer.invoke('settings:update-video-capture', patch),
     chooseVideoCaptureDirectory: () => ipcRenderer.invoke('settings:choose-video-capture-directory'),
+    resetVideoCaptureDirectory: () => ipcRenderer.invoke('settings:reset-video-capture-directory'),
     getFolderSize: (directory) => ipcRenderer.invoke('settings:get-folder-size', directory)
   },
   play: {

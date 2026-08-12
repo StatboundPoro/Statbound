@@ -16,6 +16,7 @@ import {
 import {
   getAutoBackupPrefs,
   getVideoCapturePrefs,
+  resetVideoCaptureDirectory,
   updateAutoBackupPrefs,
   updateVideoCapturePrefs
 } from './preferences.js'
@@ -53,6 +54,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:get-video-capture', () => getVideoCapturePrefs())
   ipcMain.handle('settings:update-video-capture', (_event, patch) => updateVideoCapturePrefs(patch))
   ipcMain.handle('settings:choose-video-capture-directory', () => chooseVideoCaptureDirectory())
+  ipcMain.handle('settings:reset-video-capture-directory', () => resetVideoCaptureDirectory())
   ipcMain.handle('settings:get-folder-size', (_event, directory) => getFolderSizeBytes(directory))
 
   // One-way (send/on, not invoke/handle) since these are fire-and-forget UI
