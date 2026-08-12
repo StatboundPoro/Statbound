@@ -26,6 +26,10 @@ npm-debug.log*
 # research/network-spy harness — captured third-party traffic dumps
 research/network-spy/logs/
 
+# Claude Code project config/instructions — kept locally, not published
+.claude/
+CLAUDE.md
+
 # Editor / OS junk
 .vscode/*
 !.vscode/extensions.json
