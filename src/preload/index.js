@@ -39,7 +39,12 @@ contextBridge.exposeInMainWorld('api', {
     reset: () => ipcRenderer.invoke('settings:reset'),
     getAutoBackup: () => ipcRenderer.invoke('settings:get-auto-backup'),
     updateAutoBackup: (patch) => ipcRenderer.invoke('settings:update-auto-backup', patch),
-    chooseAutoBackupDirectory: () => ipcRenderer.invoke('settings:choose-auto-backup-directory')
+    chooseAutoBackupDirectory: () => ipcRenderer.invoke('settings:choose-auto-backup-directory'),
+    getAppDataPath: () => ipcRenderer.invoke('settings:get-app-data-path'),
+    getVideoCapture: () => ipcRenderer.invoke('settings:get-video-capture'),
+    updateVideoCapture: (patch) => ipcRenderer.invoke('settings:update-video-capture', patch),
+    chooseVideoCaptureDirectory: () => ipcRenderer.invoke('settings:choose-video-capture-directory'),
+    getFolderSize: (directory) => ipcRenderer.invoke('settings:get-folder-size', directory)
   },
   play: {
     show: () => ipcRenderer.send('play:show'),

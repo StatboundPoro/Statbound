@@ -9,6 +9,24 @@ const AUTO_BACKUP_INTERVALS = [
   { label: 'Weekly', hours: 168 }
 ]
 
+const VIDEO_QUALITY_PRESETS = [
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' }
+]
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unitIndex = -1
+  do {
+    value /= 1024
+    unitIndex++
+  } while (value >= 1024 && unitIndex < units.length - 1)
+  return `${value.toFixed(1)} ${units[unitIndex]}`
+}
+
 function importWarningMessage(summary) {
   const counts = `${summary.decks} deck${summary.decks === 1 ? '' : 's'}, ${summary.matches} match${
     summary.matches === 1 ? '' : 'es'
@@ -22,11 +40,13 @@ function importWarningMessage(summary) {
   )
 }
 
-// Settings has three sections. General holds the Export/Import pair the
-// rest of this file exists for; Automatic Backups holds the scheduled
-// background-backup toggle; Danger Zone holds Reset All Data, visually
-// separated (border/background tint, red title) so it doesn't read as a
-// routine action next to them.
+// Settings has four sections. General holds Export/Import plus a read-only
+// display of where the database file lives; Automatic Backups holds the
+// scheduled background-backup toggle; Video Capture holds preferences for
+// the not-yet-built replay recording feature (save location + quality
+// preset only — no recording logic exists yet); Danger Zone holds Reset
+// All Data, visually separated (border/background tint, red title) so it
+// doesn't read as a routine action next to them.
 export default function SettingsScreen() {
   const [exportStatus, setExportStatus] = useState(null) // { filePath } | { error }
   const [importError, setImportError] = useState(null)
@@ -38,9 +58,23 @@ export default function SettingsScreen() {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState(null)
+  const [resetSuccess, setResetSuccess] = useState(null) // { safetyBackupPath }
+
+  const [appDataPath, setAppDataPath] = useState(null)
 
   const [autoBackup, setAutoBackup] = useState(null)
   const [autoBackupError, setAutoBackupError] = useState(null)
+
+  const [videoCapture, setVideoCapture] = useState(null)
+  const [videoCaptureError, setVideoCaptureError] = useState(null)
+  const [replaysFolderSize, setReplaysFolderSize] = useState(null) // bytes | null
+
+  useEffect(() => {
+    window.api.settings
+      .getAppDataPath()
+      .then(setAppDataPath)
+      .catch((err) => console.error('Failed to load app data path:', err))
+  }, [])
 
   useEffect(() => {
     window.api.settings
@@ -48,6 +82,24 @@ export default function SettingsScreen() {
       .then(setAutoBackup)
       .catch((err) => console.error('Failed to load auto-backup settings:', err))
   }, [])
+
+  useEffect(() => {
+    window.api.settings
+      .getVideoCapture()
+      .then(setVideoCapture)
+      .catch((err) => console.error('Failed to load video capture settings:', err))
+  }, [])
+
+  // Re-checked whenever the save location changes, not just once on mount —
+  // choosing a new folder should immediately reflect that folder's own
+  // usage rather than the previous one's.
+  useEffect(() => {
+    if (!videoCapture?.directory) return
+    window.api.settings
+      .getFolderSize(videoCapture.directory)
+      .then(setReplaysFolderSize)
+      .catch((err) => console.error('Failed to read replays folder size:', err))
+  }, [videoCapture?.directory])
 
   async function updateAutoBackup(patch) {
     setAutoBackupError(null)
@@ -68,6 +120,28 @@ export default function SettingsScreen() {
     } catch (err) {
       console.error('Failed to open the folder picker:', err)
       setAutoBackupError('Could not open the folder picker.')
+    }
+  }
+
+  async function updateVideoCapture(patch) {
+    setVideoCaptureError(null)
+    try {
+      setVideoCapture(await window.api.settings.updateVideoCapture(patch))
+    } catch (err) {
+      console.error('Failed to update video capture settings:', err)
+      setVideoCaptureError('Could not save that change.')
+    }
+  }
+
+  async function handleChooseVideoCaptureDirectory() {
+    setVideoCaptureError(null)
+    try {
+      const result = await window.api.settings.chooseVideoCaptureDirectory()
+      if (result.canceled) return
+      await updateVideoCapture({ directory: result.directory })
+    } catch (err) {
+      console.error('Failed to open the folder picker:', err)
+      setVideoCaptureError('Could not open the folder picker.')
     }
   }
 
@@ -127,11 +201,12 @@ export default function SettingsScreen() {
     try {
       const result = await window.api.settings.reset()
       if (!result.success) {
-        setResetError('Reset failed.')
+        setResetError(result.reason || 'Reset failed.')
         setResetting(false)
         return
       }
-      window.location.reload()
+      setResetSuccess({ safetyBackupPath: result.safetyBackupPath })
+      setTimeout(() => window.location.reload(), 1600)
     } catch (err) {
       console.error('Reset failed:', err)
       setResetError('Reset failed. Check the main process console.')
@@ -174,6 +249,20 @@ export default function SettingsScreen() {
             <button className="btn" onClick={handleImportClick}>
               Import
             </button>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">App Data Location</div>
+            <div className="settings-row-desc">
+              Where RiftTrack's database file lives on disk.
+              {appDataPath && (
+                <>
+                  <br />
+                  <span className="settings-path">{appDataPath}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
         {exportStatus && (
@@ -258,6 +347,61 @@ export default function SettingsScreen() {
         {autoBackupError && <div className="settings-status error">{autoBackupError}</div>}
       </div>
 
+      <div className="section-label">Video Capture</div>
+      <div className="settings-panel">
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">Save Location</div>
+            <div className="settings-row-desc">
+              Where replay recordings will be written once recording is built.
+              {videoCapture && (
+                <>
+                  <br />
+                  <span className="settings-path">{videoCapture.directory}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="settings-row-actions">
+            <button className="btn" onClick={handleChooseVideoCaptureDirectory} disabled={!videoCapture}>
+              Choose Folder
+            </button>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">Quality</div>
+            <div className="settings-row-desc">
+              Preset used once recording is built — the resolution and bitrate behind each preset are
+              decided then.
+            </div>
+          </div>
+          <div className="settings-row-actions">
+            <div className="segmented">
+              {VIDEO_QUALITY_PRESETS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`segmented-option ${videoCapture?.quality === opt.value ? 'active' : ''}`}
+                  disabled={!videoCapture}
+                  onClick={() => updateVideoCapture({ quality: opt.value })}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {videoCapture && (
+          <div className="settings-status">
+            {replaysFolderSize == null
+              ? "The replays folder doesn't exist yet — nothing has been recorded."
+              : `Estimated disk usage: ${formatBytes(replaysFolderSize)}`}
+          </div>
+        )}
+        {videoCaptureError && <div className="settings-status error">{videoCaptureError}</div>}
+      </div>
+
       <div className="section-label">Danger Zone</div>
       <div className="settings-panel settings-danger-zone">
         <div className="settings-row">
@@ -311,10 +455,10 @@ export default function SettingsScreen() {
         </div>
       )}
 
-      {resetConfirmOpen && (
+      {resetConfirmOpen && !resetSuccess && (
         <ConfirmDialog
           title="Reset All Data?"
-          message="This permanently deletes every deck, match, and note in RiftTrack. This cannot be undone — export a backup first if you want to keep a copy."
+          message="This permanently deletes every deck, match, and note in RiftTrack. A safety copy of your current data is saved automatically first, but export a backup yourself too if you want an easy way to bring it back."
           confirmLabel="Delete Everything"
           danger
           requireText="RESET"
@@ -326,6 +470,24 @@ export default function SettingsScreen() {
             setResetError(null)
           }}
         />
+      )}
+
+      {resetSuccess && (
+        <div className="modal-backdrop">
+          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Data Reset</h2>
+            </div>
+            <p className="confirm-message">
+              Every deck, match, and note has been deleted. A safety copy of what was there before is saved
+              at:
+            </p>
+            <p className="confirm-message">
+              <span className="settings-path">{resetSuccess.safetyBackupPath}</span>
+            </p>
+            <p className="confirm-message">Reloading RiftTrack…</p>
+          </div>
+        </div>
       )}
     </div>
   )

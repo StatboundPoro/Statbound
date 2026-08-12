@@ -93,18 +93,50 @@ function inspectBackupFile(filePath) {
 }
 
 /**
- * Shows a directory picker for choosing where scheduled auto-backups get
- * written. Only returns the chosen path — saving it into preferences is a
- * separate step the renderer takes explicitly, the same split Import uses
- * between picking/validating a file and actually committing to it.
+ * Shows a directory picker with the given dialog title. Only returns the
+ * chosen path — saving it into preferences is a separate step the renderer
+ * takes explicitly, the same split Import uses between picking/validating a
+ * file and actually committing to it. Shared by the auto-backup folder
+ * picker and the video-capture save-location picker below.
  */
-export async function chooseAutoBackupDirectory() {
+async function chooseDirectory(title) {
   const { canceled, filePaths } = await dialog.showOpenDialog(focusedWindow(), {
-    title: 'Choose Auto-Backup Folder',
+    title,
     properties: ['openDirectory', 'createDirectory']
   })
   if (canceled || filePaths.length === 0) return { canceled: true }
   return { canceled: false, directory: filePaths[0] }
+}
+
+export function chooseAutoBackupDirectory() {
+  return chooseDirectory('Choose Auto-Backup Folder')
+}
+
+export function chooseVideoCaptureDirectory() {
+  return chooseDirectory('Choose Video Capture Save Location')
+}
+
+/**
+ * Recursively sums file sizes under `directory` for the Settings screen's
+ * "estimated disk usage" display. Returns `null` if the folder doesn't
+ * exist yet (e.g. video capture's default folder before it's ever been
+ * created) rather than throwing — an empty/missing replays folder is a
+ * perfectly normal state, not an error.
+ */
+export function getFolderSizeBytes(directory) {
+  if (!directory || !fs.existsSync(directory)) return null
+
+  let total = 0
+  const stack = [directory]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name)
+      if (entry.isDirectory()) stack.push(entryPath)
+      else if (entry.isFile()) total += fs.statSync(entryPath).size
+    }
+  }
+  return total
 }
 
 /**
@@ -209,9 +241,24 @@ export async function importBackup(filePath) {
 /**
  * Deletes every deck (and, via ON DELETE CASCADE, every match/game/replay/
  * note attached to one) — the entire data set. Leaves the schema and the
- * live connection alone.
+ * live connection alone. Takes the same pre-action safety snapshot
+ * `importBackup()` does, into the same `userData/backups/` folder, so a
+ * reset the user regrets has the same recovery path a bad import does.
  */
-export function resetAllData() {
+export async function resetAllData() {
+  const backupsDir = path.join(app.getPath('userData'), 'backups')
+  fs.mkdirSync(backupsDir, { recursive: true })
+  const safetyBackupPath = path.join(
+    backupsDir,
+    `pre-reset-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}.db`
+  )
+
+  try {
+    await writeCleanBackup(safetyBackupPath)
+  } catch (err) {
+    return { success: false, reason: `Could not back up current data before resetting: ${err.message}` }
+  }
+
   getDb().prepare('DELETE FROM decks').run()
-  return { success: true }
+  return { success: true, safetyBackupPath }
 }

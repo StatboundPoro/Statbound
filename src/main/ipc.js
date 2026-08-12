@@ -1,10 +1,24 @@
 import { ipcMain } from 'electron'
+import { getDbPath } from './db.js'
 import { createDeck, deleteDeck, getDeckById, listDecks, updateDeck } from './decks.js'
 import { createMatch, deleteMatch, getMatchById, listMatches, updateMatch } from './matches.js'
 import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } from './deckNotes.js'
 import { hidePlayView, setPlayBounds, showPlayView } from './playView.js'
-import { chooseAutoBackupDirectory, exportBackup, importBackup, pickImportFile, resetAllData } from './settings.js'
-import { getAutoBackupPrefs, updateAutoBackupPrefs } from './preferences.js'
+import {
+  chooseAutoBackupDirectory,
+  chooseVideoCaptureDirectory,
+  exportBackup,
+  getFolderSizeBytes,
+  importBackup,
+  pickImportFile,
+  resetAllData
+} from './settings.js'
+import {
+  getAutoBackupPrefs,
+  getVideoCapturePrefs,
+  updateAutoBackupPrefs,
+  updateVideoCapturePrefs
+} from './preferences.js'
 
 /**
  * Registers every ipcMain.handle() endpoint the renderer is allowed to call.
@@ -35,6 +49,11 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:get-auto-backup', () => getAutoBackupPrefs())
   ipcMain.handle('settings:update-auto-backup', (_event, patch) => updateAutoBackupPrefs(patch))
   ipcMain.handle('settings:choose-auto-backup-directory', () => chooseAutoBackupDirectory())
+  ipcMain.handle('settings:get-app-data-path', () => getDbPath())
+  ipcMain.handle('settings:get-video-capture', () => getVideoCapturePrefs())
+  ipcMain.handle('settings:update-video-capture', (_event, patch) => updateVideoCapturePrefs(patch))
+  ipcMain.handle('settings:choose-video-capture-directory', () => chooseVideoCaptureDirectory())
+  ipcMain.handle('settings:get-folder-size', (_event, directory) => getFolderSizeBytes(directory))
 
   // One-way (send/on, not invoke/handle) since these are fire-and-forget UI
   // sync events, not requests with a return value.

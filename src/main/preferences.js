@@ -17,12 +17,26 @@ export function defaultAutoBackupDirectory() {
   return path.join(app.getPath('documents'), 'RiftTrack Backups')
 }
 
+// Same reasoning as the auto-backup directory above applies to where replay
+// recordings get written: it's a setting about this installation, not TCG
+// data, so it lives here rather than in the database and survives Import/
+// Reset untouched. Recording itself isn't built yet — this only persists
+// the preference for when it is.
+export function defaultVideoCaptureDirectory() {
+  return path.join(app.getPath('userData'), 'replays')
+}
+
 const DEFAULT_AUTO_BACKUP = {
   enabled: false,
   intervalHours: 24,
   directory: null, // resolved to defaultAutoBackupDirectory() on first read, then persisted
   lastBackupAt: null,
   retainCount: 10
+}
+
+const DEFAULT_VIDEO_CAPTURE = {
+  directory: null, // resolved to defaultVideoCaptureDirectory() on first read, then persisted
+  quality: 'medium' // 'low' | 'medium' | 'high' — resolution/bitrate mapping decided when recording is built
 }
 
 function readRaw() {
@@ -63,4 +77,30 @@ export function updateAutoBackupPrefs(patch) {
   const autoBackup = { ...DEFAULT_AUTO_BACKUP, ...raw.autoBackup, ...patch }
   writeRaw({ ...raw, autoBackup })
   return autoBackup
+}
+
+/**
+ * Returns the current video-capture preferences (save directory + quality
+ * preset), filling in defaults for anything missing. `directory` is
+ * resolved to the default location (and written back to disk) the first
+ * time it's read with no value set, the same pattern `getAutoBackupPrefs()`
+ * uses above.
+ */
+export function getVideoCapturePrefs() {
+  const raw = readRaw()
+  const videoCapture = { ...DEFAULT_VIDEO_CAPTURE, ...raw.videoCapture }
+
+  if (!videoCapture.directory) {
+    videoCapture.directory = defaultVideoCaptureDirectory()
+    writeRaw({ ...raw, videoCapture })
+  }
+
+  return videoCapture
+}
+
+export function updateVideoCapturePrefs(patch) {
+  const raw = readRaw()
+  const videoCapture = { ...DEFAULT_VIDEO_CAPTURE, ...raw.videoCapture, ...patch }
+  writeRaw({ ...raw, videoCapture })
+  return videoCapture
 }
