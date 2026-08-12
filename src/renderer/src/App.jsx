@@ -5,11 +5,11 @@ import DeckDetail from './components/DeckDetail.jsx'
 import MatchHistory from './components/MatchHistory.jsx'
 import PlayScreen from './components/PlayScreen.jsx'
 import SettingsScreen from './components/SettingsScreen.jsx'
+import InsightsScreen from './components/InsightsScreen.jsx'
 
-// No router yet — still just view state, now toggling between the four
-// rail sections that actually have screens (Play; Decks, with its own
-// nested library/detail toggle; Matches; and Settings). Insights stays
-// inert in Sidebar until it has a screen of its own.
+// No router yet — still just view state, now toggling between the five
+// rail sections that have screens (Play; Decks, with its own nested
+// library/detail toggle; Matches; Insights; and Settings).
 export default function App() {
   const [screen, setScreen] = useState('decks')
   const [selectedDeckId, setSelectedDeckId] = useState(null)
@@ -26,6 +26,8 @@ export default function App() {
         <PlayScreen />
       ) : screen === 'matches' ? (
         <MatchHistory />
+      ) : screen === 'insights' ? (
+        <InsightsScreen />
       ) : screen === 'settings' ? (
         <SettingsScreen />
       ) : selectedDeckId ? (

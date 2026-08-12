@@ -1,10 +1,8 @@
-// Insights has no screen yet — it renders as an inert (non-clickable) nav
-// item rather than pretending to navigate anywhere. Play, Decks, Matches,
-// and Settings all have real screens, so they're clickable and their `key`
-// doubles as the `screen` value App.jsx switches on. Settings stays in its
-// own `rail-bottom` slot (gear icon, pinned below the main nav list) rather
-// than joining NAV_ITEMS, since that's a deliberate, distinct part of the
-// rail's layout, not an oversight.
+// Play, Decks, Matches, and Insights all have real screens, so they're
+// clickable and their `key` doubles as the `screen` value App.jsx switches
+// on. Settings stays in its own `rail-bottom` slot (gear icon, pinned below
+// the main nav list) rather than joining NAV_ITEMS, since that's a
+// deliberate, distinct part of the rail's layout, not an oversight.
 const NAV_ITEMS = [
   {
     key: 'play',
@@ -44,7 +42,7 @@ const NAV_ITEMS = [
   {
     key: 'insights',
     label: 'Insights',
-    navigable: false,
+    navigable: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none">
         <path d="M4 12 Q4 4 12 4 Q20 4 20 12 Q20 20 12 20" stroke="currentColor" strokeWidth="1.6" />

@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('api', {
   legends: {
     list: () => ipcRenderer.invoke('legends:list')
   },
+  insights: {
+    get: (params) => ipcRenderer.invoke('insights:get', params)
+  },
   settings: {
     export: () => ipcRenderer.invoke('settings:export'),
     pickImportFile: () => ipcRenderer.invoke('settings:pick-import-file'),

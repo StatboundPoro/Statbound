@@ -1751,6 +1751,163 @@ body {
   color: var(--text-dim);
 }
 
+/* ---------- INSIGHTS ---------- */
+.insights-filter-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+.insights-filter-bar .form-field select {
+  width: 240px;
+}
+
+.insights-overall {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px 28px;
+  margin-bottom: 16px;
+}
+.insights-headline-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1;
+}
+.insights-headline-value.pos {
+  color: var(--calm);
+}
+.insights-headline-value.neg {
+  color: var(--fury);
+}
+.insights-overall-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.insights-overall-record {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 17px;
+  color: var(--text);
+}
+.insights-overall-total {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.insights-trend {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 32px;
+}
+.insights-trend strong {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  color: var(--text);
+}
+.insights-trend strong.pos {
+  color: var(--calm);
+}
+.insights-trend strong.neg {
+  color: var(--fury);
+}
+
+.stat-strip-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.stat-cell-sub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.insights-table {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+.insights-table-header,
+.insights-table-row {
+  display: grid;
+  grid-template-columns: 2fr 100px 100px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+}
+.insights-table-header {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border-soft);
+}
+.insights-table-row {
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+  border-left: 3px solid transparent;
+}
+.insights-table-row:last-child {
+  border-bottom: none;
+}
+.insights-table-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.insights-table-winrate,
+.insights-table-games {
+  font-family: 'IBM Plex Mono', monospace;
+}
+.insights-table-winrate.pos {
+  color: var(--calm);
+}
+.insights-table-winrate.neg {
+  color: var(--fury);
+}
+.insights-table-games {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.insights-row-best {
+  border-left-color: var(--calm);
+  background: rgba(76, 158, 104, 0.06);
+}
+.insights-row-worst {
+  border-left-color: var(--fury);
+  background: rgba(214, 72, 63, 0.06);
+}
+.insights-badge {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+}
+.insights-badge-best {
+  border-color: rgba(76, 158, 104, 0.5);
+  color: var(--calm);
+}
+.insights-badge-worst {
+  border-color: rgba(214, 72, 63, 0.5);
+  color: var(--fury);
+}
+.insights-note {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-bottom: 12px;
+}
+
 /* ---------- MATCH DETAIL MODAL ---------- */
 .recent-row {
   cursor: pointer;
