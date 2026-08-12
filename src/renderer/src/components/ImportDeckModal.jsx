@@ -29,10 +29,18 @@ Sideboard:
 // textarea with the deck's current content via serializeDecklist) it calls
 // decks:update against `deckId` instead. Everything else about the flow is
 // identical.
-export default function ImportDeckModal({ onClose, onSaved, mode = 'create', deckId = null, initialText = '' }) {
+export default function ImportDeckModal({
+  onClose,
+  onSaved,
+  mode = 'create',
+  deckId = null,
+  initialText = '',
+  initialName = ''
+}) {
   const isEdit = mode === 'edit'
 
   const [text, setText] = useState(initialText)
+  const [name, setName] = useState(initialName)
   const [parsed, setParsed] = useState(null)
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -56,7 +64,10 @@ export default function ImportDeckModal({ onClose, onSaved, mode = 'create', dec
     setSaving(true)
     setError(null)
     try {
-      const deck = isEdit ? await window.api.decks.update(deckId, parsed) : await window.api.decks.create(parsed)
+      const payload = { ...parsed, name: name.trim() || parsed.legend_name }
+      const deck = isEdit
+        ? await window.api.decks.update(deckId, payload)
+        : await window.api.decks.create(payload)
       onSaved(deck)
     } catch (err) {
       console.error(`Failed to ${isEdit ? 'update' : 'save imported'} deck:`, err)
@@ -97,6 +108,16 @@ export default function ImportDeckModal({ onClose, onSaved, mode = 'create', dec
           </>
         ) : (
           <>
+            <label className="form-field import-name-field">
+              <span>Deck Name</span>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={`Defaults to "${parsed.legend_name}"`}
+                autoFocus
+              />
+            </label>
             <div className="import-preview">
               <div className="import-preview-crest">
                 <div className="half a" style={{ background: domainColor(parsed.domain_1) }} />
@@ -113,7 +134,6 @@ export default function ImportDeckModal({ onClose, onSaved, mode = 'create', dec
                 </div>
               </div>
               <div className="import-preview-body">
-                <div className="deck-name">{parsed.name}</div>
                 <div className="deck-domains">
                   {[parsed.domain_1, parsed.domain_2].filter(Boolean).join(' · ')}
                   {parsed.legend_name ? ` — ${parsed.legend_name}` : ''}

@@ -264,6 +264,7 @@ export default function DeckDetail({ deckId, onBack }) {
           mode="edit"
           deckId={deck.id}
           initialText={serializeDecklist(decklist)}
+          initialName={deck.name}
           onClose={() => setEditOpen(false)}
           onSaved={handleDeckSaved}
         />

@@ -121,10 +121,8 @@ export function parseDecklist(text) {
   const [domain_1 = null, domain_2 = null] = domains
 
   const legend = sections.legend[0]
-  const champion = sections.champion[0] ?? null
 
   return {
-    name: champion?.name ?? legend.name,
     domain_1,
     domain_2,
     legend_name: legend.name,

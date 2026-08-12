@@ -596,6 +596,9 @@ body {
   font-size: 13.5px;
   line-height: 1.5;
 }
+.import-name-field {
+  margin-bottom: 16px;
+}
 .import-preview {
   display: flex;
   gap: 16px;
