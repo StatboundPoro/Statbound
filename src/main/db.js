@@ -18,6 +18,11 @@ const SCHEMA = `
     sync_status TEXT NOT NULL DEFAULT 'local_only'
   );
 
+  -- Schema changes to matches/games must use a real migration (add
+  -- column with default, copy/backfill data, etc.) — never drop and
+  -- recreate. The one time that was done safely (see CLAUDE.md's
+  -- "Migration note") relied on the table being guaranteed empty,
+  -- which is no longer true once real match data exists.
   CREATE TABLE IF NOT EXISTS matches (
     id TEXT PRIMARY KEY,
     deck_id TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
@@ -71,21 +76,6 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_deck_notes_deck_id ON deck_notes(deck_id);
 `
 
-// The very first version of `matches` (opponent_legend/result/score/seat/
-// battlefields as flat columns, no `format`) predates match logging having
-// any create path at all — nothing could ever insert a row into it. So if
-// a database still has that old shape, it's guaranteed empty and safe to
-// drop; the schema below recreates it in the new Bo1/Bo3 + games shape.
-function migrateLegacyMatchesTable(db) {
-  const columns = db.prepare("PRAGMA table_info('matches')").all()
-  if (columns.length === 0) return
-
-  const hasCurrentSchema = columns.some((col) => col.name === 'format')
-  if (hasCurrentSchema) return
-
-  db.exec('DROP TABLE IF EXISTS matches')
-}
-
 /**
  * The on-disk path of the live database file — also used by settings.js to
  * back it up, replace it wholesale on import, or validate a candidate
@@ -100,7 +90,6 @@ function openDatabase(dbPath) {
   instance.pragma('journal_mode = WAL')
   instance.pragma('foreign_keys = ON')
 
-  migrateLegacyMatchesTable(instance)
   instance.exec(SCHEMA)
 
   return instance
