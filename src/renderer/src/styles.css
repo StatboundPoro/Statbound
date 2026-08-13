@@ -1761,6 +1761,16 @@ body {
   width: 240px;
 }
 
+/* Overall / Last N / Current Streak, three boxes in a row at the same
+   visual tier — the big headline card gets more room since it carries
+   more content (headline value + record + total), the two side cards
+   are simpler single-stat readouts. */
+.insights-overview-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 32px;
+}
 .insights-overall {
   display: flex;
   align-items: center;
@@ -1769,7 +1779,6 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 24px 28px;
-  margin-bottom: 16px;
 }
 .insights-headline-value {
   font-family: 'IBM Plex Mono', monospace;
@@ -1798,21 +1807,16 @@ body {
   color: var(--text-faint);
 }
 
-.insights-trend {
-  font-size: 13px;
-  color: var(--text-dim);
-  margin-bottom: 32px;
-}
-.insights-trend strong {
-  font-family: 'IBM Plex Mono', monospace;
-  font-weight: 600;
-  color: var(--text);
-}
-.insights-trend strong.pos {
-  color: var(--calm);
-}
-.insights-trend strong.neg {
-  color: var(--fury);
+/* Reuses .stat-cell's label/value typography (see STAT STRIP above) but
+   adds its own border/radius since it isn't sitting inside a
+   .stat-strip's shared-border grid. */
+.insights-side-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
 }
 
 .stat-strip-2 {
@@ -1822,6 +1826,54 @@ body {
   margin-top: 4px;
   font-size: 11px;
   color: var(--text-faint);
+}
+
+.insights-table-controls {
+  margin-bottom: 12px;
+}
+
+.insights-bestworst-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.insights-bestworst-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+.insights-bestworst-card .label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.insights-bestworst-best {
+  border-left-color: var(--calm);
+}
+.insights-bestworst-worst {
+  border-left-color: var(--fury);
+}
+.insights-bestworst-legend {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.insights-bestworst-rate {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 22px;
+  font-weight: 600;
+}
+.insights-bestworst-rate.pos {
+  color: var(--calm);
+}
+.insights-bestworst-rate.neg {
+  color: var(--fury);
 }
 
 .insights-table {
