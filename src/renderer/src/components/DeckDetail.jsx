@@ -27,7 +27,7 @@ const SECTIONS = [
 // Record and Notes are both fully implemented now (see MatchupRecord.jsx
 // and DeckNotes.jsx) — the two are deliberately unconnected, with no
 // cross-navigation between them.
-export default function DeckDetail({ deckId, onBack }) {
+export default function DeckDetail({ deckId, onBack, onViewInsights }) {
   const [deck, setDeck] = useState(null)
   const [matches, setMatches] = useState([])
   const [status, setStatus] = useState('loading')
@@ -142,6 +142,13 @@ export default function DeckDetail({ deckId, onBack }) {
               <path d="M12 5v14M5 12h14" stroke="#151313" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
             Log Match
+          </button>
+          <button className="btn" onClick={() => onViewInsights(deckId)}>
+            <svg viewBox="0 0 24 24" fill="none" width="13" height="13">
+              <path d="M4 12 Q4 4 12 4 Q20 4 20 12 Q20 20 12 20" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M12 8v4l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            View Insights
           </button>
           <button className="btn" onClick={() => setEditOpen(true)}>
             <svg viewBox="0 0 24 24" fill="none" width="13" height="13">

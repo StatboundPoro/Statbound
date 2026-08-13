@@ -13,10 +13,21 @@ import InsightsScreen from './components/InsightsScreen.jsx'
 export default function App() {
   const [screen, setScreen] = useState('decks')
   const [selectedDeckId, setSelectedDeckId] = useState(null)
+  // Only ever set by Deck Detail's "View Insights" button — a one-time
+  // deep link into Insights pre-scoped to the deck being viewed. Plain
+  // Sidebar navigation to Insights always resets this to null (below), so
+  // the nav item itself still lands on "All Decks" as before.
+  const [insightsDeckId, setInsightsDeckId] = useState(null)
 
   function handleNavigate(key) {
     setScreen(key)
     if (key === 'decks') setSelectedDeckId(null)
+    if (key === 'insights') setInsightsDeckId(null)
+  }
+
+  function handleViewDeckInsights(deckId) {
+    setInsightsDeckId(deckId)
+    setScreen('insights')
   }
 
   return (
@@ -27,11 +38,15 @@ export default function App() {
       ) : screen === 'matches' ? (
         <MatchHistory />
       ) : screen === 'insights' ? (
-        <InsightsScreen />
+        <InsightsScreen initialDeckId={insightsDeckId} />
       ) : screen === 'settings' ? (
         <SettingsScreen />
       ) : selectedDeckId ? (
-        <DeckDetail deckId={selectedDeckId} onBack={() => setSelectedDeckId(null)} />
+        <DeckDetail
+          deckId={selectedDeckId}
+          onBack={() => setSelectedDeckId(null)}
+          onViewInsights={handleViewDeckInsights}
+        />
       ) : (
         <DeckLibrary onOpenDeck={setSelectedDeckId} onPlay={() => handleNavigate('play')} />
       )}

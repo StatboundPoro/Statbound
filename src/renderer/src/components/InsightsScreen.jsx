@@ -62,10 +62,18 @@ function SortControl({ value, onChange }) {
 // "best"/"worst" for the highlight treatment and the summary cards above
 // the table — see the bestRow/worstRow useMemo below for why that's a
 // renderer-side decision rather than something the backend bakes in.
-export default function InsightsScreen() {
+//
+// `initialDeckId` is optional and only ever set by Deck Detail's "View
+// Insights" button (App.jsx's handleViewDeckInsights) as a one-time deep
+// link — App.jsx fully unmounts this component whenever `screen` leaves
+// 'insights', so a plain useState initializer is enough to pick it up on
+// every fresh visit; no prop-sync effect is needed. Reaching this screen
+// via the Sidebar nav item instead always passes no prop, landing on "All
+// Decks" as before.
+export default function InsightsScreen({ initialDeckId = null }) {
   const [decks, setDecks] = useState([])
   const [matches, setMatches] = useState([])
-  const [deckId, setDeckId] = useState('all')
+  const [deckId, setDeckId] = useState(initialDeckId ?? 'all')
   const [insights, setInsights] = useState(null)
   const [status, setStatus] = useState('loading')
   const [battlefieldSort, setBattlefieldSort] = useState(DEFAULT_SORT)
