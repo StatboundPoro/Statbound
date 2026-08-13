@@ -37,6 +37,11 @@ export default function App() {
   // every stop, including back-to-back matches, rather than needing to
   // infer "a new one just finished" from pendingReplays' length alone.
   const [recordingStoppedSignal, setRecordingStoppedSignal] = useState(0)
+  // Mirrors Sidebar's own panelOpen state up here so PlayScreen can shrink
+  // the embed's reported bounds while it's open — see PlayScreen.jsx's
+  // queuePanelOpen prop for why (the embed is a native view that always
+  // paints above ordinary page content, popover included).
+  const [pendingPanelOpen, setPendingPanelOpen] = useState(false)
 
   const refreshPendingReplays = useCallback(() => {
     window.api.replays
@@ -94,6 +99,7 @@ export default function App() {
         onLogMatch={setQueuedReplay}
         onDiscardPending={handleDiscardPending}
         recordingStoppedSignal={recordingStoppedSignal}
+        onPanelOpenChange={setPendingPanelOpen}
       />
       {screen === 'play' ? (
         <PlayScreen
@@ -103,6 +109,7 @@ export default function App() {
           error={recording.error}
           onStart={recording.start}
           onStop={recording.stop}
+          queuePanelOpen={pendingPanelOpen}
         />
       ) : screen === 'matches' ? (
         <MatchHistory />

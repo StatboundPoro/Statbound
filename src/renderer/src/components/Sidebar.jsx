@@ -70,10 +70,16 @@ export default function Sidebar({
   pendingReplays,
   onLogMatch,
   onDiscardPending,
-  recordingStoppedSignal
+  recordingStoppedSignal,
+  onPanelOpenChange
 }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [fading, setFading] = useState(false)
+  // True only for the self-dismissing notification opened automatically
+  // right after a recording finishes — shows just that one new recording,
+  // not the whole accumulated queue (which is what a manual badge click
+  // still shows in full). False for every manually-opened path.
+  const [autoMode, setAutoMode] = useState(false)
   const pendingTriggerRef = useRef(null)
   const fadeTimerRef = useRef(null)
   const dismissTimerRef = useRef(null)
@@ -90,33 +96,33 @@ export default function Sidebar({
     }
   }
 
-  // The Pending Recordings popover is plain DOM content (rendered through
-  // a portal — see below), but the Play tab's embedded browser is a
-  // native WebContentsView, a separately-composited surface that always
-  // paints above ordinary page content regardless of CSS z-index. The
-  // only way for anything in this app to visually sit on top of it is to
-  // detach it first — the same play:hide()/play:show() PlayScreen.jsx
-  // already uses when navigating away from and back to the Play screen,
-  // just triggered here instead. Only touches the embed while the user is
-  // actually on the Play screen; elsewhere it's already hidden and this
-  // is a no-op.
-  function openPanel() {
+  // Reports open/closed up to App.jsx, which feeds it to PlayScreen.jsx to
+  // shrink the embed's reported bounds while this is open — the embed is
+  // a native WebContentsView that always paints above ordinary page
+  // content (this popover included) regardless of CSS z-index, so it
+  // can't be covered by normal DOM stacking. See PlayScreen.jsx for the
+  // actual bounds adjustment; this component doesn't need to know
+  // `active` at all now, since PlayScreen only exists (and only reads
+  // this) while the Play screen itself is mounted.
+  function openPanel(auto = false) {
     clearAutoDismissTimers()
     setFading(false)
+    setAutoMode(auto)
     setPanelOpen(true)
-    if (active === 'play') window.api.play.hide()
+    onPanelOpenChange?.(true)
   }
 
   function closePanel() {
     clearAutoDismissTimers()
     setFading(false)
+    setAutoMode(false)
     setPanelOpen(false)
-    if (active === 'play') window.api.play.show()
+    onPanelOpenChange?.(false)
   }
 
   function togglePanel() {
     if (panelOpen) closePanel()
-    else openPanel()
+    else openPanel(false)
   }
 
   function cancelAutoDismiss() {
@@ -133,13 +139,17 @@ export default function Sidebar({
   // reading it doesn't race against it disappearing.
   useEffect(() => {
     if (recordingStoppedSignal === 0) return
-    openPanel()
+    openPanel(true)
     fadeTimerRef.current = setTimeout(() => setFading(true), AUTO_DISMISS_DELAY_MS)
     dismissTimerRef.current = setTimeout(() => closePanel(), AUTO_DISMISS_DELAY_MS + FADE_DURATION_MS)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordingStoppedSignal])
 
   useEffect(() => clearAutoDismissTimers, [])
+
+  // Most-recent-first (listPendingReplays()'s natural order) — slicing to
+  // one keeps that ordering, so "the latest" really is the newest.
+  const visibleReplays = autoMode ? pendingReplays.slice(0, 1) : pendingReplays
 
   return (
     <div className="rail">
@@ -219,7 +229,7 @@ export default function Sidebar({
                 <div className="popover-backdrop" onClick={closePanel} />
                 <PendingRecordingsPanel
                   anchorRect={pendingTriggerRef.current?.getBoundingClientRect()}
-                  replays={pendingReplays}
+                  replays={visibleReplays}
                   fading={fading}
                   onMouseEnter={cancelAutoDismiss}
                   onLogMatch={(replay) => {

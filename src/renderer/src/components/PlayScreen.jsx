@@ -1,6 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { formatElapsedTime } from '../lib/recording.js'
 
+// Reserved height, in CSS pixels, carved out of the bottom of the embed's
+// reported bounds while the Pending Recordings popover is open — see
+// queuePanelOpen below. Sized to comfortably exceed the popover's own max
+// height (header + its capped/scrollable list, see .pending-recordings-*
+// in styles.css), not measured live, since the WebContentsView's bounds
+// must be set before/independent of the popover's own render.
+const QUEUE_PANEL_NOTCH_HEIGHT = 400
+
 // Renders no page content of its own for the embed area — the actual
 // play.riftatlas.com content is a native WebContentsView the main process
 // draws on top of this div's screen position (see src/main/playView.js).
@@ -12,8 +20,27 @@ import { formatElapsedTime } from '../lib/recording.js'
 // via useScreenRecording() directly — the hook lives in App.jsx now, since
 // Phase 2's auto-detection needs it to survive navigating away from this
 // screen mid-match (see lib/recording.js's module comment for why).
-export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop }) {
+export default function PlayScreen({
+  recording,
+  starting,
+  elapsedSeconds,
+  error,
+  onStart,
+  onStop,
+  queuePanelOpen
+}) {
   const containerRef = useRef(null)
+  // A ref, not just the prop, because the ResizeObserver/window `resize`
+  // listener set up below are created once on mount and must always read
+  // the *current* queuePanelOpen value, not the one captured in their
+  // closure at mount time — otherwise resizing the window while the
+  // popover happens to be open would silently report full-height bounds
+  // again, covering it back up.
+  const queuePanelOpenRef = useRef(queuePanelOpen)
+
+  useEffect(() => {
+    queuePanelOpenRef.current = queuePanelOpen
+  }, [queuePanelOpen])
 
   useEffect(() => {
     const el = containerRef.current
@@ -26,7 +53,20 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
       // properties across the isolated-world boundary, so passing the
       // DOMRect itself arrives in preload as all-undefined. Read the
       // values out into a plain object here, before it crosses the bridge.
-      window.api.play.setBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
+      //
+      // The embed is a native WebContentsView, a separately-composited
+      // surface that always paints above ordinary page content regardless
+      // of CSS z-index — nothing in this app's own DOM (including the
+      // Pending Recordings popover) can render on top of it by normal
+      // means. Rather than fully detaching the whole embed while that
+      // popover is open (which blanks out the entire Play screen, not
+      // just the small area the popover needs), its reported height is
+      // shrunk to carve out a bottom strip the popover can occupy —
+      // everything above that strip keeps playing and stays visible.
+      const height = queuePanelOpenRef.current
+        ? Math.max(0, rect.height - QUEUE_PANEL_NOTCH_HEIGHT)
+        : rect.height
+      window.api.play.setBounds({ x: rect.x, y: rect.y, width: rect.width, height })
     }
 
     window.api.play.show()
@@ -42,6 +82,16 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
       window.api.play.hide()
     }
   }, [])
+
+  // Re-report bounds immediately whenever the popover opens/closes, rather
+  // than waiting for the next resize/observer tick.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const height = queuePanelOpen ? Math.max(0, rect.height - QUEUE_PANEL_NOTCH_HEIGHT) : rect.height
+    window.api.play.setBounds({ x: rect.x, y: rect.y, width: rect.width, height })
+  }, [queuePanelOpen])
 
   return (
     <div className="main main-play">
