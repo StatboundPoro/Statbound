@@ -31,6 +31,12 @@ export default function App() {
   // button — rendered here, not inside any particular screen, since the
   // queue itself is reachable from every screen.
   const [queuedReplay, setQueuedReplay] = useState(null)
+  // Bumped (not just a boolean) every time a recording finishes, so
+  // Sidebar's effect — which auto-opens the Pending Recordings popover as
+  // a self-dismissing notification — has a value that reliably changes on
+  // every stop, including back-to-back matches, rather than needing to
+  // infer "a new one just finished" from pendingReplays' length alone.
+  const [recordingStoppedSignal, setRecordingStoppedSignal] = useState(0)
 
   const refreshPendingReplays = useCallback(() => {
     window.api.replays
@@ -43,7 +49,12 @@ export default function App() {
     refreshPendingReplays()
   }, [refreshPendingReplays])
 
-  const recording = useScreenRecording({ onStopped: refreshPendingReplays })
+  const handleRecordingStopped = useCallback(() => {
+    refreshPendingReplays()
+    setRecordingStoppedSignal((n) => n + 1)
+  }, [refreshPendingReplays])
+
+  const recording = useScreenRecording({ onStopped: handleRecordingStopped })
 
   function handleNavigate(key) {
     setScreen(key)
@@ -82,6 +93,7 @@ export default function App() {
         pendingReplays={pendingReplays}
         onLogMatch={setQueuedReplay}
         onDiscardPending={handleDiscardPending}
+        recordingStoppedSignal={recordingStoppedSignal}
       />
       {screen === 'play' ? (
         <PlayScreen

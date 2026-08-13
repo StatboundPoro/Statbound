@@ -1,6 +1,14 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import PendingRecordingsPanel from './PendingRecordingsPanel.jsx'
+
+// How long an auto-shown notification (a recording just finished) stays
+// fully visible before it starts fading, and the total time (including
+// the fade) before it closes itself — separate from FADE_DURATION_MS
+// below so the CSS transition and the JS timer that finalizes the close
+// stay in sync.
+const AUTO_DISMISS_DELAY_MS = 4000
+const FADE_DURATION_MS = 1200
 
 // Play, Decks, Matches, and Insights all have real screens, so they're
 // clickable and their `key` doubles as the `screen` value App.jsx switches
@@ -56,10 +64,82 @@ const NAV_ITEMS = [
   }
 ]
 
-export default function Sidebar({ active, onNavigate, pendingReplays, onLogMatch, onDiscardPending }) {
+export default function Sidebar({
+  active,
+  onNavigate,
+  pendingReplays,
+  onLogMatch,
+  onDiscardPending,
+  recordingStoppedSignal
+}) {
   const [panelOpen, setPanelOpen] = useState(false)
+  const [fading, setFading] = useState(false)
   const pendingTriggerRef = useRef(null)
+  const fadeTimerRef = useRef(null)
+  const dismissTimerRef = useRef(null)
   const pendingCount = pendingReplays.length
+
+  function clearAutoDismissTimers() {
+    if (fadeTimerRef.current) {
+      clearTimeout(fadeTimerRef.current)
+      fadeTimerRef.current = null
+    }
+    if (dismissTimerRef.current) {
+      clearTimeout(dismissTimerRef.current)
+      dismissTimerRef.current = null
+    }
+  }
+
+  // The Pending Recordings popover is plain DOM content (rendered through
+  // a portal — see below), but the Play tab's embedded browser is a
+  // native WebContentsView, a separately-composited surface that always
+  // paints above ordinary page content regardless of CSS z-index. The
+  // only way for anything in this app to visually sit on top of it is to
+  // detach it first — the same play:hide()/play:show() PlayScreen.jsx
+  // already uses when navigating away from and back to the Play screen,
+  // just triggered here instead. Only touches the embed while the user is
+  // actually on the Play screen; elsewhere it's already hidden and this
+  // is a no-op.
+  function openPanel() {
+    clearAutoDismissTimers()
+    setFading(false)
+    setPanelOpen(true)
+    if (active === 'play') window.api.play.hide()
+  }
+
+  function closePanel() {
+    clearAutoDismissTimers()
+    setFading(false)
+    setPanelOpen(false)
+    if (active === 'play') window.api.play.show()
+  }
+
+  function togglePanel() {
+    if (panelOpen) closePanel()
+    else openPanel()
+  }
+
+  function cancelAutoDismiss() {
+    clearAutoDismissTimers()
+    setFading(false)
+  }
+
+  // Auto-popup: a recording finishing (manual Stop or auto-detected) pops
+  // the queue open by itself as a self-dismissing notification, rather
+  // than requiring a click to even notice it happened. Skips the initial
+  // mount (the signal starts at 0 and only ever increments from a real
+  // stop). Hovering the panel cancels the fade/dismiss — see the
+  // onMouseEnter handler passed to PendingRecordingsPanel below — so
+  // reading it doesn't race against it disappearing.
+  useEffect(() => {
+    if (recordingStoppedSignal === 0) return
+    openPanel()
+    fadeTimerRef.current = setTimeout(() => setFading(true), AUTO_DISMISS_DELAY_MS)
+    dismissTimerRef.current = setTimeout(() => closePanel(), AUTO_DISMISS_DELAY_MS + FADE_DURATION_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingStoppedSignal])
+
+  useEffect(() => clearAutoDismissTimers, [])
 
   return (
     <div className="rail">
@@ -98,59 +178,60 @@ export default function Sidebar({ active, onNavigate, pendingReplays, onLogMatch
       </div>
 
       <div className="rail-bottom">
-        {/* Hidden entirely at zero — only ever an interruption once there's
-            something to actually resolve, never a permanent fixture of the
-            rail. Visible on every screen, not just Play, since a match can
-            finish (auto-detected or manual) while the user is elsewhere in
-            the app. */}
-        {pendingCount > 0 && (
-          <div className="rail-pending-wrap">
-            <div
-              ref={pendingTriggerRef}
-              className={`rail-item clickable ${panelOpen ? 'active' : ''}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => setPanelOpen((open) => !open)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') setPanelOpen((open) => !open)
-              }}
-            >
-              <div className="rail-badge-wrap">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
-                  <path d="M12 8v4.5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span className="rail-badge">{pendingCount}</span>
-              </div>
-              <div className="rail-label">Pending</div>
+        {/* Always present, even at zero — a click always answers "is there
+            anything pending," rather than a permanently-invisible control
+            no one would think to look for. The numeric badge itself is
+            what's conditional. Visible on every screen, not just Play,
+            since a match can finish (auto-detected or manual) while the
+            user is elsewhere in the app. */}
+        <div className="rail-pending-wrap">
+          <div
+            ref={pendingTriggerRef}
+            className={`rail-item clickable ${panelOpen ? 'active' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={togglePanel}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') togglePanel()
+            }}
+          >
+            <div className="rail-badge-wrap">
+              <svg viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 8v4.5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {pendingCount > 0 && <span className="rail-badge">{pendingCount}</span>}
             </div>
-
-            {/* Rendered through a portal into <body>, not as a normal
-                descendant here — .rail has overflow-y: auto, and Chromium
-                treats that as clipping overflow-x too (the CSS overflow
-                spec's "one axis non-visible forces the other to auto"
-                rule), which would silently clip this panel to the rail's
-                own 88px width otherwise. Positioned via the trigger's own
-                getBoundingClientRect() since a portal drops it out of this
-                DOM subtree's normal layout flow. */}
-            {panelOpen &&
-              createPortal(
-                <>
-                  <div className="popover-backdrop" onClick={() => setPanelOpen(false)} />
-                  <PendingRecordingsPanel
-                    anchorRect={pendingTriggerRef.current?.getBoundingClientRect()}
-                    replays={pendingReplays}
-                    onLogMatch={(replay) => {
-                      setPanelOpen(false)
-                      onLogMatch(replay)
-                    }}
-                    onDiscard={onDiscardPending}
-                  />
-                </>,
-                document.body
-              )}
+            <div className="rail-label">Pending</div>
           </div>
-        )}
+
+          {/* Rendered through a portal into <body>, not as a normal
+              descendant here — .rail has overflow-y: auto, and Chromium
+              treats that as clipping overflow-x too (the CSS overflow
+              spec's "one axis non-visible forces the other to auto"
+              rule), which would silently clip this panel to the rail's
+              own 88px width otherwise. Positioned via the trigger's own
+              getBoundingClientRect() since a portal drops it out of this
+              DOM subtree's normal layout flow. */}
+          {panelOpen &&
+            createPortal(
+              <>
+                <div className="popover-backdrop" onClick={closePanel} />
+                <PendingRecordingsPanel
+                  anchorRect={pendingTriggerRef.current?.getBoundingClientRect()}
+                  replays={pendingReplays}
+                  fading={fading}
+                  onMouseEnter={cancelAutoDismiss}
+                  onLogMatch={(replay) => {
+                    closePanel()
+                    onLogMatch(replay)
+                  }}
+                  onDiscard={onDiscardPending}
+                />
+              </>,
+              document.body
+            )}
+        </div>
 
         <div
           className={`rail-item clickable ${active === 'settings' ? 'active' : ''}`}

@@ -192,6 +192,12 @@ body {
   border-radius: 8px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
   overflow: hidden;
+  opacity: 1;
+  transition: opacity 1.2s ease;
+}
+.pending-recordings-panel.fading {
+  opacity: 0;
+  pointer-events: none;
 }
 .pending-recordings-header {
   padding: 12px 16px;

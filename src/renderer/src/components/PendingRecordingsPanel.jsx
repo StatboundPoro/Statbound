@@ -3,12 +3,17 @@ import { formatDuration, formatSessionTime } from '../lib/stats.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 
 // Popover listing every recording that exists on disk but isn't linked to
-// a match yet — opened from the Sidebar's badge. "Log Match" attaches the
-// exact row clicked (not "most recent"); "Discard" deletes the file
-// outright, gated by a plain click-confirm rather than the typed-
-// confirmation pattern Import/Reset use in Settings, since this only ever
-// destroys an unlinked file, not logged match data.
-export default function PendingRecordingsPanel({ replays, anchorRect, onLogMatch, onDiscard }) {
+// a match yet — opened either by clicking the Sidebar's badge, or by
+// itself as a self-dismissing notification right after a recording
+// finishes (see Sidebar.jsx's recordingStoppedSignal effect). `fading`
+// drives the CSS opacity transition for that auto-dismiss; `onMouseEnter`
+// lets Sidebar cancel it if the user is actually reading the panel rather
+// than just glancing at it. "Log Match" attaches the exact row clicked
+// (not "most recent"); "Discard" deletes the file outright, gated by a
+// plain click-confirm rather than the typed-confirmation pattern Import/
+// Reset use in Settings, since this only ever destroys an unlinked file,
+// not logged match data.
+export default function PendingRecordingsPanel({ replays, anchorRect, fading, onMouseEnter, onLogMatch, onDiscard }) {
   const [discardTarget, setDiscardTarget] = useState(null)
   const [discarding, setDiscarding] = useState(false)
 
@@ -29,7 +34,12 @@ export default function PendingRecordingsPanel({ replays, anchorRect, onLogMatch
 
   return (
     <>
-      <div className="pending-recordings-panel" style={style} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`pending-recordings-panel ${fading ? 'fading' : ''}`}
+        style={style}
+        onClick={(e) => e.stopPropagation()}
+        onMouseEnter={onMouseEnter}
+      >
         <div className="pending-recordings-header">Pending Recordings</div>
         {replays.length === 0 ? (
           <div className="pending-recordings-empty">No pending recordings.</div>
