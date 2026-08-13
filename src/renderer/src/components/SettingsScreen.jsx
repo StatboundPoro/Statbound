@@ -61,6 +61,7 @@ export default function SettingsScreen() {
   const [resetSuccess, setResetSuccess] = useState(null) // { safetyBackupPath }
 
   const [appDataPath, setAppDataPath] = useState(null)
+  const [appDataFolderError, setAppDataFolderError] = useState(null)
 
   const [autoBackup, setAutoBackup] = useState(null)
   const [autoBackupError, setAutoBackupError] = useState(null)
@@ -152,6 +153,33 @@ export default function SettingsScreen() {
     } catch (err) {
       console.error('Failed to reset the save location:', err)
       setVideoCaptureError('Could not reset the save location.')
+    }
+  }
+
+  // Shared by every "Open Folder" button except App Data Location's (which
+  // points at a file, not a directory this app manages — see
+  // handleOpenAppDataFolder below). `setError` lets each section surface a
+  // failure through its own existing status line rather than adding a new
+  // one per button.
+  async function handleOpenFolder(directory, setError) {
+    setError(null)
+    try {
+      const result = await window.api.settings.openFolder(directory)
+      if (!result.success) setError(result.reason || 'Could not open the folder.')
+    } catch (err) {
+      console.error('Failed to open folder:', err)
+      setError('Could not open the folder.')
+    }
+  }
+
+  async function handleOpenAppDataFolder() {
+    setAppDataFolderError(null)
+    try {
+      const result = await window.api.settings.openAppDataFolder()
+      if (!result.success) setAppDataFolderError(result.reason || 'Could not open the folder.')
+    } catch (err) {
+      console.error('Failed to open app data folder:', err)
+      setAppDataFolderError('Could not open the folder.')
     }
   }
 
@@ -274,6 +302,11 @@ export default function SettingsScreen() {
               )}
             </div>
           </div>
+          <div className="settings-row-actions">
+            <button className="btn" onClick={handleOpenAppDataFolder} disabled={!appDataPath}>
+              Open Folder
+            </button>
+          </div>
         </div>
         {exportStatus && (
           <div className={`settings-status ${exportStatus.error ? 'error' : ''}`}>
@@ -285,6 +318,7 @@ export default function SettingsScreen() {
           </div>
         )}
         {importError && <div className="settings-status error">{importError}</div>}
+        {appDataFolderError && <div className="settings-status error">{appDataFolderError}</div>}
       </div>
 
       <div className="section-label">Automatic Backups</div>
@@ -338,9 +372,15 @@ export default function SettingsScreen() {
                   <span className="settings-path">{autoBackup.directory}</span>
                 </div>
               </div>
-              <div className="settings-row-actions">
+              <div className="settings-row-actions settings-button-group">
                 <button className="btn" onClick={handleChooseAutoBackupDirectory}>
                   Choose Folder
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => handleOpenFolder(autoBackup.directory, setAutoBackupError)}
+                >
+                  Open Folder
                 </button>
               </div>
             </div>
@@ -375,6 +415,13 @@ export default function SettingsScreen() {
           <div className="settings-row-actions settings-button-group">
             <button className="btn" onClick={handleChooseVideoCaptureDirectory} disabled={!videoCapture}>
               Choose Folder
+            </button>
+            <button
+              className="btn"
+              onClick={() => handleOpenFolder(videoCapture.directory, setVideoCaptureError)}
+              disabled={!videoCapture}
+            >
+              Open Folder
             </button>
             <button className="btn" onClick={handleResetVideoCaptureDirectory} disabled={!videoCapture}>
               Reset to Default

@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { randomUUID } from 'crypto'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import Database from 'better-sqlite3'
 import { closeDb, getDb, getDbPath } from './db.js'
 
@@ -137,6 +137,39 @@ export function getFolderSizeBytes(directory) {
     }
   }
   return total
+}
+
+/**
+ * Opens `directoryPath` in the OS file explorer, for the "Open Folder"
+ * buttons next to a folder-location setting (Automatic Backups' Backup
+ * Folder, Video Capture's Save Location). Creates the folder first if it
+ * doesn't exist yet — e.g. a save location that's never had a backup or
+ * recording written to it — so the button always opens something real
+ * rather than surfacing an OS-level "path not found" error; this mirrors
+ * what actually writing a backup/recording to that path would do anyway
+ * (`autoBackup.js`'s `runAutoBackup()` already does the same
+ * `fs.mkdirSync(..., { recursive: true })` before its first write).
+ */
+export async function openFolder(directoryPath) {
+  if (!directoryPath) return { success: false, reason: 'No folder location is set.' }
+
+  fs.mkdirSync(directoryPath, { recursive: true })
+  const error = await shell.openPath(directoryPath)
+  if (error) return { success: false, reason: error }
+  return { success: true }
+}
+
+/**
+ * Opens the folder containing the live SQLite database file and highlights
+ * it, for the App Data Location row's "Open Folder" button. Unlike
+ * `openFolder()` above this points at a specific *file*, not a directory
+ * the app manages the existence of, so it uses `shell.showItemInFolder`
+ * rather than `shell.openPath` — the database file is guaranteed to exist
+ * by the time Settings can render at all (`getDb()` already opened it).
+ */
+export function openAppDataFolder() {
+  shell.showItemInFolder(getDbPath())
+  return { success: true }
 }
 
 /**

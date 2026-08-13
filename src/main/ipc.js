@@ -12,6 +12,8 @@ import {
   exportBackup,
   getFolderSizeBytes,
   importBackup,
+  openAppDataFolder,
+  openFolder,
   pickImportFile,
   resetAllData
 } from './settings.js'
@@ -60,6 +62,8 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:choose-video-capture-directory', () => chooseVideoCaptureDirectory())
   ipcMain.handle('settings:reset-video-capture-directory', () => resetVideoCaptureDirectory())
   ipcMain.handle('settings:get-folder-size', (_event, directory) => getFolderSizeBytes(directory))
+  ipcMain.handle('settings:open-folder', (_event, directory) => openFolder(directory))
+  ipcMain.handle('settings:open-app-data-folder', () => openAppDataFolder())
 
   // One-way (send/on, not invoke/handle) since these are fire-and-forget UI
   // sync events, not requests with a return value.
