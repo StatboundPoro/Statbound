@@ -213,10 +213,11 @@ body {
   color: var(--text-faint);
   font-size: 13px;
 }
-.pending-recordings-list {
-  max-height: 320px;
-  overflow-y: auto;
-}
+/* .pending-recordings-list itself carries no rules — it used to cap its
+   height and scroll internally, but the popover's own overlay view (see
+   pendingPanelView.js) is now sized to this list's real content height
+   via a live ResizeObserver, so it just grows to fit however many
+   pending recordings there are instead. */
 .pending-recording-row {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-soft);
