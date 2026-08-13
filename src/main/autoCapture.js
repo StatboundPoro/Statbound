@@ -3,7 +3,7 @@ import { getVideoCapturePrefs } from './preferences.js'
 // How long to wait after the active match's WebSocket closes before
 // actually stopping the recording — covers a brief reconnect (network
 // blip, tab refocus) without splitting one match into two files.
-const PENDING_STOP_DELAY_MS = 10_000
+const PENDING_STOP_DELAY_MS = 3_000
 
 let mainWindow = null
 
