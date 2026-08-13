@@ -25,10 +25,18 @@ export default function PendingPanelWindow() {
   // transparent, or it would paint right back over the WebContentsView's
   // own transparent background, showing as a solid rectangle (with square
   // corners poking out past the panel's own rounded ones) instead of a
-  // true floating popover.
+  // true floating popover. overflow: hidden for a related reason: this
+  // view's bounds are always set to exactly match this content's own
+  // measured size (see the ResizeObserver below), but that measurement
+  // and the rounded pixel bounds main actually applies can differ by a
+  // sub-pixel fraction — enough for the browser to consider the page
+  // "overflowing" and show scrollbars. Nothing here is ever meant to
+  // scroll, so clipping that stray fraction is correct, not a workaround.
   useEffect(() => {
     document.documentElement.style.background = 'transparent'
     document.body.style.background = 'transparent'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
   }, [])
 
   useEffect(() => window.api.pendingPanel.onState(({ replays, fading }) => {
