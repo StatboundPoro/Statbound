@@ -4,6 +4,7 @@ import { app, BrowserWindow } from 'electron'
 import { getDb } from './db.js'
 import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
+import { initPendingPanelView } from './pendingPanelView.js'
 import { initAutoBackup } from './autoBackup.js'
 import { initCapture } from './capture.js'
 import { initAutoCapture } from './autoCapture.js'
@@ -65,6 +66,7 @@ app.whenReady().then(() => {
 
   const win = createMainWindow()
   initPlayView(win)
+  initPendingPanelView(win)
   initCapture(win)
   initAutoCapture(win)
 
@@ -72,6 +74,7 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       const nextWin = createMainWindow()
       initPlayView(nextWin)
+      initPendingPanelView(nextWin)
       initCapture(nextWin)
       initAutoCapture(nextWin)
     }

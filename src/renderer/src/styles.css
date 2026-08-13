@@ -177,15 +177,15 @@ body {
   line-height: 15px;
   text-align: center;
 }
-.popover-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  background: transparent;
-}
+/* Rendered as the sole content of its own dedicated overlay view (see
+   src/main/pendingPanelView.js and PendingPanelWindow.jsx) rather than a
+   portal inside the main window's own DOM, so it can float above the Play
+   tab's embedded browser — a native view that always paints above
+   ordinary page content regardless of CSS z-index. No fixed positioning
+   or z-index needed here any more: that view's own bounds, kept
+   pixel-accurate to this panel's real rendered size, already place it
+   correctly. */
 .pending-recordings-panel {
-  position: fixed;
-  z-index: 31;
   width: 320px;
   background: var(--panel);
   border: 1px solid var(--border);

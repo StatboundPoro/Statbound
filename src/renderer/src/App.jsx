@@ -37,11 +37,6 @@ export default function App() {
   // every stop, including back-to-back matches, rather than needing to
   // infer "a new one just finished" from pendingReplays' length alone.
   const [recordingStoppedSignal, setRecordingStoppedSignal] = useState(0)
-  // Mirrors Sidebar's own panelOpen state up here so PlayScreen can shrink
-  // the embed's reported bounds while it's open — see PlayScreen.jsx's
-  // queuePanelOpen prop for why (the embed is a native view that always
-  // paints above ordinary page content, popover included).
-  const [pendingPanelOpen, setPendingPanelOpen] = useState(false)
 
   const refreshPendingReplays = useCallback(() => {
     window.api.replays
@@ -72,19 +67,6 @@ export default function App() {
     setScreen('insights')
   }
 
-  async function handleDiscardPending(replay) {
-    try {
-      const result = await window.api.replays.discardPending(replay.filePath)
-      if (!result.success) {
-        console.error('Failed to discard pending recording:', result.reason)
-        return
-      }
-      refreshPendingReplays()
-    } catch (err) {
-      console.error('Failed to discard pending recording:', err)
-    }
-  }
-
   function handleQueuedMatchSaved() {
     setQueuedReplay(null)
     refreshPendingReplays()
@@ -97,9 +79,8 @@ export default function App() {
         onNavigate={handleNavigate}
         pendingReplays={pendingReplays}
         onLogMatch={setQueuedReplay}
-        onDiscardPending={handleDiscardPending}
+        onPendingChanged={refreshPendingReplays}
         recordingStoppedSignal={recordingStoppedSignal}
-        onPanelOpenChange={setPendingPanelOpen}
       />
       {screen === 'play' ? (
         <PlayScreen
@@ -109,7 +90,6 @@ export default function App() {
           error={recording.error}
           onStart={recording.start}
           onStop={recording.stop}
-          queuePanelOpen={pendingPanelOpen}
         />
       ) : screen === 'matches' ? (
         <MatchHistory />

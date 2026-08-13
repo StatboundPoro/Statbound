@@ -99,5 +99,41 @@ contextBridge.exposeInMainWorld('api', {
     discardPending: (filePath) => ipcRenderer.invoke('replays:discard-pending', filePath),
     create: (replay) => ipcRenderer.invoke('replays:create', replay),
     getByMatch: (matchId) => ipcRenderer.invoke('replays:get-by-match', matchId)
+  },
+  // The Pending Recordings popover's overlay surface — see
+  // src/main/pendingPanelView.js for why it's a second WebContentsView
+  // rather than a plain DOM portal. Used from both sides: Sidebar.jsx
+  // (main window) calls sync() to push open/anchor/content state down;
+  // the popover's own standalone renderer (PendingPanelWindow.jsx) calls
+  // reportSize()/expand()/collapse() and the notify*() relays, and
+  // listens via the on*() subscriptions for state pushed back to it.
+  pendingPanel: {
+    sync: (state) => ipcRenderer.send('pending-panel:sync', state),
+    reportSize: (size) => ipcRenderer.send('pending-panel:report-size', size),
+    expand: () => ipcRenderer.send('pending-panel:expand'),
+    collapse: () => ipcRenderer.send('pending-panel:collapse'),
+    notifyLogMatch: (replay) => ipcRenderer.send('pending-panel:log-match', replay),
+    notifyMouseEnter: () => ipcRenderer.send('pending-panel:mouse-enter'),
+    notifyChanged: () => ipcRenderer.send('pending-panel:changed'),
+    onState: (callback) => {
+      const handler = (_event, state) => callback(state)
+      ipcRenderer.on('pending-panel:state', handler)
+      return () => ipcRenderer.removeListener('pending-panel:state', handler)
+    },
+    onLogMatch: (callback) => {
+      const handler = (_event, replay) => callback(replay)
+      ipcRenderer.on('pending-panel:log-match', handler)
+      return () => ipcRenderer.removeListener('pending-panel:log-match', handler)
+    },
+    onMouseEnter: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on('pending-panel:mouse-enter', handler)
+      return () => ipcRenderer.removeListener('pending-panel:mouse-enter', handler)
+    },
+    onChanged: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on('pending-panel:changed', handler)
+      return () => ipcRenderer.removeListener('pending-panel:changed', handler)
+    }
   }
 })

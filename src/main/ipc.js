@@ -7,6 +7,15 @@ import { listLegends } from './legends.js'
 import { getInsights } from './insights.js'
 import { hidePlayView, setPlayBounds, showPlayView } from './playView.js'
 import {
+  collapsePendingPanel,
+  expandPendingPanel,
+  relayChanged,
+  relayLogMatch,
+  relayMouseEnter,
+  reportPendingPanelSize,
+  syncPendingPanel
+} from './pendingPanelView.js'
+import {
   chooseAutoBackupDirectory,
   chooseVideoCaptureDirectory,
   exportBackup,
@@ -88,4 +97,17 @@ export function registerIpcHandlers() {
   // reason: no response is expected per chunk, only a steady inbound
   // stream while a recording is active.
   ipcMain.on('capture:chunk', (_event, chunk) => appendCaptureChunk(chunk))
+  // Pending Recordings popover — see pendingPanelView.js. Sidebar.jsx
+  // (main window) pushes open/anchor/content state down; the popover's
+  // own overlay view reports its rendered size back and relays a few
+  // user actions (Log Match, hover) up through main to the main window,
+  // since it's a separate WebContents with no direct access to the main
+  // renderer's own state.
+  ipcMain.on('pending-panel:sync', (_event, state) => syncPendingPanel(state))
+  ipcMain.on('pending-panel:report-size', (_event, size) => reportPendingPanelSize(size))
+  ipcMain.on('pending-panel:expand', () => expandPendingPanel())
+  ipcMain.on('pending-panel:collapse', () => collapsePendingPanel())
+  ipcMain.on('pending-panel:log-match', (_event, replay) => relayLogMatch(replay))
+  ipcMain.on('pending-panel:mouse-enter', () => relayMouseEnter())
+  ipcMain.on('pending-panel:changed', () => relayChanged())
 }

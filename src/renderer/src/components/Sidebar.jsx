@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import PendingRecordingsPanel from './PendingRecordingsPanel.jsx'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 // How long an auto-shown notification (a recording just finished) stays
 // fully visible before it starts fading, and the total time (including
@@ -69,9 +67,8 @@ export default function Sidebar({
   onNavigate,
   pendingReplays,
   onLogMatch,
-  onDiscardPending,
-  recordingStoppedSignal,
-  onPanelOpenChange
+  onPendingChanged,
+  recordingStoppedSignal
 }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [fading, setFading] = useState(false)
@@ -96,20 +93,11 @@ export default function Sidebar({
     }
   }
 
-  // Reports open/closed up to App.jsx, which feeds it to PlayScreen.jsx to
-  // shrink the embed's reported bounds while this is open — the embed is
-  // a native WebContentsView that always paints above ordinary page
-  // content (this popover included) regardless of CSS z-index, so it
-  // can't be covered by normal DOM stacking. See PlayScreen.jsx for the
-  // actual bounds adjustment; this component doesn't need to know
-  // `active` at all now, since PlayScreen only exists (and only reads
-  // this) while the Play screen itself is mounted.
   function openPanel(auto = false) {
     clearAutoDismissTimers()
     setFading(false)
     setAutoMode(auto)
     setPanelOpen(true)
-    onPanelOpenChange?.(true)
   }
 
   function closePanel() {
@@ -117,7 +105,6 @@ export default function Sidebar({
     setFading(false)
     setAutoMode(false)
     setPanelOpen(false)
-    onPanelOpenChange?.(false)
   }
 
   function togglePanel() {
@@ -135,8 +122,8 @@ export default function Sidebar({
   // than requiring a click to even notice it happened. Skips the initial
   // mount (the signal starts at 0 and only ever increments from a real
   // stop). Hovering the panel cancels the fade/dismiss — see the
-  // onMouseEnter handler passed to PendingRecordingsPanel below — so
-  // reading it doesn't race against it disappearing.
+  // onMouseEnter handler passed down through pending-panel:sync below —
+  // so reading it doesn't race against it disappearing.
   useEffect(() => {
     if (recordingStoppedSignal === 0) return
     openPanel(true)
@@ -149,7 +136,74 @@ export default function Sidebar({
 
   // Most-recent-first (listPendingReplays()'s natural order) — slicing to
   // one keeps that ordering, so "the latest" really is the newest.
-  const visibleReplays = autoMode ? pendingReplays.slice(0, 1) : pendingReplays
+  // Memoized so the sync effect below (keyed on this array) doesn't fire
+  // on every render, only when the underlying data or mode actually
+  // changes.
+  const visibleReplays = useMemo(
+    () => (autoMode ? pendingReplays.slice(0, 1) : pendingReplays),
+    [autoMode, pendingReplays]
+  )
+
+  // Pushes this popover's open/anchor/content state down to its own
+  // dedicated overlay view (see pendingPanelView.js) — the actual panel no
+  // longer renders in this document at all, since that's what let it get
+  // hidden behind the Play tab's embedded browser (a native view that
+  // always paints on top of ordinary page content regardless of CSS
+  // z-index). Re-sent on window resize too, since the trigger's on-screen
+  // position (the popover's anchor) can move with it.
+  useEffect(() => {
+    function push() {
+      const rect = pendingTriggerRef.current?.getBoundingClientRect()
+      window.api.pendingPanel.sync({
+        open: panelOpen,
+        anchor: rect ? { left: rect.right + 12, bottom: rect.bottom } : null,
+        replays: visibleReplays,
+        fading
+      })
+    }
+    push()
+    if (!panelOpen) return
+    window.addEventListener('resize', push)
+    return () => window.removeEventListener('resize', push)
+  }, [panelOpen, visibleReplays, fading])
+
+  // Clicking anywhere outside the trigger closes a manually-opened panel —
+  // the old portal-based version caught this via a full-viewport backdrop
+  // in the same document as the trigger; the popover now lives in a
+  // separate view, so this is the equivalent for clicks that land
+  // elsewhere in this window's own DOM (a click on the Play embed itself
+  // can't be observed here, since it's a different WebContents entirely).
+  useEffect(() => {
+    if (!panelOpen) return
+    function handlePointerDown(e) {
+      if (pendingTriggerRef.current && !pendingTriggerRef.current.contains(e.target)) {
+        closePanel()
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen])
+
+  // Relayed back from the overlay view (see PendingPanelWindow.jsx) since
+  // it's a separate WebContents with no direct access to this component's
+  // state: Log Match attaches the exact recording clicked and closes the
+  // panel, hovering cancels the auto-dismiss timer, and a successful
+  // discard means the badge count here needs to refetch.
+  useEffect(() => {
+    const offLogMatch = window.api.pendingPanel.onLogMatch((replay) => {
+      closePanel()
+      onLogMatch(replay)
+    })
+    const offMouseEnter = window.api.pendingPanel.onMouseEnter(cancelAutoDismiss)
+    const offChanged = window.api.pendingPanel.onChanged(() => onPendingChanged?.())
+    return () => {
+      offLogMatch()
+      offMouseEnter()
+      offChanged()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="rail">
@@ -214,33 +268,6 @@ export default function Sidebar({
             </div>
             <div className="rail-label">Pending</div>
           </div>
-
-          {/* Rendered through a portal into <body>, not as a normal
-              descendant here — .rail has overflow-y: auto, and Chromium
-              treats that as clipping overflow-x too (the CSS overflow
-              spec's "one axis non-visible forces the other to auto"
-              rule), which would silently clip this panel to the rail's
-              own 88px width otherwise. Positioned via the trigger's own
-              getBoundingClientRect() since a portal drops it out of this
-              DOM subtree's normal layout flow. */}
-          {panelOpen &&
-            createPortal(
-              <>
-                <div className="popover-backdrop" onClick={closePanel} />
-                <PendingRecordingsPanel
-                  anchorRect={pendingTriggerRef.current?.getBoundingClientRect()}
-                  replays={visibleReplays}
-                  fading={fading}
-                  onMouseEnter={cancelAutoDismiss}
-                  onLogMatch={(replay) => {
-                    closePanel()
-                    onLogMatch(replay)
-                  }}
-                  onDiscard={onDiscardPending}
-                />
-              </>,
-              document.body
-            )}
         </div>
 
         <div

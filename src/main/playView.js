@@ -1,5 +1,6 @@
 import { WebContentsView } from 'electron'
 import { attachAutoCapture } from './autoCapture.js'
+import { bringPendingPanelToFront } from './pendingPanelView.js'
 
 const PLAY_URL = 'https://play.riftatlas.com'
 
@@ -63,6 +64,10 @@ export function showPlayView() {
     mainWindow.contentView.addChildView(view)
     attached = true
   }
+  // If the Pending Recordings popover was already open on another screen,
+  // re-attaching this embed on top of it would otherwise bury it — see
+  // pendingPanelView.js's bringPendingPanelToFront for why.
+  bringPendingPanelToFront()
 }
 
 // Detaches (but does not destroy) the view, so its WebContents — and

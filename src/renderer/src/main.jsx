@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
+import PendingPanelWindow from './components/PendingPanelWindow.jsx'
 
 // Self-hosted fonts (bundled locally by Vite, not fetched from a CDN at
 // runtime) — see styles.css for why these live here instead of an @import.
@@ -17,8 +18,12 @@ import '@fontsource/ibm-plex-mono/600'
 
 import './styles.css'
 
+// The same index.html/entry bundle also backs the Pending Recordings
+// popover's own dedicated WebContentsView (see src/main/pendingPanelView.js)
+// — loaded with ?view=pending-panel rather than a second Vite entry point,
+// so it shares this bundle's styles/fonts/components with zero duplication.
+const isPendingPanel = new URLSearchParams(window.location.search).get('view') === 'pending-panel'
+
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+  <React.StrictMode>{isPendingPanel ? <PendingPanelWindow /> : <App />}</React.StrictMode>
 )
