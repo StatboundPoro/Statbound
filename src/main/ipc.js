@@ -6,6 +6,7 @@ import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } f
 import { listLegends } from './legends.js'
 import { getInsights } from './insights.js'
 import { hidePlayView, setPlayBounds, showPlayView } from './playView.js'
+import { handleManualStart } from './autoCapture.js'
 import {
   collapsePendingPanel,
   expandPendingPanel,
@@ -97,6 +98,11 @@ export function registerIpcHandlers() {
   // reason: no response is expected per chunk, only a steady inbound
   // stream while a recording is active.
   ipcMain.on('capture:chunk', (_event, chunk) => appendCaptureChunk(chunk))
+  // Fired once a manually-started recording has actually begun, so
+  // autoCapture.js's state machine can associate it with a match session
+  // it already knows about (join_game seen while autoStartRecording was
+  // off) — see handleManualStart in autoCapture.js.
+  ipcMain.on('capture:manual-start', () => handleManualStart())
   // Pending Recordings popover — see pendingPanelView.js. Sidebar.jsx
   // (main window) pushes open/anchor/content state down; the popover's
   // own overlay view reports its rendered size back and relays a few

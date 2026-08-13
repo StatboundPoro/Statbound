@@ -93,67 +93,78 @@ export function useScreenRecording({ onStopped } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const start = useCallback(async () => {
-    if (recorderRef.current || starting) return
-    setError(null)
-    setStarting(true)
+  // `manual` distinguishes a real Play-tab button press from an
+  // auto-detected start (see the onAutoStart subscription below) — only a
+  // manual press needs to tell main's autoCapture.js state machine (see
+  // handleManualStart there) that a recording just began, so it can be
+  // associated with a match session already seen while auto-start was off.
+  // Auto-started recordings need no such notification: main already knows
+  // about them by definition.
+  const start = useCallback(
+    async ({ manual = true } = {}) => {
+      if (recorderRef.current || starting) return
+      setError(null)
+      setStarting(true)
 
-    try {
-      const sourceId = await window.api.capture.getSourceId()
-      if (!sourceId) throw new Error('Could not find this window to record.')
+      try {
+        const sourceId = await window.api.capture.getSourceId()
+        if (!sourceId) throw new Error('Could not find this window to record.')
 
-      const videoCapture = await window.api.settings.getVideoCapture()
-      const videoBitsPerSecond = BITS_PER_SECOND_BY_QUALITY[videoCapture?.quality] ?? DEFAULT_BITS_PER_SECOND
+        const videoCapture = await window.api.settings.getVideoCapture()
+        const videoBitsPerSecond = BITS_PER_SECOND_BY_QUALITY[videoCapture?.quality] ?? DEFAULT_BITS_PER_SECOND
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: sourceId,
-            maxFrameRate: 24
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+              maxFrameRate: 24
+            }
           }
-        }
-      })
-
-      await window.api.capture.start()
-
-      const recorder = new MediaRecorder(stream, { mimeType: pickMimeType(), videoBitsPerSecond })
-
-      // Chained so onstop (below) can await every chunk actually being
-      // sent — including the final one, whose async arrayBuffer() read
-      // could otherwise still be pending when the 'stop' event fires and
-      // main closes the write stream out from under it.
-      recorder.ondataavailable = (event) => {
-        if (event.data.size === 0) return
-        pendingChunksRef.current = pendingChunksRef.current.then(async () => {
-          const buffer = new Uint8Array(await event.data.arrayBuffer())
-          window.api.capture.sendChunk(buffer)
         })
-      }
-      recorder.onstop = async () => {
-        await pendingChunksRef.current
-        await window.api.capture.stop()
-        onStoppedRef.current?.()
-      }
 
-      recorder.start(1500)
-      recorderRef.current = recorder
-      streamRef.current = stream
-      startedAtRef.current = Date.now()
-      setElapsedSeconds(0)
-      tickIntervalRef.current = setInterval(() => {
-        setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000))
-      }, 1000)
-      setRecording(true)
-    } catch (err) {
-      console.error('Failed to start recording:', err)
-      setError('Could not start recording. Check the main process console.')
-      teardown()
-    } finally {
-      setStarting(false)
-    }
-  }, [starting, teardown])
+        await window.api.capture.start()
+
+        const recorder = new MediaRecorder(stream, { mimeType: pickMimeType(), videoBitsPerSecond })
+
+        // Chained so onstop (below) can await every chunk actually being
+        // sent — including the final one, whose async arrayBuffer() read
+        // could otherwise still be pending when the 'stop' event fires and
+        // main closes the write stream out from under it.
+        recorder.ondataavailable = (event) => {
+          if (event.data.size === 0) return
+          pendingChunksRef.current = pendingChunksRef.current.then(async () => {
+            const buffer = new Uint8Array(await event.data.arrayBuffer())
+            window.api.capture.sendChunk(buffer)
+          })
+        }
+        recorder.onstop = async () => {
+          await pendingChunksRef.current
+          await window.api.capture.stop()
+          onStoppedRef.current?.()
+        }
+
+        recorder.start(1500)
+        recorderRef.current = recorder
+        streamRef.current = stream
+        startedAtRef.current = Date.now()
+        setElapsedSeconds(0)
+        tickIntervalRef.current = setInterval(() => {
+          setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000))
+        }, 1000)
+        setRecording(true)
+        if (manual) window.api.capture.notifyManualStart()
+      } catch (err) {
+        console.error('Failed to start recording:', err)
+        setError('Could not start recording. Check the main process console.')
+        teardown()
+      } finally {
+        setStarting(false)
+      }
+    },
+    [starting, teardown]
+  )
 
   const stop = useCallback(() => {
     if (!recorderRef.current) return
@@ -170,7 +181,7 @@ export function useScreenRecording({ onStopped } = {}) {
   // the app's lifetime) so a join_game seen while the user is on any
   // screen still triggers a real recording, not just while on Play tab.
   useEffect(() => {
-    const unsubscribeStart = window.api.capture.onAutoStart(() => start())
+    const unsubscribeStart = window.api.capture.onAutoStart(() => start({ manual: false }))
     const unsubscribeStop = window.api.capture.onAutoStop(() => stop())
     return () => {
       unsubscribeStart()

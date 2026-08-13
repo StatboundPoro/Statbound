@@ -1,3 +1,5 @@
+import { getVideoCapturePrefs } from './preferences.js'
+
 // How long to wait after the active match's WebSocket closes before
 // actually stopping the recording — covers a brief reconnect (network
 // blip, tab refocus) without splitting one match into two files.
@@ -11,6 +13,16 @@ let mainWindow = null
 let state = 'IDLE'
 let activeGameInstanceId = null
 let pendingStopTimer = null
+
+// The most recently observed join_game's gameInstanceId while `state` is
+// still IDLE because the autoStartRecording preference is off — tracked
+// purely so a manual Start pressed mid-session (see handleManualStart
+// below) can be associated with it and get auto-stop for free. Cleared
+// once that same session's socket closes with no manual start having
+// claimed it. Irrelevant whenever autoStartRecording is on, since a
+// join_game seen while IDLE goes straight to RECORDING in that case and
+// never leaves anything here to track.
+let pendingSessionGameInstanceId = null
 
 // Maps a WebSocket's CDP requestId to the gameInstanceId whose join_game
 // message was sent on it, so a later Network.webSocketClosed for that same
@@ -67,6 +79,14 @@ export function handleJoinGame({ gameInstanceId, requestId }) {
   requestIdToGameInstanceId.set(requestId, gameInstanceId)
 
   if (state === 'IDLE') {
+    if (!getVideoCapturePrefs().autoStartRecording) {
+      // Auto-start is off — don't record yet, but remember this session so
+      // a manual Start pressed before the match ends can still pick up
+      // auto-stop (see handleManualStart below). The listener itself never
+      // stops running just because this preference is off.
+      pendingSessionGameInstanceId = gameInstanceId
+      return
+    }
     state = 'RECORDING'
     activeGameInstanceId = gameInstanceId
     sendAutoStart()
@@ -122,6 +142,16 @@ export function handleSocketClosed({ requestId }) {
   if (!gameInstanceId) return // not a socket we were tracking
   requestIdToGameInstanceId.delete(requestId)
 
+  if (state === 'IDLE') {
+    // No recording is tied to this session (auto-start was off and no
+    // manual Start ever claimed it) — just stop tracking it. Nothing to
+    // stop, so no sendAutoStop().
+    if (gameInstanceId === pendingSessionGameInstanceId) {
+      pendingSessionGameInstanceId = null
+    }
+    return
+  }
+
   if (state !== 'RECORDING' || gameInstanceId !== activeGameInstanceId) return
 
   state = 'PENDING_STOP'
@@ -129,6 +159,29 @@ export function handleSocketClosed({ requestId }) {
     pendingStopTimer = null
     finishStop()
   }, PENDING_STOP_DELAY_MS)
+}
+
+/**
+ * Called when the user presses the Play tab's manual Start button (see
+ * lib/recording.js), after the recording has actually started. If a
+ * join_game was seen while auto-start was off and its session is still
+ * open (`pendingSessionGameInstanceId`), associate this manual recording
+ * with it so the existing webSocketClosed -> PENDING_STOP -> auto-stop
+ * path (including reconnect-resume) applies to it exactly as it would to
+ * an auto-started recording — no sendAutoStart() here, since the renderer
+ * already started the recording itself.
+ *
+ * If no session is currently pending (e.g. Start was pressed before any
+ * join_game fired this session), this is a no-op: that recording has
+ * nothing to associate with and simply requires a manual Stop, the same
+ * as it would have before auto-detection existed at all.
+ */
+export function handleManualStart() {
+  if (state !== 'IDLE' || !pendingSessionGameInstanceId) return
+
+  state = 'RECORDING'
+  activeGameInstanceId = pendingSessionGameInstanceId
+  pendingSessionGameInstanceId = null
 }
 
 /**

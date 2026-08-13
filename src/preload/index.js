@@ -76,6 +76,12 @@ contextBridge.exposeInMainWorld('api', {
     // response pair. `chunk` is a Uint8Array, which structured-clones over
     // Electron IPC without any special handling.
     sendChunk: (chunk) => ipcRenderer.send('capture:chunk', chunk),
+    // One-way — tells autoCapture.js's state machine a manually-started
+    // recording is now active, so it can be associated with a match
+    // session already seen (see src/main/autoCapture.js's
+    // handleManualStart). Never sent for auto-started recordings, which
+    // main already knows about by definition.
+    notifyManualStart: () => ipcRenderer.send('capture:manual-start'),
     // Main pushes these when autoCapture.js's WebSocket-driven state
     // machine decides a match has started/ended (see src/main/
     // autoCapture.js) — the only two channels in this bridge that go

@@ -37,7 +37,11 @@ const DEFAULT_VIDEO_CAPTURE = {
   directory: null, // resolved to defaultVideoCaptureDirectory() on first read, then persisted
   quality: 'medium', // 'low' | 'medium' | 'high' — mapped to MediaRecorder's videoBitsPerSecond in the renderer
   autoDeleteUnlinked: false, // off by default — never delete anything unless explicitly opted in
-  retentionHours: 24 // only consulted while autoDeleteUnlinked is true; 24 | 48 | 168 (1 week)
+  retentionHours: 24, // only consulted while autoDeleteUnlinked is true; 24 | 48 | 168 (1 week)
+  // Off by default — see src/main/autoCapture.js for how this gates only the
+  // IDLE -> RECORDING transition; the WebSocket listener that drives
+  // auto-stop keeps running regardless of this setting.
+  autoStartRecording: false
 }
 
 function readRaw() {

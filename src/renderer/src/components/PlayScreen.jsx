@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatElapsedTime } from '../lib/recording.js'
 
 // Renders no page content of its own for the embed area — the actual
@@ -19,6 +19,29 @@ import { formatElapsedTime } from '../lib/recording.js'
 // screen mid-match (see lib/recording.js's module comment for why).
 export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop }) {
   const containerRef = useRef(null)
+  // Loaded/persisted straight through the existing Video Capture
+  // preferences (settings:get-video-capture/settings:update-video-capture)
+  // rather than any new storage — see src/main/preferences.js's
+  // autoStartRecording field. Fetched locally here rather than lifted to
+  // App.jsx: unlike the recording session itself, this is just a
+  // preference value, cheap to refetch on every visit to this screen and
+  // with no state that needs to survive navigating away.
+  const [autoStartRecording, setAutoStartRecording] = useState(null)
+
+  useEffect(() => {
+    window.api.settings
+      .getVideoCapture()
+      .then((prefs) => setAutoStartRecording(Boolean(prefs?.autoStartRecording)))
+      .catch((err) => console.error('Failed to load auto-record preference:', err))
+  }, [])
+
+  function handleAutoStartToggle(e) {
+    const next = e.target.checked
+    setAutoStartRecording(next)
+    window.api.settings
+      .updateVideoCapture({ autoStartRecording: next })
+      .catch((err) => console.error('Failed to save auto-record preference:', err))
+  }
 
   useEffect(() => {
     const el = containerRef.current
@@ -62,6 +85,18 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
               {formatElapsedTime(elapsedSeconds)}
             </div>
           )}
+          <label
+            className="checkbox-pill"
+            title="Automatically starts recording when a match begins"
+          >
+            <input
+              type="checkbox"
+              checked={autoStartRecording ?? false}
+              disabled={autoStartRecording === null}
+              onChange={handleAutoStartToggle}
+            />
+            Auto-record
+          </label>
           <button
             className={`btn ${recording ? 'btn-danger' : ''}`}
             onClick={recording ? onStop : onStart}
