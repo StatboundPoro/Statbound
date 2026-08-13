@@ -7,6 +7,19 @@ let mainWindow = null
 let writeStream = null
 let currentFilePath = null
 
+// The recording's own filename, not a machine-parsed identifier — built
+// from the local system clock (not UTC) and left as plain "YYYY-MM-DD_HH-
+// mm-ss" so a user browsing the Video Capture folder can tell recordings
+// apart at a glance, without doing timezone math on a trailing "Z".
+function localTimestampForFilename() {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return (
+    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
+    `_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`
+  )
+}
+
 /**
  * Remembers the main window so getCaptureSourceId() can find its capture
  * source later — mirrors initPlayView()'s pattern in playView.js.
@@ -47,7 +60,7 @@ export function startCaptureFile() {
   const { directory } = getVideoCapturePrefs()
   fs.mkdirSync(directory, { recursive: true })
 
-  const fileName = `rifttrack-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`
+  const fileName = `rifttrack-${localTimestampForFilename()}.webm`
   currentFilePath = path.join(directory, fileName)
   writeStream = fs.createWriteStream(currentFilePath)
 
@@ -64,6 +77,17 @@ export function startCaptureFile() {
 export function appendCaptureChunk(chunk) {
   if (!writeStream) return
   writeStream.write(Buffer.from(chunk))
+}
+
+/**
+ * The file path currently being written to, or null if no recording is
+ * active. Used by replays.js to exclude an in-progress recording from the
+ * unlinked/pending lists — showing (or worse, letting someone Discard) a
+ * file that's still being actively written to would be a real bug, not
+ * just a cosmetic one.
+ */
+export function getActiveCaptureFilePath() {
+  return writeStream ? currentFilePath : null
 }
 
 /**

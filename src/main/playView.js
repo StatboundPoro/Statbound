@@ -1,4 +1,5 @@
 import { WebContentsView } from 'electron'
+import { attachAutoCapture } from './autoCapture.js'
 
 const PLAY_URL = 'https://play.riftatlas.com'
 
@@ -44,6 +45,12 @@ function ensurePlayView() {
   playView.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     console.error('[play embed] failed to load', validatedURL, errorCode, errorDescription)
   })
+
+  // Attached once, right here at creation, so it covers the view's whole
+  // lifetime — the view is only ever detached/reattached after this (see
+  // hidePlayView/showPlayView below), never destroyed and recreated. See
+  // autoCapture.js for exactly what this does and does not read.
+  attachAutoCapture(playView.webContents)
 
   playView.webContents.loadURL(PLAY_URL)
   return playView

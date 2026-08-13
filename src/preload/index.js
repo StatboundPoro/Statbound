@@ -75,10 +75,28 @@ contextBridge.exposeInMainWorld('api', {
     // One-way — a steady inbound stream of recorded chunks, not a request/
     // response pair. `chunk` is a Uint8Array, which structured-clones over
     // Electron IPC without any special handling.
-    sendChunk: (chunk) => ipcRenderer.send('capture:chunk', chunk)
+    sendChunk: (chunk) => ipcRenderer.send('capture:chunk', chunk),
+    // Main pushes these when autoCapture.js's WebSocket-driven state
+    // machine decides a match has started/ended (see src/main/
+    // autoCapture.js) — the only two channels in this bridge that go
+    // main-to-renderer rather than the other way around. Each returns an
+    // unsubscribe function, the same shape a DOM addEventListener wrapper
+    // would use, so the caller's cleanup effect has something to call.
+    onAutoStart: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on('capture:auto-start', handler)
+      return () => ipcRenderer.removeListener('capture:auto-start', handler)
+    },
+    onAutoStop: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on('capture:auto-stop', handler)
+      return () => ipcRenderer.removeListener('capture:auto-stop', handler)
+    }
   },
   replays: {
     listUnlinked: () => ipcRenderer.invoke('replays:list-unlinked'),
+    listPending: () => ipcRenderer.invoke('replays:list-pending'),
+    discardPending: (filePath) => ipcRenderer.invoke('replays:discard-pending', filePath),
     create: (replay) => ipcRenderer.invoke('replays:create', replay),
     getByMatch: (matchId) => ipcRenderer.invoke('replays:get-by-match', matchId)
   }

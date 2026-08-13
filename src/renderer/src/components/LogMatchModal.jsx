@@ -273,13 +273,26 @@ function gamesFromMatch(match) {
 }
 
 // Manual match-entry form. In "create" mode (the default, launched from
-// Deck Detail's "Log Match" button) it starts blank and posts a new match
-// via matches:create. In "edit" mode (launched from MatchDetailModal's
-// "Edit" button) it's pre-filled from `match` and calls matches:update
-// against `match.id` instead — same form either way, no second component.
-// No auto-capture or replay parsing in either mode; every field is typed
-// in by hand.
-export default function LogMatchModal({ initialDeckId, mode = 'create', match, onClose, onSaved }) {
+// Deck Detail's "Log Match" button, or from the Sidebar's Pending
+// Recordings queue with no particular deck in context) it starts blank
+// and posts a new match via matches:create. In "edit" mode (launched from
+// MatchDetailModal's "Edit" button) it's pre-filled from `match` and calls
+// matches:update against `match.id` instead — same form either way, no
+// second component. No auto-capture or replay parsing in either mode;
+// every field is typed in by hand.
+//
+// `preselectedReplayPath`, when given (only ever from the Pending
+// Recordings queue — see App.jsx), pins the Recording section to that
+// exact file on open instead of defaulting to "most recent unlinked" —
+// the override dropdown is still fully available underneath it either way.
+export default function LogMatchModal({
+  initialDeckId,
+  preselectedReplayPath,
+  mode = 'create',
+  match,
+  onClose,
+  onSaved
+}) {
   const isEdit = mode === 'edit'
 
   const [decks, setDecks] = useState([])
@@ -314,16 +327,30 @@ export default function LogMatchModal({ initialDeckId, mode = 'create', match, o
       })
   }, [])
 
+  // Launched with no deck context at all (the Sidebar's Pending Recordings
+  // queue, unlike Deck Detail's "Log Match" button, isn't scoped to any
+  // one deck) — once the deck list loads, default to the first one rather
+  // than leaving the Deck field's underlying state undefined while the
+  // dropdown visually shows a deck selected. The user can still change it.
+  useEffect(() => {
+    if (!isEdit && !deckId && decks.length > 0) setDeckId(decks[0].id)
+  }, [isEdit, deckId, decks])
+
   useEffect(() => {
     if (isEdit) return
     window.api.replays
       .listUnlinked()
       .then((files) => {
         setUnlinkedReplays(files)
-        // Simplest correct default: the most recent unlinked recording,
-        // since normally at most one is pending at a time. The dropdown
-        // below still lets a different one (or "No recording") be picked.
-        if (files.length > 0) setSelectedReplayPath(files[0].filePath)
+        if (preselectedReplayPath) {
+          // Opened for one specific queued recording — not "most recent."
+          setSelectedReplayPath(preselectedReplayPath)
+        } else if (files.length > 0) {
+          // Simplest correct default: the most recent unlinked recording,
+          // since normally at most one is pending at a time. The dropdown
+          // below still lets a different one (or "No recording") be picked.
+          setSelectedReplayPath(files[0].filePath)
+        }
       })
       .catch((err) => console.error('Failed to load unlinked recordings:', err))
     // eslint-disable-next-line react-hooks/exhaustive-deps

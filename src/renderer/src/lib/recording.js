@@ -29,15 +29,33 @@ export function formatElapsedTime(totalSeconds) {
  * being buffered into one Blob in renderer memory, since a match can run
  * well past 10 minutes.
  *
- * Deliberately scoped to whatever component calls this hook, not lifted
- * higher: PlayScreen.jsx unmounts when the user navigates to another rail
- * screen (App.jsx renders one screen at a time, not all of them hidden),
- * so navigating away from Play mid-recording stops it via the cleanup
- * effect below rather than leaving an invisible recording running with no
- * visible control anywhere to stop it.
+ * Lives in App.jsx, not PlayScreen.jsx — deliberately lifted above the
+ * per-screen render tree (unlike Phase 1, where it was scoped to
+ * PlayScreen's own lifetime and stopped on unmount). Phase 2's
+ * WebSocket-driven auto-start/stop (see src/main/autoCapture.js) can fire
+ * at any point while the Play tab's embedded WebContentsView is alive,
+ * which persists across screen navigation (see playView.js) — if the hook
+ * still lived inside PlayScreen, navigating away mid-match would silently
+ * stop a recording auto-detection is actively relying on. App.jsx passes
+ * this hook's state/handlers down to PlayScreen as props so the Play tab's
+ * indicator/button look and behave exactly as before; nothing about the
+ * visible UI changed, only where the state that drives it lives.
+ *
+ * `onStopped`, if given, fires once a recording has fully finished writing
+ * to disk (after capture:stop resolves) — the moment a new file genuinely
+ * exists as a pending recording, which is what the Pending Recordings
+ * badge count needs to know to refetch.
  */
-export function useScreenRecording() {
+export function useScreenRecording({ onStopped } = {}) {
   const [recording, setRecording] = useState(false)
+  // Windows' capture backend (WGC) reliably takes several seconds and a
+  // few failed internal attempts before it can actually grab this app's
+  // window — visible as "Source is not capturable" spam in the main
+  // process console — before falling back to a capturer that works. It's
+  // a real, per-recording delay this app has no way to skip, so `starting`
+  // exists purely to keep the Start button from looking unresponsive
+  // during that gap rather than to mask an error state.
+  const [starting, setStarting] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [error, setError] = useState(null)
 
@@ -46,6 +64,14 @@ export function useScreenRecording() {
   const pendingChunksRef = useRef(Promise.resolve())
   const startedAtRef = useRef(null)
   const tickIntervalRef = useRef(null)
+  // A ref (not a start()/stop() dependency) so a caller passing a fresh
+  // inline callback every render doesn't churn start()'s identity, which
+  // would otherwise re-fire the auto-start/stop subscription effect below
+  // on every render for no reason.
+  const onStoppedRef = useRef(onStopped)
+  useEffect(() => {
+    onStoppedRef.current = onStopped
+  }, [onStopped])
 
   const teardown = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
@@ -68,8 +94,9 @@ export function useScreenRecording() {
   }, [])
 
   const start = useCallback(async () => {
-    if (recorderRef.current) return
+    if (recorderRef.current || starting) return
     setError(null)
+    setStarting(true)
 
     try {
       const sourceId = await window.api.capture.getSourceId()
@@ -107,6 +134,7 @@ export function useScreenRecording() {
       recorder.onstop = async () => {
         await pendingChunksRef.current
         await window.api.capture.stop()
+        onStoppedRef.current?.()
       }
 
       recorder.start(1500)
@@ -122,8 +150,10 @@ export function useScreenRecording() {
       console.error('Failed to start recording:', err)
       setError('Could not start recording. Check the main process console.')
       teardown()
+    } finally {
+      setStarting(false)
     }
-  }, [teardown])
+  }, [starting, teardown])
 
   const stop = useCallback(() => {
     if (!recorderRef.current) return
@@ -132,5 +162,21 @@ export function useScreenRecording() {
     setRecording(false)
   }, [teardown])
 
-  return { recording, elapsedSeconds, error, start, stop }
+  // Auto-detection push events from main (see src/main/autoCapture.js) —
+  // reuse the exact same start()/stop() the manual button calls, so every
+  // idempotency/error-handling guard already built into them (no double
+  // start, stop-whatever's-running) applies here too with no special
+  // casing. Subscribed for this hook's whole lifetime (App.jsx, effectively
+  // the app's lifetime) so a join_game seen while the user is on any
+  // screen still triggers a real recording, not just while on Play tab.
+  useEffect(() => {
+    const unsubscribeStart = window.api.capture.onAutoStart(() => start())
+    const unsubscribeStop = window.api.capture.onAutoStop(() => stop())
+    return () => {
+      unsubscribeStart()
+      unsubscribeStop()
+    }
+  }, [start, stop])
+
+  return { recording, starting, elapsedSeconds, error, start, stop }
 }

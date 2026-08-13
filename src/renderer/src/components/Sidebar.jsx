@@ -1,3 +1,7 @@
+import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import PendingRecordingsPanel from './PendingRecordingsPanel.jsx'
+
 // Play, Decks, Matches, and Insights all have real screens, so they're
 // clickable and their `key` doubles as the `screen` value App.jsx switches
 // on. Settings stays in its own `rail-bottom` slot (gear icon, pinned below
@@ -52,7 +56,11 @@ const NAV_ITEMS = [
   }
 ]
 
-export default function Sidebar({ active, onNavigate }) {
+export default function Sidebar({ active, onNavigate, pendingReplays, onLogMatch, onDiscardPending }) {
+  const [panelOpen, setPanelOpen] = useState(false)
+  const pendingTriggerRef = useRef(null)
+  const pendingCount = pendingReplays.length
+
   return (
     <div className="rail">
       <div className="rail-mark">
@@ -90,6 +98,60 @@ export default function Sidebar({ active, onNavigate }) {
       </div>
 
       <div className="rail-bottom">
+        {/* Hidden entirely at zero — only ever an interruption once there's
+            something to actually resolve, never a permanent fixture of the
+            rail. Visible on every screen, not just Play, since a match can
+            finish (auto-detected or manual) while the user is elsewhere in
+            the app. */}
+        {pendingCount > 0 && (
+          <div className="rail-pending-wrap">
+            <div
+              ref={pendingTriggerRef}
+              className={`rail-item clickable ${panelOpen ? 'active' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setPanelOpen((open) => !open)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') setPanelOpen((open) => !open)
+              }}
+            >
+              <div className="rail-badge-wrap">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M12 8v4.5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="rail-badge">{pendingCount}</span>
+              </div>
+              <div className="rail-label">Pending</div>
+            </div>
+
+            {/* Rendered through a portal into <body>, not as a normal
+                descendant here — .rail has overflow-y: auto, and Chromium
+                treats that as clipping overflow-x too (the CSS overflow
+                spec's "one axis non-visible forces the other to auto"
+                rule), which would silently clip this panel to the rail's
+                own 88px width otherwise. Positioned via the trigger's own
+                getBoundingClientRect() since a portal drops it out of this
+                DOM subtree's normal layout flow. */}
+            {panelOpen &&
+              createPortal(
+                <>
+                  <div className="popover-backdrop" onClick={() => setPanelOpen(false)} />
+                  <PendingRecordingsPanel
+                    anchorRect={pendingTriggerRef.current?.getBoundingClientRect()}
+                    replays={pendingReplays}
+                    onLogMatch={(replay) => {
+                      setPanelOpen(false)
+                      onLogMatch(replay)
+                    }}
+                    onDiscard={onDiscardPending}
+                  />
+                </>,
+                document.body
+              )}
+          </div>
+        )}
+
         <div
           className={`rail-item clickable ${active === 'settings' ? 'active' : ''}`}
           role="button"

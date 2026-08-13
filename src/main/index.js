@@ -6,6 +6,7 @@ import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
 import { initAutoBackup } from './autoBackup.js'
 import { initCapture } from './capture.js'
+import { initAutoCapture } from './autoCapture.js'
 import { initReplayCleanup } from './replayCleanup.js'
 // Imported (not just called) before app.whenReady() below — its module
 // body registers the rifttrack-replay:// scheme as privileged, which
@@ -65,12 +66,14 @@ app.whenReady().then(() => {
   const win = createMainWindow()
   initPlayView(win)
   initCapture(win)
+  initAutoCapture(win)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       const nextWin = createMainWindow()
       initPlayView(nextWin)
       initCapture(nextWin)
+      initAutoCapture(nextWin)
     }
   })
 })

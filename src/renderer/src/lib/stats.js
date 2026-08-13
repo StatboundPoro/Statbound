@@ -17,6 +17,32 @@ export function formatRelativeTime(isoString) {
   return new Date(isoString).toLocaleDateString()
 }
 
+// "Today, 3:42 PM" / "Yesterday, 3:42 PM" / "8/10/2026, 3:42 PM" — backs
+// the Pending Recordings queue's per-session start time, where a bare
+// formatRelativeTime()'s "2h ago" reads worse once you also need the exact
+// clock time to distinguish two sessions from the same day.
+export function formatSessionTime(isoString) {
+  const date = new Date(isoString)
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+  const now = new Date()
+  if (date.toDateString() === now.toDateString()) return `Today, ${time}`
+
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (date.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`
+
+  return `${date.toLocaleDateString()}, ${time}`
+}
+
+// Whole minutes between two ISO timestamps, floored to "<1 min" rather
+// than "0 min" for a very short recording.
+export function formatDuration(startIsoString, endIsoString) {
+  const ms = new Date(endIsoString) - new Date(startIsoString)
+  const minutes = Math.floor(ms / 60000)
+  return minutes < 1 ? '<1 min' : `${minutes} min`
+}
+
 // matches must already be sorted most-recent-first.
 export function computeWinRate(matches) {
   const decided = matches.filter((m) => m.result === 'win' || m.result === 'loss')
@@ -70,12 +96,24 @@ export function computeMatchupRecords(matches) {
   }))
 }
 
-// Picks the deck with the best win rate among decks that have at least
-// one decided match. Returns null when no deck has any match history yet.
+// Same reasoning as Insights' Best/Worst Matchup (see insights.js's
+// SMALL_SAMPLE_THRESHOLD) — a deck's win rate only means something once
+// there's enough of a sample behind it, otherwise a single 1-0 record
+// would out-rank a real 40-15 one just because 100% > 73%. Duplicated
+// here (not imported) since insights.js is main-process code and this is
+// a renderer-only helper; keep the two in sync if the threshold ever
+// changes.
+const SMALL_SAMPLE_THRESHOLD = 5
+
+// Picks the deck with the best win rate among decks with at least
+// SMALL_SAMPLE_THRESHOLD decided matches. Returns null if no deck clears
+// that bar yet, even if some deck has a match history at all.
 export function findBestDeck(decks, matchesByDeckId) {
   let best = null
   for (const deck of decks) {
     const deckMatches = matchesByDeckId.get(deck.id) ?? []
+    const { wins, losses } = computeRecord(deckMatches)
+    if (wins + losses < SMALL_SAMPLE_THRESHOLD) continue
     const winRate = computeWinRate(deckMatches)
     if (winRate === null) continue
     if (!best || winRate > best.winRate) {

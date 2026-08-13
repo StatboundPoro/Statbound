@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { formatElapsedTime, useScreenRecording } from '../lib/recording.js'
+import { formatElapsedTime } from '../lib/recording.js'
 
 // Renders no page content of its own for the embed area — the actual
 // play.riftatlas.com content is a native WebContentsView the main process
@@ -7,9 +7,13 @@ import { formatElapsedTime, useScreenRecording } from '../lib/recording.js'
 // This component's only job is to tell main process where that rectangle
 // is, on mount/resize, and to show/hide the view as this screen mounts and
 // unmounts so it doesn't render on top of other screens.
-export default function PlayScreen() {
+//
+// Recording state/controls are passed in as props rather than owned here
+// via useScreenRecording() directly — the hook lives in App.jsx now, since
+// Phase 2's auto-detection needs it to survive navigating away from this
+// screen mid-match (see lib/recording.js's module comment for why).
+export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop }) {
   const containerRef = useRef(null)
-  const { recording, elapsedSeconds, error, start, stop } = useScreenRecording()
 
   useEffect(() => {
     const el = containerRef.current
@@ -53,8 +57,12 @@ export default function PlayScreen() {
               {formatElapsedTime(elapsedSeconds)}
             </div>
           )}
-          <button className={`btn ${recording ? 'btn-danger' : ''}`} onClick={recording ? stop : start}>
-            {recording ? 'Stop Recording' : 'Start Recording'}
+          <button
+            className={`btn ${recording ? 'btn-danger' : ''}`}
+            onClick={recording ? onStop : onStart}
+            disabled={starting}
+          >
+            {recording ? 'Stop Recording' : starting ? 'Starting…' : 'Start Recording'}
           </button>
         </div>
       </div>

@@ -25,7 +25,7 @@ import {
   updateVideoCapturePrefs
 } from './preferences.js'
 import { appendCaptureChunk, getCaptureSourceId, startCaptureFile, stopCaptureFile } from './capture.js'
-import { createReplay, getReplayByMatchId, listUnlinkedReplays } from './replays.js'
+import { createReplay, discardPendingReplay, getReplayByMatchId, listPendingReplays, listUnlinkedReplays } from './replays.js'
 import { replayFileUrl } from './replayProtocol.js'
 
 /**
@@ -71,6 +71,8 @@ export function registerIpcHandlers() {
   ipcMain.handle('capture:start', () => startCaptureFile())
   ipcMain.handle('capture:stop', () => stopCaptureFile())
   ipcMain.handle('replays:list-unlinked', () => listUnlinkedReplays())
+  ipcMain.handle('replays:list-pending', () => listPendingReplays())
+  ipcMain.handle('replays:discard-pending', (_event, filePath) => discardPendingReplay(filePath))
   ipcMain.handle('replays:create', (_event, replay) => createReplay(replay))
   ipcMain.handle('replays:get-by-match', (_event, matchId) => {
     const replay = getReplayByMatchId(matchId)
