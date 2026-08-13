@@ -285,6 +285,47 @@ body {
   border-radius: 8px;
 }
 
+.recording-controls {
+  align-items: center;
+}
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--fury);
+}
+.recording-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--fury);
+  animation: recording-pulse 1.4s ease-in-out infinite;
+}
+@keyframes recording-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.play-recording-error {
+  margin-top: 8px;
+  color: var(--fury);
+  font-size: 13px;
+}
+
+.replay-video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 6px;
+  background: #000;
+  display: block;
+}
+
 /* ---------- STAT STRIP ---------- */
 .stat-strip {
   display: grid;

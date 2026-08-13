@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { formatElapsedTime, useScreenRecording } from '../lib/recording.js'
 
 // Renders no page content of its own for the embed area — the actual
 // play.riftatlas.com content is a native WebContentsView the main process
@@ -8,6 +9,7 @@ import { useEffect, useRef } from 'react'
 // unmounts so it doesn't render on top of other screens.
 export default function PlayScreen() {
   const containerRef = useRef(null)
+  const { recording, elapsedSeconds, error, start, stop } = useScreenRecording()
 
   useEffect(() => {
     const el = containerRef.current
@@ -42,6 +44,18 @@ export default function PlayScreen() {
       <div className="topbar">
         <div>
           <h1>Play</h1>
+          {error && <div className="play-recording-error">{error}</div>}
+        </div>
+        <div className="topbar-actions recording-controls">
+          {recording && (
+            <div className="recording-indicator">
+              <span className="recording-dot" />
+              {formatElapsedTime(elapsedSeconds)}
+            </div>
+          )}
+          <button className={`btn ${recording ? 'btn-danger' : ''}`} onClick={recording ? stop : start}>
+            {recording ? 'Stop Recording' : 'Start Recording'}
+          </button>
         </div>
       </div>
       <div className="play-embed" ref={containerRef} />

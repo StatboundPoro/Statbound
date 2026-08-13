@@ -67,5 +67,19 @@ contextBridge.exposeInMainWorld('api', {
         width: rect.width,
         height: rect.height
       })
+  },
+  capture: {
+    getSourceId: () => ipcRenderer.invoke('capture:get-source-id'),
+    start: () => ipcRenderer.invoke('capture:start'),
+    stop: () => ipcRenderer.invoke('capture:stop'),
+    // One-way — a steady inbound stream of recorded chunks, not a request/
+    // response pair. `chunk` is a Uint8Array, which structured-clones over
+    // Electron IPC without any special handling.
+    sendChunk: (chunk) => ipcRenderer.send('capture:chunk', chunk)
+  },
+  replays: {
+    listUnlinked: () => ipcRenderer.invoke('replays:list-unlinked'),
+    create: (replay) => ipcRenderer.invoke('replays:create', replay),
+    getByMatch: (matchId) => ipcRenderer.invoke('replays:get-by-match', matchId)
   }
 })

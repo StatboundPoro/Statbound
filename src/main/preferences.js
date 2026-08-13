@@ -20,8 +20,7 @@ export function defaultAutoBackupDirectory() {
 // Same reasoning as the auto-backup directory above applies to where replay
 // recordings get written: it's a setting about this installation, not TCG
 // data, so it lives here rather than in the database and survives Import/
-// Reset untouched. Recording itself isn't built yet — this only persists
-// the preference for when it is.
+// Reset untouched.
 export function defaultVideoCaptureDirectory() {
   return path.join(app.getPath('userData'), 'replays')
 }
@@ -36,7 +35,9 @@ const DEFAULT_AUTO_BACKUP = {
 
 const DEFAULT_VIDEO_CAPTURE = {
   directory: null, // resolved to defaultVideoCaptureDirectory() on first read, then persisted
-  quality: 'medium' // 'low' | 'medium' | 'high' — resolution/bitrate mapping decided when recording is built
+  quality: 'medium', // 'low' | 'medium' | 'high' — mapped to MediaRecorder's videoBitsPerSecond in the renderer
+  autoDeleteUnlinked: false, // off by default — never delete anything unless explicitly opted in
+  retentionHours: 24 // only consulted while autoDeleteUnlinked is true; 24 | 48 | 168 (1 week)
 }
 
 function readRaw() {

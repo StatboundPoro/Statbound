@@ -24,6 +24,9 @@ import {
   updateAutoBackupPrefs,
   updateVideoCapturePrefs
 } from './preferences.js'
+import { appendCaptureChunk, getCaptureSourceId, startCaptureFile, stopCaptureFile } from './capture.js'
+import { createReplay, getReplayByMatchId, listUnlinkedReplays } from './replays.js'
+import { replayFileUrl } from './replayProtocol.js'
 
 /**
  * Registers every ipcMain.handle() endpoint the renderer is allowed to call.
@@ -64,10 +67,23 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:get-folder-size', (_event, directory) => getFolderSizeBytes(directory))
   ipcMain.handle('settings:open-folder', (_event, directory) => openFolder(directory))
   ipcMain.handle('settings:open-app-data-folder', () => openAppDataFolder())
+  ipcMain.handle('capture:get-source-id', () => getCaptureSourceId())
+  ipcMain.handle('capture:start', () => startCaptureFile())
+  ipcMain.handle('capture:stop', () => stopCaptureFile())
+  ipcMain.handle('replays:list-unlinked', () => listUnlinkedReplays())
+  ipcMain.handle('replays:create', (_event, replay) => createReplay(replay))
+  ipcMain.handle('replays:get-by-match', (_event, matchId) => {
+    const replay = getReplayByMatchId(matchId)
+    return replay ? { ...replay, url: replayFileUrl(replay.file_path) } : null
+  })
 
   // One-way (send/on, not invoke/handle) since these are fire-and-forget UI
   // sync events, not requests with a return value.
   ipcMain.on('play:show', () => showPlayView())
   ipcMain.on('play:hide', () => hidePlayView())
   ipcMain.on('play:set-bounds', (_event, rect) => setPlayBounds(rect))
+  // Streamed recording chunks — see capture.js. One-way for the same
+  // reason: no response is expected per chunk, only a steady inbound
+  // stream while a recording is active.
+  ipcMain.on('capture:chunk', (_event, chunk) => appendCaptureChunk(chunk))
 }

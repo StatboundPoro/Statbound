@@ -5,6 +5,12 @@ import { getDb } from './db.js'
 import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
 import { initAutoBackup } from './autoBackup.js'
+import { initCapture } from './capture.js'
+import { initReplayCleanup } from './replayCleanup.js'
+// Imported (not just called) before app.whenReady() below — its module
+// body registers the rifttrack-replay:// scheme as privileged, which
+// Electron only honors when done before the app is ready.
+import { registerReplayProtocol } from './replayProtocol.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -53,11 +59,19 @@ app.whenReady().then(() => {
   getDb()
   registerIpcHandlers()
   initAutoBackup()
+  initReplayCleanup()
+  registerReplayProtocol()
 
-  initPlayView(createMainWindow())
+  const win = createMainWindow()
+  initPlayView(win)
+  initCapture(win)
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) initPlayView(createMainWindow())
+    if (BrowserWindow.getAllWindows().length === 0) {
+      const nextWin = createMainWindow()
+      initPlayView(nextWin)
+      initCapture(nextWin)
+    }
   })
 })
 

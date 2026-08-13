@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { domainColor, DomainGlyph } from '../lib/domains.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import LogMatchModal from './LogMatchModal.jsx'
+import ReplayPlayer from './ReplayPlayer.jsx'
 
 const SEAT_LABELS = {
   went_1st: 'Went 1st',
@@ -53,7 +54,7 @@ function GameDetail({ game }) {
   )
 }
 
-function MatchDetailView({ match, deck, onEdit, onDeleteClick, onClose }) {
+function MatchDetailView({ match, deck, replay, onWatchReplay, onEdit, onDeleteClick, onClose }) {
   return (
     <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
       <div className="modal-header">
@@ -151,6 +152,11 @@ function MatchDetailView({ match, deck, onEdit, onDeleteClick, onClose }) {
           Delete Match
         </button>
         <div className="match-detail-actions-right">
+          {replay && (
+            <button className="btn" onClick={onWatchReplay}>
+              Watch Replay
+            </button>
+          )}
           <button className="btn" onClick={onClose}>
             Close
           </button>
@@ -179,8 +185,10 @@ function MatchDetailView({ match, deck, onEdit, onDeleteClick, onClose }) {
 export default function MatchDetailModal({ matchId, onClose, onChanged }) {
   const [match, setMatch] = useState(null)
   const [deck, setDeck] = useState(null)
+  const [replay, setReplay] = useState(null)
   const [status, setStatus] = useState('loading')
   const [mode, setMode] = useState('view')
+  const [replayPlayerOpen, setReplayPlayerOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
@@ -198,11 +206,13 @@ export default function MatchDetailModal({ matchId, onClose, onChanged }) {
           return
         }
         setMatch(matchResult)
-        return window.api.decks.get(matchResult.deck_id)
+        return Promise.all([window.api.decks.get(matchResult.deck_id), window.api.replays.getByMatch(matchId)])
       })
-      .then((deckResult) => {
-        if (cancelled || deckResult === undefined) return
+      .then((results) => {
+        if (cancelled || results === undefined) return
+        const [deckResult, replayResult] = results
         setDeck(deckResult)
+        setReplay(replayResult)
         setStatus('ready')
       })
       .catch((err) => {
@@ -261,12 +271,18 @@ export default function MatchDetailModal({ matchId, onClose, onChanged }) {
           <MatchDetailView
             match={match}
             deck={deck}
+            replay={replay}
+            onWatchReplay={() => setReplayPlayerOpen(true)}
             onEdit={() => setMode('edit')}
             onDeleteClick={() => setConfirmDeleteOpen(true)}
             onClose={onClose}
           />
         )}
       </div>
+
+      {replayPlayerOpen && replay && (
+        <ReplayPlayer src={replay.url} onClose={() => setReplayPlayerOpen(false)} />
+      )}
 
       {confirmDeleteOpen && (
         <ConfirmDialog

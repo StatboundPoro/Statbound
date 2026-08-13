@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import LegendAutocomplete from './LegendAutocomplete'
+import { formatRelativeTime } from '../lib/stats.js'
 
 const EXTRA_BATTLEFIELD_OPTIONS = ['Baron Pit', 'Brush']
 
@@ -294,6 +295,12 @@ export default function LogMatchModal({ initialDeckId, mode = 'create', match, o
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
+  // Recording linking only ever happens at initial match creation (see
+  // module comment above) — editing an existing match never touches this,
+  // so none of this state or its fetch even runs in edit mode.
+  const [unlinkedReplays, setUnlinkedReplays] = useState([])
+  const [selectedReplayPath, setSelectedReplayPath] = useState('')
+
   useEffect(() => {
     window.api.decks
       .list()
@@ -305,6 +312,21 @@ export default function LogMatchModal({ initialDeckId, mode = 'create', match, o
         console.error('Failed to load decks for match log:', err)
         setDecksStatus('error')
       })
+  }, [])
+
+  useEffect(() => {
+    if (isEdit) return
+    window.api.replays
+      .listUnlinked()
+      .then((files) => {
+        setUnlinkedReplays(files)
+        // Simplest correct default: the most recent unlinked recording,
+        // since normally at most one is pending at a time. The dropdown
+        // below still lets a different one (or "No recording") be picked.
+        if (files.length > 0) setSelectedReplayPath(files[0].filePath)
+      })
+      .catch((err) => console.error('Failed to load unlinked recordings:', err))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selectedDeck = decks.find((d) => d.id === deckId) ?? null
@@ -384,6 +406,18 @@ export default function LogMatchModal({ initialDeckId, mode = 'create', match, o
       const saved = isEdit
         ? await window.api.matches.update(match.id, payload)
         : await window.api.matches.create({ ...payload, played_at: new Date().toISOString() })
+
+      if (!isEdit && selectedReplayPath) {
+        try {
+          await window.api.replays.create({ match_id: saved.id, file_path: selectedReplayPath })
+        } catch (err) {
+          // The match itself already saved successfully — a failed link
+          // shouldn't lose that. The file stays unlinked on disk and can
+          // still be picked up manually the next time a match is logged.
+          console.error('Failed to link recording to match:', err)
+        }
+      }
+
       onSaved(saved)
     } catch (err) {
       console.error(`Failed to ${isEdit ? 'update' : 'save'} match:`, err)
@@ -490,6 +524,27 @@ export default function LogMatchModal({ initialDeckId, mode = 'create', match, o
         )}
         {decidedGamesCount === 0 && (
           <div className="form-hint">Enter a result for at least one game to save.</div>
+        )}
+
+        {!isEdit && (
+          <>
+            <div className="section-label">Recording</div>
+            {unlinkedReplays.length === 0 ? (
+              <div className="form-hint">No unlinked recordings found.</div>
+            ) : (
+              <label className="form-field">
+                <span>Link a Recording</span>
+                <select value={selectedReplayPath} onChange={(e) => setSelectedReplayPath(e.target.value)}>
+                  <option value="">No recording</option>
+                  {unlinkedReplays.map((file) => (
+                    <option key={file.filePath} value={file.filePath}>
+                      {file.fileName} — {formatRelativeTime(file.createdAt)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </>
         )}
 
         <div className="section-label">Flags</div>

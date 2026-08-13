@@ -15,6 +15,12 @@ const VIDEO_QUALITY_PRESETS = [
   { label: 'High', value: 'high' }
 ]
 
+const RETENTION_OPTIONS = [
+  { label: '24 Hours', hours: 24 },
+  { label: '48 Hours', hours: 48 },
+  { label: '1 Week', hours: 168 }
+]
+
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`
   const units = ['KB', 'MB', 'GB', 'TB']
@@ -42,11 +48,12 @@ function importWarningMessage(summary) {
 
 // Settings has four sections. General holds Export/Import plus a read-only
 // display of where the database file lives; Automatic Backups holds the
-// scheduled background-backup toggle; Video Capture holds preferences for
-// the not-yet-built replay recording feature (save location + quality
-// preset only — no recording logic exists yet); Danger Zone holds Reset
-// All Data, visually separated (border/background tint, red title) so it
-// doesn't read as a routine action next to them.
+// scheduled background-backup toggle; Video Capture holds replay-recording
+// preferences (save location, quality preset, and unlinked-recording
+// cleanup — the actual recording control lives on the Play tab, see
+// PlayScreen.jsx); Danger Zone holds Reset All Data, visually separated
+// (border/background tint, red title) so it doesn't read as a routine
+// action next to them.
 export default function SettingsScreen() {
   const [exportStatus, setExportStatus] = useState(null) // { filePath } | { error }
   const [importError, setImportError] = useState(null)
@@ -403,7 +410,7 @@ export default function SettingsScreen() {
           <div>
             <div className="settings-row-title">Save Location</div>
             <div className="settings-row-desc">
-              Where replay recordings will be written once recording is built.
+              Where replay recordings are written.
               {videoCapture && (
                 <>
                   <br />
@@ -432,8 +439,7 @@ export default function SettingsScreen() {
           <div>
             <div className="settings-row-title">Quality</div>
             <div className="settings-row-desc">
-              Preset used once recording is built — the resolution and bitrate behind each preset are
-              decided then.
+              Higher presets record at a higher bitrate — larger files, sharper video.
             </div>
           </div>
           <div className="settings-row-actions">
@@ -452,6 +458,49 @@ export default function SettingsScreen() {
             </div>
           </div>
         </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">Automatically Delete Unlinked Recordings</div>
+            <div className="settings-row-desc">
+              Recordings never linked to a match are cleaned up automatically after the retention window
+              below. Off by default — recordings are kept forever unless you turn this on. A recording
+              linked to a match is never deleted, regardless of age.
+            </div>
+          </div>
+          <div className="settings-row-actions">
+            <label className="checkbox-pill">
+              <input
+                type="checkbox"
+                checked={videoCapture?.autoDeleteUnlinked ?? false}
+                disabled={!videoCapture}
+                onChange={(e) => updateVideoCapture({ autoDeleteUnlinked: e.target.checked })}
+              />
+              Enabled
+            </label>
+          </div>
+        </div>
+        {videoCapture?.autoDeleteUnlinked && (
+          <div className="settings-row">
+            <div>
+              <div className="settings-row-title">Retention Window</div>
+              <div className="settings-row-desc">How long an unlinked recording is kept before deletion.</div>
+            </div>
+            <div className="settings-row-actions">
+              <div className="segmented">
+                {RETENTION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.hours}
+                    type="button"
+                    className={`segmented-option ${videoCapture.retentionHours === opt.hours ? 'active' : ''}`}
+                    onClick={() => updateVideoCapture({ retentionHours: opt.hours })}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {videoCapture && (
           <div className="settings-status">
             {replaysFolderSize == null
