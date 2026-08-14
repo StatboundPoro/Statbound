@@ -70,21 +70,11 @@ contextBridge.exposeInMainWorld('api', {
   },
   capture: {
     // Video is captured and encoded entirely in the main process (frame-
-    // grab + ffmpeg, see src/main/capture.js) — getSourceId() now exists
-    // purely for the renderer's best-effort audio-only getUserMedia
-    // capture below, which still needs a window source id.
-    getSourceId: () => ipcRenderer.invoke('capture:get-source-id'),
+    // grab + ffmpeg, see src/main/capture.js) — no audio capture of any
+    // kind (removed after it turned out to capture whole-system audio
+    // rather than just this app, with no way to scope it narrower).
     start: () => ipcRenderer.invoke('capture:start'),
     stop: () => ipcRenderer.invoke('capture:stop'),
-    // One-way — a steady inbound stream of the best-effort audio
-    // MediaRecorder's chunks, not a request/response pair. `chunk` is a
-    // Uint8Array, which structured-clones over Electron IPC without any
-    // special handling.
-    sendAudioChunk: (chunk) => ipcRenderer.send('capture:audio-chunk', chunk),
-    // One-way — tells capture.js's session the exact moment the audio
-    // MediaRecorder actually began, so it can correct for its startup lag
-    // relative to video when muxing the two together at Stop.
-    notifyAudioStarted: () => ipcRenderer.send('capture:audio-started'),
     // One-way — tells autoCapture.js's state machine a manually-started
     // recording is now active, so it can be associated with a match
     // session already seen (see src/main/autoCapture.js's

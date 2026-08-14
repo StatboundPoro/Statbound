@@ -6,7 +6,6 @@ import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
 import { initPendingPanelView } from './pendingPanelView.js'
 import { initAutoBackup } from './autoBackup.js'
-import { initCapture } from './capture.js'
 import { initAutoCapture } from './autoCapture.js'
 import { initReplayCleanup } from './replayCleanup.js'
 // Imported (not just called) before app.whenReady() below — its module
@@ -67,7 +66,6 @@ app.whenReady().then(() => {
   const win = createMainWindow()
   initPlayView(win)
   initPendingPanelView(win)
-  initCapture(win)
   initAutoCapture(win)
 
   app.on('activate', () => {
@@ -75,7 +73,6 @@ app.whenReady().then(() => {
       const nextWin = createMainWindow()
       initPlayView(nextWin)
       initPendingPanelView(nextWin)
-      initCapture(nextWin)
       initAutoCapture(nextWin)
     }
   })

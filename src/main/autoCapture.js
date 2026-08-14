@@ -33,11 +33,13 @@ const requestIdToGameInstanceId = new Map()
 
 /**
  * Remembers the main window so auto-start/auto-stop signals can be pushed
- * to its renderer — mirrors capture.js's initCapture() pattern. The actual
- * MediaRecorder/getUserMedia pipeline only exists in the renderer (they're
- * Web APIs, unavailable in the main process), so this module can only ever
- * *ask* the renderer to start/stop — never call the capture pipeline
- * directly itself.
+ * to its renderer. capture.js's own start/stop functions live in main and
+ * could in principle be called directly from here — this module goes
+ * through the renderer's window.api.capture.start()/stop() instead (see
+ * sendAutoStart()/sendAutoStop() below) so a WebSocket-driven auto-start
+ * goes through the exact same idempotent, error-handled path a manual
+ * button press does, in lib/recording.js, rather than a second entry point
+ * into capture.js with its own guards to keep in sync.
  */
 export function initAutoCapture(win) {
   mainWindow = win
@@ -65,7 +67,7 @@ function clearPendingStopTimer() {
  * exercised with synthetic events independently of a live Rift Atlas
  * connection.
  *
- * This module never touches the write stream or MediaRecorder itself —
+ * This module never touches capture.js's recording session directly —
  * `sendAutoStart()`/`sendAutoStop()` just push a signal to the renderer,
  * which reuses its own already-idempotent, already-error-handled
  * start()/stop() (see lib/recording.js) — the same functions the Play
