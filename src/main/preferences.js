@@ -35,7 +35,7 @@ const DEFAULT_AUTO_BACKUP = {
 
 const DEFAULT_VIDEO_CAPTURE = {
   directory: null, // resolved to defaultVideoCaptureDirectory() on first read, then persisted
-  quality: 'medium', // 'low' | 'medium' | 'high' — mapped to MediaRecorder's videoBitsPerSecond in the renderer
+  quality: 'medium', // 'low' | 'medium' | 'high' — mapped to ffmpeg's -b:v in src/main/capture.js
   autoDeleteUnlinked: false, // off by default — never delete anything unless explicitly opted in
   retentionHours: 24, // only consulted while autoDeleteUnlinked is true; 24 | 48 | 168 (1 week)
   // Off by default — see src/main/autoCapture.js for how this gates only the
