@@ -362,6 +362,22 @@ body {
   flex-direction: column;
   max-width: none;
   overflow: hidden;
+  /* .main's own padding (28px 40px 60px) is sized for scrollable content on
+     every other screen — on Play it just steals vertical space from the
+     embed above/below with nothing to show for it, so it's cut down here to
+     the minimum that still keeps the embed off the window edges. */
+  padding: 14px 24px 14px;
+}
+/* Scoped to .main-play so every other screen's header (Deck Library, Match
+   History, Insights, Settings) keeps its normal size — only the Play
+   screen's own chrome shrinks, to leave as much of the embed's height as
+   possible for the actual game. */
+.main-play .topbar {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+}
+.main-play .topbar h1 {
+  font-size: 20px;
 }
 .play-embed {
   flex: 1;

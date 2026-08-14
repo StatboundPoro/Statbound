@@ -90,6 +90,15 @@ export default function App() {
           error={recording.error}
           onStart={recording.start}
           onStop={recording.stop}
+          // The Play embed is a native WebContentsView that always paints
+          // above ordinary DOM content regardless of CSS z-index (the same
+          // reason the Pending Recordings popover needed its own dedicated
+          // overlay view — see pendingPanelView.js). LogMatchModal below
+          // renders as plain DOM in this window's own document, so if it's
+          // opened via the Pending Recordings notification while the user
+          // is still on this screen, it would otherwise be stuck invisibly
+          // underneath the embed with no way to click into it.
+          embedHidden={Boolean(queuedReplay)}
         />
       ) : screen === 'matches' ? (
         <MatchHistory />

@@ -17,7 +17,13 @@ import { formatElapsedTime } from '../lib/recording.js'
 // via useScreenRecording() directly — the hook lives in App.jsx now, since
 // Phase 2's auto-detection needs it to survive navigating away from this
 // screen mid-match (see lib/recording.js's module comment for why).
-export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop }) {
+//
+// `embedHidden` (see App.jsx) is set when a plain-DOM modal needs to render
+// on top of this screen — the embed is a native WebContentsView that always
+// paints above ordinary page content regardless of CSS z-index, so without
+// this it would sit visibly and un-clickably on top of any such modal
+// instead of behind it.
+export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop, embedHidden }) {
   const containerRef = useRef(null)
   // Loaded/persisted straight through the existing Video Capture
   // preferences (settings:get-video-capture/settings:update-video-capture)
@@ -70,6 +76,26 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
       window.api.play.hide()
     }
   }, [])
+
+  // Toggles the embed's own visibility in response to embedHidden, on top
+  // of (not instead of) the mount/unmount effect above — that effect still
+  // owns the initial show() and the final hide() on unmount; this one only
+  // reacts to a modal opening/closing while this screen stays mounted.
+  // Runs once redundantly alongside the mount effect on initial render
+  // (embedHidden starts false), which is harmless — both play.show() and
+  // play.hide() are idempotent main-side.
+  useEffect(() => {
+    if (embedHidden) {
+      window.api.play.hide()
+      return
+    }
+    window.api.play.show()
+    const el = containerRef.current
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      window.api.play.setBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
+    }
+  }, [embedHidden])
 
   return (
     <div className="main main-play">

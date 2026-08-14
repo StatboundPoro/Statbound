@@ -8,11 +8,12 @@ import { getActiveCaptureFilePath } from './capture.js'
 // The only extension recording ever produces (see capture.js) — used to
 // filter out anything else a user might drop into the same folder (a
 // screenshot, a stray .db backup pointed at the wrong directory, etc.)
-// when scanning for recordings.
-const VIDEO_EXTENSIONS = new Set(['.webm'])
+// when scanning for recordings. (mp4 as of the ffmpeg-based capture engine
+// — Phase 1's desktopCapturer+MediaRecorder pipeline produced .webm.)
+const VIDEO_EXTENSIONS = new Set(['.mp4'])
 
-// Matches capture.js's own filename shape: rifttrack-YYYY-MM-DD_HH-mm-ss.webm
-const FILENAME_TIMESTAMP_PATTERN = /^rifttrack-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.webm$/
+// Matches capture.js's own filename shape: rifttrack-YYYY-MM-DD_HH-mm-ss.mp4
+const FILENAME_TIMESTAMP_PATTERN = /^rifttrack-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.mp4$/
 
 /**
  * Recovers a recording's actual start time from its own filename (the
@@ -20,7 +21,7 @@ const FILENAME_TIMESTAMP_PATTERN = /^rifttrack-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(
  * birthtime — birthtime can be unreliable across filesystems/copies, while
  * the filename is the definitive record of when this app started writing
  * it. Returns null for anything that doesn't match the pattern (e.g. a
- * non-RiftTrack .webm someone dropped in the folder), so callers can fall
+ * non-RiftTrack .mp4 someone dropped in the folder), so callers can fall
  * back to filesystem metadata instead.
  */
 function startedAtFromFileName(fileName) {

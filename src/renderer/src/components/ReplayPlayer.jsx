@@ -13,7 +13,7 @@ export default function ReplayPlayer({ src, onClose }) {
             ×
           </button>
         </div>
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- no audio track exists to caption */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- locally recorded gameplay has no authored captions; audio (if any was captured) has no dialogue to transcribe */}
         <video className="replay-video" src={src} controls autoPlay />
       </div>
     </div>

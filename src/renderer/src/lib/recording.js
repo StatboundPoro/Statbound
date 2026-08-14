@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// Falls back to this if the video-capture quality preference is unset —
-// roughly 1080p/24fps range, matching 'medium'.
-const DEFAULT_BITS_PER_SECOND = 1_100_000
-const BITS_PER_SECOND_BY_QUALITY = {
-  low: 700_000,
-  medium: 1_100_000,
-  high: 2_500_000
-}
-
-function pickMimeType() {
-  const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
-  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? 'video/webm'
+function pickAudioMimeType() {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm']
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? 'audio/webm'
 }
 
 export function formatElapsedTime(totalSeconds) {
@@ -21,13 +12,25 @@ export function formatElapsedTime(totalSeconds) {
 }
 
 /**
- * Manual Start/Stop screen recording for the Play tab. Captures the whole
- * app window — Electron can't isolate capture to just the Play tab's
- * embedded WebContentsView, so v1 accepts the full app chrome — video
- * only, no audio track. Recorded chunks stream to main over IPC as they
- * arrive (MediaRecorder's ondataavailable at a 1.5s timeslice) rather than
- * being buffered into one Blob in renderer memory, since a match can run
- * well past 10 minutes.
+ * Manual Start/Stop screen recording for the Play tab. Video is captured
+ * and encoded entirely in the main process now — a self-scheduling
+ * webContents.capturePage() loop piped into ffmpeg (see src/main/capture.js)
+ * — producing a tight crop of just the Play tab's own content, not the
+ * whole app window the way the original desktopCapturer+MediaRecorder
+ * pipeline did. This hook's job for video is now just "tell main to
+ * start/stop" — no stream, no MediaRecorder, no chunk-streaming, for video.
+ *
+ * Audio is a separate, best-effort attempt that still happens here in the
+ * renderer (getUserMedia and MediaRecorder are Web APIs, unavailable in the
+ * main process): a desktop-audio-scoped getUserMedia call feeding its own
+ * audio-only MediaRecorder, streamed to main as a separate file the same
+ * way video chunks used to stream in Phase 1. Every step of the audio path
+ * is wrapped so a failure (permission denied, no audio track, an
+ * unsupported platform, anything) is logged and otherwise ignored — it must
+ * never prevent, delay, or affect video capture, which is why it's kicked
+ * off in parallel with (not awaited before) the video start below. Main
+ * decides at Stop time whether an audio file actually has content and muxes
+ * it in only if so — see capture.js's stopRecording().
  *
  * Lives in App.jsx, not PlayScreen.jsx — deliberately lifted above the
  * per-screen render tree (unlike Phase 1, where it was scoped to
@@ -37,31 +40,41 @@ export function formatElapsedTime(totalSeconds) {
  * which persists across screen navigation (see playView.js) — if the hook
  * still lived inside PlayScreen, navigating away mid-match would silently
  * stop a recording auto-detection is actively relying on. App.jsx passes
- * this hook's state/handlers down to PlayScreen as props so the Play tab's
- * indicator/button look and behave exactly as before; nothing about the
- * visible UI changed, only where the state that drives it lives.
+ * this hook's state/handlers down to PlayScreen as props purely so it can
+ * render — the indicator (red dot + elapsed mm:ss) and button look and
+ * behave exactly as before; only where the state lives, and how the video
+ * itself gets produced, changed.
  *
  * `onStopped`, if given, fires once a recording has fully finished writing
- * to disk (after capture:stop resolves) — the moment a new file genuinely
- * exists as a pending recording, which is what the Pending Recordings
- * badge count needs to know to refetch.
+ * to disk (after capture:stop resolves — video finalized, and muxed with
+ * audio if any was captured) — the moment a new file genuinely exists as a
+ * pending recording, which is what the Pending Recordings badge count
+ * needs to know to refetch.
  */
 export function useScreenRecording({ onStopped } = {}) {
   const [recording, setRecording] = useState(false)
-  // Windows' capture backend (WGC) reliably takes several seconds and a
-  // few failed internal attempts before it can actually grab this app's
-  // window — visible as "Source is not capturable" spam in the main
-  // process console — before falling back to a capturer that works. It's
-  // a real, per-recording delay this app has no way to skip, so `starting`
-  // exists purely to keep the Start button from looking unresponsive
-  // during that gap rather than to mask an error state.
+  // Capturing the Play tab's first frame and spawning ffmpeg can take a
+  // moment — `starting` exists purely to keep the Start button from
+  // looking unresponsive during that gap rather than to mask an error
+  // state.
   const [starting, setStarting] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [error, setError] = useState(null)
 
-  const recorderRef = useRef(null)
-  const streamRef = useRef(null)
-  const pendingChunksRef = useRef(Promise.resolve())
+  // Whether a session is logically active, independent of the audio
+  // MediaRecorder's own existence — stop() needs this rather than checking
+  // an audio-specific ref, since audio may never have started at all.
+  const activeRef = useRef(false)
+  const audioRecorderRef = useRef(null)
+  const audioStreamRef = useRef(null)
+  const pendingAudioChunksRef = useRef(Promise.resolve())
+  // Resolves once the audio MediaRecorder's 'stop' event has fired and
+  // every chunk from it has been sent — stop() awaits this (or immediately
+  // resolves it if audio never started) before telling main to finalize,
+  // so a still-in-flight last chunk can't arrive after main has already
+  // closed the audio write stream. Mirrors Phase 1's pendingChunksRef
+  // pattern, just for audio instead of video.
+  const audioStoppedRef = useRef(null)
   const startedAtRef = useRef(null)
   const tickIntervalRef = useRef(null)
   // A ref (not a start()/stop() dependency) so a caller passing a fresh
@@ -74,9 +87,9 @@ export function useScreenRecording({ onStopped } = {}) {
   }, [onStopped])
 
   const teardown = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    streamRef.current = null
-    recorderRef.current = null
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop())
+    audioStreamRef.current = null
+    audioRecorderRef.current = null
     if (tickIntervalRef.current) {
       clearInterval(tickIntervalRef.current)
       tickIntervalRef.current = null
@@ -85,13 +98,93 @@ export function useScreenRecording({ onStopped } = {}) {
 
   useEffect(() => {
     return () => {
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-        recorderRef.current.stop()
+      if (audioRecorderRef.current && audioRecorderRef.current.state !== 'inactive') {
+        audioRecorderRef.current.stop()
       }
       teardown()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * Best-effort only — every failure path here logs and returns, leaving
+   * audioRecorderRef unset, which start() and stop() both already treat as
+   * "no audio this session." Never throws out to its caller.
+   *
+   * Chromium's Windows Graphics Capture backend, at least as of Electron 43
+   * on Windows, doesn't just fail an audio-only getUserMedia request scoped
+   * to a window source (`chromeMediaSource: 'desktop'` with `video: false`)
+   * — it kills the entire renderer process with a "bad IPC message" error,
+   * taking down the whole app, not just this best-effort attempt. That's
+   * strictly worse than "no audio," so a paired video constraint is
+   * requested alongside audio (same window source id) to activate capture,
+   * and its video track is stopped and discarded immediately — only the
+   * audio track ever reaches a MediaRecorder. This was found by actually
+   * running the app, not inferred from documentation; if a future Electron/
+   * Chromium version changes this behavior, it's still safe to leave this
+   * as-is, since audio remains best-effort either way.
+   */
+  async function tryStartAudio() {
+    let combinedStream = null
+    try {
+      const sourceId = await window.api.capture.getSourceId()
+      if (!sourceId) throw new Error('No capture source id available for audio.')
+
+      combinedStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: sourceId
+          }
+        },
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: sourceId
+          }
+        }
+      })
+
+      const audioTracks = combinedStream.getAudioTracks()
+      combinedStream.getVideoTracks().forEach((track) => track.stop())
+      if (audioTracks.length === 0) {
+        throw new Error('Captured stream has no audio tracks.')
+      }
+
+      const stream = new MediaStream(audioTracks)
+      const recorder = new MediaRecorder(stream, { mimeType: pickAudioMimeType() })
+      let resolveStopped
+      audioStoppedRef.current = new Promise((resolve) => {
+        resolveStopped = resolve
+      })
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size === 0) return
+        pendingAudioChunksRef.current = pendingAudioChunksRef.current.then(async () => {
+          const buffer = new Uint8Array(await event.data.arrayBuffer())
+          window.api.capture.sendAudioChunk(buffer)
+        })
+      }
+      recorder.onstop = async () => {
+        await pendingAudioChunksRef.current
+        resolveStopped()
+      }
+      recorder.onerror = (event) => {
+        console.error('Audio recording failed, continuing without audio:', event.error)
+      }
+
+      recorder.start(1500)
+      window.api.capture.notifyAudioStarted()
+      audioRecorderRef.current = recorder
+      audioStreamRef.current = stream
+    } catch (err) {
+      console.error('Audio capture unavailable, recording will be silent:', err)
+      combinedStream?.getTracks().forEach((track) => track.stop())
+      audioRecorderRef.current = null
+      audioStreamRef.current = null
+      audioStoppedRef.current = null
+    }
+  }
 
   // `manual` distinguishes a real Play-tab button press from an
   // auto-detected start (see the onAutoStart subscription below) — only a
@@ -102,52 +195,14 @@ export function useScreenRecording({ onStopped } = {}) {
   // about them by definition.
   const start = useCallback(
     async ({ manual = true } = {}) => {
-      if (recorderRef.current || starting) return
+      if (activeRef.current || starting) return
       setError(null)
       setStarting(true)
 
       try {
-        const sourceId = await window.api.capture.getSourceId()
-        if (!sourceId) throw new Error('Could not find this window to record.')
-
-        const videoCapture = await window.api.settings.getVideoCapture()
-        const videoBitsPerSecond = BITS_PER_SECOND_BY_QUALITY[videoCapture?.quality] ?? DEFAULT_BITS_PER_SECOND
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: sourceId,
-              maxFrameRate: 24
-            }
-          }
-        })
-
         await window.api.capture.start()
 
-        const recorder = new MediaRecorder(stream, { mimeType: pickMimeType(), videoBitsPerSecond })
-
-        // Chained so onstop (below) can await every chunk actually being
-        // sent — including the final one, whose async arrayBuffer() read
-        // could otherwise still be pending when the 'stop' event fires and
-        // main closes the write stream out from under it.
-        recorder.ondataavailable = (event) => {
-          if (event.data.size === 0) return
-          pendingChunksRef.current = pendingChunksRef.current.then(async () => {
-            const buffer = new Uint8Array(await event.data.arrayBuffer())
-            window.api.capture.sendChunk(buffer)
-          })
-        }
-        recorder.onstop = async () => {
-          await pendingChunksRef.current
-          await window.api.capture.stop()
-          onStoppedRef.current?.()
-        }
-
-        recorder.start(1500)
-        recorderRef.current = recorder
-        streamRef.current = stream
+        activeRef.current = true
         startedAtRef.current = Date.now()
         setElapsedSeconds(0)
         tickIntervalRef.current = setInterval(() => {
@@ -155,9 +210,15 @@ export function useScreenRecording({ onStopped } = {}) {
         }, 1000)
         setRecording(true)
         if (manual) window.api.capture.notifyManualStart()
+
+        // Kicked off after video has already started successfully, and
+        // never awaited before setting recording state — a slow or failing
+        // audio attempt must not delay or block the video path being ready.
+        tryStartAudio()
       } catch (err) {
         console.error('Failed to start recording:', err)
         setError('Could not start recording. Check the main process console.')
+        activeRef.current = false
         teardown()
       } finally {
         setStarting(false)
@@ -167,8 +228,21 @@ export function useScreenRecording({ onStopped } = {}) {
   )
 
   const stop = useCallback(() => {
-    if (!recorderRef.current) return
-    recorderRef.current.stop()
+    if (!activeRef.current) return
+    activeRef.current = false
+
+    const audioRecorder = audioRecorderRef.current
+    if (audioRecorder && audioRecorder.state !== 'inactive') {
+      audioRecorder.stop()
+    }
+    const audioDone = audioStoppedRef.current ?? Promise.resolve()
+
+    audioDone
+      .catch(() => {})
+      .then(() => window.api.capture.stop())
+      .catch((err) => console.error('Failed to finalize recording:', err))
+      .finally(() => onStoppedRef.current?.())
+
     teardown()
     setRecording(false)
   }, [teardown])

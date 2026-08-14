@@ -34,7 +34,7 @@ import {
   updateAutoBackupPrefs,
   updateVideoCapturePrefs
 } from './preferences.js'
-import { appendCaptureChunk, getCaptureSourceId, startCaptureFile, stopCaptureFile } from './capture.js'
+import { appendAudioCaptureChunk, getCaptureSourceId, markAudioStarted, startRecording, stopRecording } from './capture.js'
 import { createReplay, discardPendingReplay, getReplayByMatchId, listPendingReplays, listUnlinkedReplays } from './replays.js'
 import { replayFileUrl } from './replayProtocol.js'
 
@@ -78,8 +78,8 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:open-folder', (_event, directory) => openFolder(directory))
   ipcMain.handle('settings:open-app-data-folder', () => openAppDataFolder())
   ipcMain.handle('capture:get-source-id', () => getCaptureSourceId())
-  ipcMain.handle('capture:start', () => startCaptureFile())
-  ipcMain.handle('capture:stop', () => stopCaptureFile())
+  ipcMain.handle('capture:start', () => startRecording())
+  ipcMain.handle('capture:stop', () => stopRecording())
   ipcMain.handle('replays:list-unlinked', () => listUnlinkedReplays())
   ipcMain.handle('replays:list-pending', () => listPendingReplays())
   ipcMain.handle('replays:discard-pending', (_event, filePath) => discardPendingReplay(filePath))
@@ -94,10 +94,17 @@ export function registerIpcHandlers() {
   ipcMain.on('play:show', () => showPlayView())
   ipcMain.on('play:hide', () => hidePlayView())
   ipcMain.on('play:set-bounds', (_event, rect) => setPlayBounds(rect))
-  // Streamed recording chunks — see capture.js. One-way for the same
-  // reason: no response is expected per chunk, only a steady inbound
-  // stream while a recording is active.
-  ipcMain.on('capture:chunk', (_event, chunk) => appendCaptureChunk(chunk))
+  // Streamed best-effort audio chunks — see capture.js. One-way for the
+  // same reason: no response is expected per chunk, only a steady inbound
+  // stream while a recording's audio MediaRecorder is active. Video no
+  // longer streams chunks over IPC at all — it's captured and encoded
+  // entirely in the main process (see capture.js's frame-grab loop).
+  ipcMain.on('capture:audio-chunk', (_event, chunk) => appendAudioCaptureChunk(chunk))
+  // Fired the moment the renderer's best-effort audio MediaRecorder
+  // actually begins, so capture.js can timestamp real audio start and
+  // correct for its startup lag relative to video when muxing (see
+  // markAudioStarted's own comment in capture.js).
+  ipcMain.on('capture:audio-started', () => markAudioStarted())
   // Fired once a manually-started recording has actually begun, so
   // autoCapture.js's state machine can associate it with a match session
   // it already knows about (join_game seen while autoStartRecording was

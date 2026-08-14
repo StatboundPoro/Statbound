@@ -8,7 +8,9 @@ import { listLinkedFilePaths } from './replays.js'
 // "poll on a fixed interval rather than one setTimeout sized to the
 // retention window" pattern it established, just less frequently.
 const CHECK_INTERVAL_MS = 30 * 60 * 1000
-const VIDEO_EXTENSIONS = new Set(['.webm'])
+// mp4 as of the ffmpeg-based capture engine — see replays.js's own
+// VIDEO_EXTENSIONS for the same note.
+const VIDEO_EXTENSIONS = new Set(['.mp4'])
 
 function runCleanup() {
   const prefs = getVideoCapturePrefs()
