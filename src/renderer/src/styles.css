@@ -802,6 +802,113 @@ body {
   font-weight: 600;
 }
 
+/* ---------- WELCOME TOUR ---------- */
+.welcome-tour-modal {
+  width: 480px;
+  padding: 32px 32px 24px;
+  text-align: center;
+  position: relative;
+}
+.welcome-tour-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+.welcome-tour-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.welcome-tour-icon svg {
+  width: 26px;
+  height: 26px;
+}
+.welcome-tour-icon.accent-order {
+  color: var(--order);
+  border-color: rgba(211, 174, 63, 0.4);
+}
+.welcome-tour-icon.accent-mind {
+  color: var(--mind);
+  border-color: rgba(62, 130, 201, 0.4);
+}
+.welcome-tour-icon.accent-calm {
+  color: var(--calm);
+  border-color: rgba(76, 158, 104, 0.4);
+}
+.welcome-tour-icon.accent-chaos {
+  color: var(--chaos);
+  border-color: rgba(148, 99, 201, 0.4);
+}
+.welcome-tour-icon.accent-fury {
+  color: var(--fury);
+  border-color: rgba(214, 72, 63, 0.4);
+}
+.welcome-tour-step-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+.welcome-tour-title {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  margin-bottom: 14px;
+}
+.welcome-tour-body {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.welcome-tour-body p + p {
+  margin-top: 10px;
+}
+.welcome-tour-progress {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin: 26px 0 20px;
+}
+.welcome-tour-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.15s ease;
+}
+.welcome-tour-dot.active {
+  background: var(--order);
+}
+.welcome-tour-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.welcome-tour-skip {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  padding: 10px 4px;
+}
+.welcome-tour-skip:hover {
+  background: none;
+  color: var(--text-dim);
+}
+.welcome-tour-nav {
+  display: flex;
+  gap: 10px;
+}
+
 /* ---------- RECENT MATCHES ---------- */
 .recent-panel {
   background: var(--panel);
@@ -1046,6 +1153,18 @@ body {
   color: var(--text-faint);
   font-size: 13px;
   margin-bottom: 28px;
+}
+.placeholder-panel.deck-library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 20px;
+}
+.placeholder-panel.deck-library-empty p {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-bottom: 18px;
 }
 
 /* ---------- LOG MATCH FORM ---------- */

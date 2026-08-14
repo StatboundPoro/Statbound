@@ -7,6 +7,7 @@ import PlayScreen from './components/PlayScreen.jsx'
 import SettingsScreen from './components/SettingsScreen.jsx'
 import InsightsScreen from './components/InsightsScreen.jsx'
 import LogMatchModal from './components/LogMatchModal.jsx'
+import WelcomeTour from './components/WelcomeTour.jsx'
 import { useScreenRecording } from './lib/recording.js'
 
 // No router yet — still just view state, now toggling between the five
@@ -55,6 +56,27 @@ export default function App() {
   }, [refreshPendingReplays])
 
   const recording = useScreenRecording({ onStopped: handleRecordingStopped })
+
+  // First-run welcome tour: shown automatically exactly once, the first
+  // time hasSeenWelcomeTour reads false. Checked in an effect (fires after
+  // the initial render, not before it) rather than as render-blocking
+  // state, so the rest of the app paints immediately and the tour just
+  // pops in on top a moment later. Completing OR skipping it both persist
+  // hasSeenWelcomeTour = true (see WelcomeTour.jsx's finish()), so this
+  // never shows again on a later launch either way. A manual replay from
+  // Settings is a fully separate instance of the same component owned by
+  // SettingsScreen.jsx itself, with persistSeen={false} — it doesn't touch
+  // this state or the preference at all.
+  const [showWelcomeTour, setShowWelcomeTour] = useState(false)
+
+  useEffect(() => {
+    window.api.welcomeTour
+      .getSeen()
+      .then((seen) => {
+        if (!seen) setShowWelcomeTour(true)
+      })
+      .catch((err) => console.error('Failed to load welcome tour state:', err))
+  }, [])
 
   function handleNavigate(key) {
     setScreen(key)
@@ -123,6 +145,8 @@ export default function App() {
           onSaved={handleQueuedMatchSaved}
         />
       )}
+
+      {showWelcomeTour && <WelcomeTour onClose={() => setShowWelcomeTour(false)} />}
     </div>
   )
 }

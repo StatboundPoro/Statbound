@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld('api', {
     openFolder: (directory) => ipcRenderer.invoke('settings:open-folder', directory),
     openAppDataFolder: () => ipcRenderer.invoke('settings:open-app-data-folder')
   },
+  welcomeTour: {
+    getSeen: () => ipcRenderer.invoke('welcome-tour:get-seen'),
+    markSeen: () => ipcRenderer.invoke('welcome-tour:mark-seen')
+  },
   play: {
     show: () => ipcRenderer.send('play:show'),
     hide: () => ipcRenderer.send('play:hide'),

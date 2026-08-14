@@ -29,7 +29,9 @@ import {
 } from './settings.js'
 import {
   getAutoBackupPrefs,
+  getHasSeenWelcomeTour,
   getVideoCapturePrefs,
+  markWelcomeTourSeen,
   resetVideoCaptureDirectory,
   updateAutoBackupPrefs,
   updateVideoCapturePrefs
@@ -77,6 +79,8 @@ export function registerIpcHandlers() {
   ipcMain.handle('settings:get-folder-size', (_event, directory) => getFolderSizeBytes(directory))
   ipcMain.handle('settings:open-folder', (_event, directory) => openFolder(directory))
   ipcMain.handle('settings:open-app-data-folder', () => openAppDataFolder())
+  ipcMain.handle('welcome-tour:get-seen', () => getHasSeenWelcomeTour())
+  ipcMain.handle('welcome-tour:mark-seen', () => markWelcomeTourSeen())
   ipcMain.handle('capture:start', () => startRecording())
   ipcMain.handle('capture:stop', () => stopRecording())
   ipcMain.handle('replays:list-unlinked', () => listUnlinkedReplays())

@@ -150,32 +150,44 @@ export default function DeckLibrary({ onOpenDeck, onPlay }) {
       </div>
 
       <div className="section-label">Your Decks</div>
-      <div className="deck-grid">
-        {decks.map((deck) => (
-          <DeckCard
-            key={deck.id}
-            deck={deck}
-            matches={matchesByDeckId.get(deck.id) ?? []}
-            onClick={() => onOpenDeck(deck.id)}
-            onDeleteClick={() => setDeckPendingDelete(deck)}
-          />
-        ))}
-
-        <div
-          className="import-card"
-          role="button"
-          tabIndex={0}
-          onClick={() => setImportOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') setImportOpen(true)
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-          <span>Add a deck</span>
+      {decks.length === 0 ? (
+        <div className="placeholder-panel deck-library-empty">
+          <p>No decks yet — import your first deck to get started.</p>
+          <button className="btn btn-primary" onClick={() => setImportOpen(true)}>
+            <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
+              <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            Import Deck
+          </button>
         </div>
-      </div>
+      ) : (
+        <div className="deck-grid">
+          {decks.map((deck) => (
+            <DeckCard
+              key={deck.id}
+              deck={deck}
+              matches={matchesByDeckId.get(deck.id) ?? []}
+              onClick={() => onOpenDeck(deck.id)}
+              onDeleteClick={() => setDeckPendingDelete(deck)}
+            />
+          ))}
+
+          <div
+            className="import-card"
+            role="button"
+            tabIndex={0}
+            onClick={() => setImportOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setImportOpen(true)
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            <span>Add a deck</span>
+          </div>
+        </div>
+      )}
 
       <div className="section-label">Recent Matches</div>
       <RecentMatches matches={matches} decksById={decksById} onChanged={refreshLibrary} />

@@ -219,9 +219,8 @@ export async function pickImportFile() {
  * check), and always takes a safety snapshot of the *current* data into
  * userData/backups/ right before making any destructive change, so a bad
  * import — or an import the user regrets — has a recovery path. The live
- * connection is reopened against the new file (without demo-deck seeding —
- * see getDb() in db.js) before returning, so the renderer can reload
- * immediately without a real app restart.
+ * connection is reopened against the new file before returning, so the
+ * renderer can reload immediately without a real app restart.
  */
 export async function importBackup(filePath) {
   const inspection = inspectBackupFile(filePath)
@@ -254,7 +253,7 @@ export async function importBackup(filePath) {
     }
 
     fs.copyFileSync(filePath, dbPath)
-    getDb({ seed: false })
+    getDb()
 
     return { success: true, safetyBackupPath }
   } catch (err) {
@@ -266,7 +265,7 @@ export async function importBackup(filePath) {
     } catch {
       // Fall through — surface the original import error either way.
     }
-    getDb({ seed: false })
+    getDb()
     return { success: false, reason: `Import failed and was rolled back: ${err.message}` }
   }
 }

@@ -113,19 +113,18 @@ function openDatabase(dbPath) {
  * directory and ensures the schema exists. Safe to call multiple times —
  * the connection is cached after the first call.
  *
- * `seed: false` skips the empty-database demo-deck seed. Only settings.js
- * passes this, when reopening the connection right after an import or a
- * reset — both are deliberate "make the database look like exactly this"
- * actions, so a database that's genuinely empty afterward (an empty backup,
- * or a reset) must stay empty rather than silently growing a demo deck the
- * user never asked for.
+ * A fresh database starts with zero decks — first-run onboarding is
+ * handled entirely by the renderer's empty state + welcome tour (see
+ * DeckLibrary.jsx and WelcomeTour.jsx), not by seeding sample data. See
+ * cleanupSeededDemoDeck() below for the one-time migration that removes
+ * the sample deck earlier builds used to seed.
  */
-export function getDb({ seed = true } = {}) {
+export function getDb() {
   if (db) return db
 
   db = openDatabase(getDbPath())
   syncLegends(db)
-  if (seed) seedDemoDeckIfEmpty(db)
+  cleanupSeededDemoDeck(db)
 
   return db
 }
@@ -165,25 +164,30 @@ function syncLegends(db) {
   syncAll(LEGEND_NAMES)
 }
 
-// Inserts one sample deck on a brand-new database so the Deck Library
-// screen has something to show before deck creation is built. Safe to
-// delete later — it's just a normal row.
-function seedDemoDeckIfEmpty(db) {
-  const { count } = db.prepare('SELECT COUNT(*) AS count FROM decks').get()
+// One-time cleanup migration. Earlier builds inserted one sample deck
+// ("Demo Deck (sample data)" / legend_name "Sample Legend") into every
+// brand-new database, back before deck creation existed, so the Deck
+// Library screen had something to show. That seeding is gone (see
+// getDb() above) — new databases now start with zero decks — but
+// existing databases (including dev machines) may still have that row
+// sitting around, so this removes it on startup if it's still exactly
+// what was seeded: untouched, with nothing logged against it. If the
+// user has since logged a real match against it, that's real data
+// regardless of the deck's origin, so it's left completely alone rather
+// than silently deleted — no deletion, no warning, just skipped. Cheap
+// and idempotent (a no-op once the row is gone or was never seeded in
+// the first place), so a plain startup check is enough — no separate
+// "have I migrated" flag needed.
+function cleanupSeededDemoDeck(db) {
+  const demoDeck = db
+    .prepare('SELECT id FROM decks WHERE name = ? AND legend_name = ?')
+    .get('Demo Deck (sample data)', 'Sample Legend')
+  if (!demoDeck) return
+
+  const { count } = db
+    .prepare('SELECT COUNT(*) AS count FROM matches WHERE deck_id = ?')
+    .get(demoDeck.id)
   if (count > 0) return
 
-  const now = new Date().toISOString()
-  db.prepare(
-    `INSERT INTO decks (id, name, domain_1, domain_2, legend_name, decklist, created_at, updated_at)
-     VALUES (@id, @name, @domain_1, @domain_2, @legend_name, @decklist, @created_at, @updated_at)`
-  ).run({
-    id: randomUUID(),
-    name: 'Demo Deck (sample data)',
-    domain_1: 'Fury',
-    domain_2: 'Body',
-    legend_name: 'Sample Legend',
-    decklist: JSON.stringify({ runes: [], battlefields: [], main: [], sideboard: [] }),
-    created_at: now,
-    updated_at: now
-  })
+  db.prepare('DELETE FROM decks WHERE id = ?').run(demoDeck.id)
 }

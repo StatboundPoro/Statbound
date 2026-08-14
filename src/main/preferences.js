@@ -44,6 +44,15 @@ const DEFAULT_VIDEO_CAPTURE = {
   autoStartRecording: false
 }
 
+// Whether the user has ever completed or skipped the one-time welcome
+// tour (see WelcomeTour.jsx). Same "installation setting, not TCG data"
+// reasoning as everything else in this file — it must survive Import and
+// Reset untouched, since neither of those should make a returning user
+// see first-run onboarding again.
+const DEFAULT_WELCOME_TOUR = {
+  hasSeenWelcomeTour: false
+}
+
 function readRaw() {
   try {
     const text = fs.readFileSync(preferencesPath(), 'utf-8')
@@ -117,4 +126,26 @@ export function updateVideoCapturePrefs(patch) {
  */
 export function resetVideoCaptureDirectory() {
   return updateVideoCapturePrefs({ directory: defaultVideoCaptureDirectory() })
+}
+
+/**
+ * Returns whether the one-time welcome tour has already been seen
+ * (completed or skipped — both count the same, see WelcomeTour.jsx).
+ */
+export function getHasSeenWelcomeTour() {
+  const raw = readRaw()
+  return { ...DEFAULT_WELCOME_TOUR, ...raw.welcomeTour }.hasSeenWelcomeTour
+}
+
+/**
+ * Marks the welcome tour as seen so it never auto-shows again. Called once
+ * the tour is completed ("Get Started") or skipped — both are treated as
+ * "done," never as "ask again later." Replaying it from Settings does NOT
+ * call this a second time; it's already true by then.
+ */
+export function markWelcomeTourSeen() {
+  const raw = readRaw()
+  const welcomeTour = { ...DEFAULT_WELCOME_TOUR, ...raw.welcomeTour, hasSeenWelcomeTour: true }
+  writeRaw({ ...raw, welcomeTour })
+  return welcomeTour
 }

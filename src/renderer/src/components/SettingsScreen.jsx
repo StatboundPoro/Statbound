@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import ConfirmDialog from './ConfirmDialog.jsx'
+import WelcomeTour from './WelcomeTour.jsx'
 import { formatRelativeTime } from '../lib/stats.js'
 
 const AUTO_BACKUP_INTERVALS = [
@@ -76,6 +77,14 @@ export default function SettingsScreen() {
   const [videoCapture, setVideoCapture] = useState(null)
   const [videoCaptureError, setVideoCaptureError] = useState(null)
   const [replaysFolderSize, setReplaysFolderSize] = useState(null) // bytes | null
+
+  // Replays the same 5-step WelcomeTour component App.jsx shows once
+  // automatically on first launch — see that component's `persistSeen`
+  // prop. This manual replay passes persistSeen={false}: the tour has
+  // already been marked seen by the time a user can even reach Settings
+  // to click this, and replaying it here is a deliberate look-back, not
+  // an un-completion of first-run state.
+  const [tourOpen, setTourOpen] = useState(false)
 
   useEffect(() => {
     window.api.settings
@@ -312,6 +321,19 @@ export default function SettingsScreen() {
           <div className="settings-row-actions">
             <button className="btn" onClick={handleOpenAppDataFolder} disabled={!appDataPath}>
               Open Folder
+            </button>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">Welcome Tour</div>
+            <div className="settings-row-desc">
+              Replay the 5-step introduction to RiftTrack's core features shown on first launch.
+            </div>
+          </div>
+          <div className="settings-row-actions">
+            <button className="btn" onClick={() => setTourOpen(true)}>
+              Show Welcome Tour Again
             </button>
           </div>
         </div>
@@ -598,6 +620,8 @@ export default function SettingsScreen() {
           </div>
         </div>
       )}
+
+      {tourOpen && <WelcomeTour persistSeen={false} onClose={() => setTourOpen(false)} />}
     </div>
   )
 }
