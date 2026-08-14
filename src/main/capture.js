@@ -11,6 +11,12 @@ import { getPlayWebContents } from './playView.js'
 // variable-latency, so sustained 24fps depends on how fast this machine can
 // actually produce frames.
 const TARGET_FPS = 24
+// Rounded to a whole millisecond purely for setTimeout's benefit when
+// scheduling the next capture attempt — a bit of scheduling jitter here is
+// harmless since captureLoopTick() re-measures real elapsed time every
+// tick. padFramesToWallClock() below deliberately does NOT use this rounded
+// value for its own frame-count math, since that rounding compounds into a
+// real drift over a long recording — see its own comment.
 const FRAME_INTERVAL_MS = Math.round(1000 / TARGET_FPS)
 
 const BITRATE_BY_QUALITY = { low: '700k', medium: '1100k', high: '2500k' }
@@ -121,10 +127,23 @@ function updateLastGoodFrame(image) {
  * declared to ffmpeg, at the cost of some visibly repeated frames during
  * whatever periods capturePage() fell behind, rather than a silently
  * shortened, out-of-sync video.
+ *
+ * Deliberately computed from the exact TARGET_FPS ratio here, not from
+ * FRAME_INTERVAL_MS (which is rounded to a whole millisecond for setTimeout
+ * scheduling — 42ms, vs. the true 41.667ms period of 24fps). Dividing
+ * elapsed time by the rounded 42ms instead of the true 41.667ms undercounts
+ * the expected frames by about 0.8%, which — since ffmpeg still declares
+ * the output as exactly 24fps — made the encoded video's duration run
+ * increasingly short of real elapsed time the longer a recording went (a
+ * confirmed, several-second drift over a 10-minute recording), silently
+ * desyncing it from the separately-recorded, real-time audio track more
+ * and more as the recording went on. This calculation has to use the exact
+ * ratio so the frame count actually matches what 24fps-declared playback
+ * needs for the real wall-clock time elapsed, with no accumulating bias.
  */
 function padFramesToWallClock() {
   if (!session.lastGoodBitmap) return
-  const expectedFrames = Math.round((Date.now() - session.startedAt) / FRAME_INTERVAL_MS)
+  const expectedFrames = Math.round(((Date.now() - session.startedAt) * TARGET_FPS) / 1000)
   while (session.capturing && session.framesWritten < expectedFrames) {
     session.ffmpeg.stdin.write(session.lastGoodBitmap)
     session.framesWritten += 1
