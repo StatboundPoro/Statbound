@@ -140,13 +140,23 @@ function updateLastGoodFrame(image) {
  * and more as the recording went on. This calculation has to use the exact
  * ratio so the frame count actually matches what 24fps-declared playback
  * needs for the real wall-clock time elapsed, with no accumulating bias.
+ *
+ * Stops early the moment a write reports backpressure (ffmpeg's stdin
+ * buffer is full — its own encode can't keep up with how fast we're
+ * handing it frames) rather than continuing to queue writes into Node's
+ * internal buffer unbounded. Any catch-up still owed is simply picked up
+ * on the next scheduled tick, ~FRAME_INTERVAL_MS later — this is a
+ * last-resort safety valve for a saturated encode, not something expected
+ * to trigger in normal operation, since capturePage() (not the encode) is
+ * the actual bottleneck on real hardware.
  */
 function padFramesToWallClock() {
   if (!session.lastGoodBitmap) return
   const expectedFrames = Math.round(((Date.now() - session.startedAt) * TARGET_FPS) / 1000)
   while (session.capturing && session.framesWritten < expectedFrames) {
-    session.ffmpeg.stdin.write(session.lastGoodBitmap)
+    const canWriteMore = session.ffmpeg.stdin.write(session.lastGoodBitmap)
     session.framesWritten += 1
+    if (!canWriteMore) break
   }
 }
 
@@ -191,7 +201,12 @@ function spawnEncodeProcess({ width, height, bitrate, tempVideoPath }) {
     '-r', String(TARGET_FPS),
     '-i', 'pipe:0',
     '-c:v', 'libx264',
-    '-preset', 'veryfast',
+    // 'ultrafast' rather than 'veryfast' — the real fps ceiling on real
+    // hardware is webContents.capturePage()'s own readback cost (see
+    // captureLoopTick above), not this encode, but a lighter preset still
+    // frees up CPU headroom this process was otherwise competing for,
+    // which can only help the capture loop run as fast as it's able to.
+    '-preset', 'ultrafast',
     '-b:v', bitrate,
     tempVideoPath
   ])
