@@ -1,17 +1,50 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatElapsedTime } from '../lib/recording.js'
+
+// The embed is deliberately pinned to standard 16:9 rather than filling
+// whatever shape its container happens to be — matches recorded video's own
+// aspect ratio (see capture.js's MAX_RECORDING_HEIGHT: a 16:9 source scales
+// to exactly 1920x1080, not some off-ratio size) and matches most players'
+// own native aspect ratio assumptions. `.play-embed`'s own background/
+// border (styles.css) shows through as real letterbox/pillarbox bars around
+// it on any container that isn't already 16:9 — not a bug, the intended
+// framing.
+const TARGET_ASPECT_RATIO = 16 / 9
+
+/**
+ * Fits a 16:9 rectangle inside `rect`, centered, never upscaled beyond it —
+ * pillarboxed (bars on the sides) if the container is wider than 16:9,
+ * letterboxed (bars on top/bottom) if it's narrower.
+ */
+function fitToAspectRatio(rect) {
+  const { x, y, width, height } = rect
+  if (width <= 0 || height <= 0) return rect
+
+  const containerRatio = width / height
+  const fitted =
+    containerRatio > TARGET_ASPECT_RATIO
+      ? { width: height * TARGET_ASPECT_RATIO, height }
+      : { width, height: width / TARGET_ASPECT_RATIO }
+
+  return {
+    x: x + (width - fitted.width) / 2,
+    y: y + (height - fitted.height) / 2,
+    width: fitted.width,
+    height: fitted.height
+  }
+}
 
 // Renders no page content of its own for the embed area — the actual
 // play.riftatlas.com content is a native WebContentsView the main process
-// draws on top of this div's screen position (see src/main/playView.js).
-// This component's only job is to tell main process where that rectangle
-// is, on mount/resize, and to show/hide the view as this screen mounts and
-// unmounts so it doesn't render on top of other screens. Its bounds are
-// never adjusted for the Pending Recordings popover — that popover floats
-// above this embed via its own dedicated overlay view (see
-// pendingPanelView.js) rather than by shrinking this one's bounds, so it
-// never resizes or reflows the embedded page just because the popover
-// opened.
+// draws on top of a 16:9 box centered in this div's screen position (see
+// src/main/playView.js). This component's only job is to tell main process
+// where that rectangle is, on mount/resize, and to show/hide the view as
+// this screen mounts and unmounts so it doesn't render on top of other
+// screens. Its bounds are never adjusted for the Pending Recordings
+// popover — that popover floats above this embed via its own dedicated
+// overlay view (see pendingPanelView.js) rather than by shrinking this
+// one's bounds, so it never resizes or reflows the embedded page just
+// because the popover opened.
 //
 // Recording state/controls are passed in as props rather than owned here
 // via useScreenRecording() directly — the hook lives in App.jsx now, since
@@ -49,19 +82,25 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
       .catch((err) => console.error('Failed to save auto-record preference:', err))
   }
 
+  // Shared by both effects below, so the 16:9-fitting math lives in exactly
+  // one place rather than being duplicated between the mount effect and the
+  // embedHidden effect.
+  const reportBounds = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    // DOMRect's x/y/width/height are getters on DOMRect.prototype, not own
+    // properties — contextBridge only clones an object's own enumerable
+    // properties across the isolated-world boundary, so passing the DOMRect
+    // itself arrives in preload as all-undefined. Read the values out into
+    // a plain object (via fitToAspectRatio) before it crosses the bridge.
+    const bounds = fitToAspectRatio({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
+    window.api.play.setBounds(bounds)
+  }, [])
+
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-
-    function reportBounds() {
-      const rect = el.getBoundingClientRect()
-      // DOMRect's x/y/width/height are getters on DOMRect.prototype, not
-      // own properties — contextBridge only clones own enumerable
-      // properties across the isolated-world boundary, so passing the
-      // DOMRect itself arrives in preload as all-undefined. Read the
-      // values out into a plain object here, before it crosses the bridge.
-      window.api.play.setBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
-    }
 
     window.api.play.show()
     reportBounds()
@@ -75,7 +114,7 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
       observer.disconnect()
       window.api.play.hide()
     }
-  }, [])
+  }, [reportBounds])
 
   // Toggles the embed's own visibility in response to embedHidden, on top
   // of (not instead of) the mount/unmount effect above — that effect still
@@ -90,12 +129,8 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
       return
     }
     window.api.play.show()
-    const el = containerRef.current
-    if (el) {
-      const rect = el.getBoundingClientRect()
-      window.api.play.setBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
-    }
-  }, [embedHidden])
+    reportBounds()
+  }, [embedHidden, reportBounds])
 
   return (
     <div className="main main-play">
