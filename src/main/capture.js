@@ -22,6 +22,29 @@ const FRAME_INTERVAL_MS = Math.round(1000 / TARGET_FPS)
 const BITRATE_BY_QUALITY = { low: '700k', medium: '1100k', high: '2500k' }
 const DEFAULT_BITRATE = '1100k'
 
+// Recordings are capped at 1080p tall regardless of the Play tab's actual
+// on-screen size (which can run well past that on a large/high-res
+// display) — keeps output files at a standard, disk-friendly resolution.
+// This is purely an encode-time downscale (an ffmpeg -vf filter applied
+// after capture, see spawnEncodeProcess below) — it doesn't touch
+// webContents.capturePage() itself, which still reads back the Play tab at
+// its full native size, so it has no effect on achieved capture fps.
+const MAX_RECORDING_HEIGHT = 1080
+
+/**
+ * The size ffmpeg should encode to, given the Play tab's actual captured
+ * size — capped to MAX_RECORDING_HEIGHT tall, aspect ratio preserved,
+ * never upscaled if the source is already shorter than the cap. Width is
+ * rounded to an even number, since libx264's default yuv420p output
+ * requires even dimensions on both axes.
+ */
+function computeEncodeSize(width, height) {
+  if (height <= MAX_RECORDING_HEIGHT) return { width, height }
+  const scale = MAX_RECORDING_HEIGHT / height
+  const scaledWidth = Math.round((width * scale) / 2) * 2
+  return { width: scaledWidth, height: MAX_RECORDING_HEIGHT }
+}
+
 let mainWindow = null
 
 // One recording session's worth of state. There is only ever one recording
@@ -193,7 +216,8 @@ async function captureLoopTick(webContents) {
 }
 
 function spawnEncodeProcess({ width, height, bitrate, tempVideoPath }) {
-  const ffmpeg = spawn(resolveFfmpegPath(), [
+  const encodeSize = computeEncodeSize(width, height)
+  const args = [
     '-y',
     '-f', 'rawvideo',
     '-pix_fmt', 'bgra',
@@ -207,9 +231,17 @@ function spawnEncodeProcess({ width, height, bitrate, tempVideoPath }) {
     // frees up CPU headroom this process was otherwise competing for,
     // which can only help the capture loop run as fast as it's able to.
     '-preset', 'ultrafast',
-    '-b:v', bitrate,
-    tempVideoPath
-  ])
+    '-b:v', bitrate
+  ]
+  // Only added when the source actually exceeds MAX_RECORDING_HEIGHT — a
+  // no-op scale filter for a source already at or below the cap would just
+  // be wasted encode work.
+  if (encodeSize.width !== width || encodeSize.height !== height) {
+    args.push('-vf', `scale=${encodeSize.width}:${encodeSize.height}`)
+  }
+  args.push(tempVideoPath)
+
+  const ffmpeg = spawn(resolveFfmpegPath(), args)
 
   let stderr = ''
   ffmpeg.stderr.on('data', (chunk) => {
