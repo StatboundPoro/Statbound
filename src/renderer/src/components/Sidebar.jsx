@@ -68,14 +68,14 @@ export default function Sidebar({
   pendingReplays,
   onLogMatch,
   onPendingChanged,
-  recordingStoppedSignal
+  logQueueSignal
 }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [fading, setFading] = useState(false)
   // True only for the self-dismissing notification opened automatically
-  // right after a recording finishes — shows just that one new recording,
-  // not the whole accumulated queue (which is what a manual badge click
-  // still shows in full). False for every manually-opened path.
+  // right after a match session ends (recorded or not) — shows just that
+  // one new item, not the whole accumulated queue (which is what a manual
+  // badge click still shows in full). False for every manually-opened path.
   const [autoMode, setAutoMode] = useState(false)
   const pendingTriggerRef = useRef(null)
   const fadeTimerRef = useRef(null)
@@ -117,20 +117,21 @@ export default function Sidebar({
     setFading(false)
   }
 
-  // Auto-popup: a recording finishing (manual Stop or auto-detected) pops
+  // Auto-popup: a match session ending — whether it produced a recording
+  // (manual Stop or auto-detected) or not (see matchSessions.js) — pops
   // the queue open by itself as a self-dismissing notification, rather
   // than requiring a click to even notice it happened. Skips the initial
   // mount (the signal starts at 0 and only ever increments from a real
-  // stop). Hovering the panel cancels the fade/dismiss — see the
+  // event). Hovering the panel cancels the fade/dismiss — see the
   // onMouseEnter handler passed down through pending-panel:sync below —
   // so reading it doesn't race against it disappearing.
   useEffect(() => {
-    if (recordingStoppedSignal === 0) return
+    if (logQueueSignal === 0) return
     openPanel(true)
     fadeTimerRef.current = setTimeout(() => setFading(true), AUTO_DISMISS_DELAY_MS)
     dismissTimerRef.current = setTimeout(() => closePanel(), AUTO_DISMISS_DELAY_MS + FADE_DURATION_MS)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordingStoppedSignal])
+  }, [logQueueSignal])
 
   useEffect(() => clearAutoDismissTimers, [])
 
@@ -254,6 +255,7 @@ export default function Sidebar({
             className={`rail-item clickable ${panelOpen ? 'active' : ''}`}
             role="button"
             tabIndex={0}
+            title="Log Recent Match"
             onClick={togglePanel}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') togglePanel()
@@ -266,7 +268,7 @@ export default function Sidebar({
               </svg>
               {pendingCount > 0 && <span className="rail-badge">{pendingCount}</span>}
             </div>
-            <div className="rail-label">Pending</div>
+            <div className="rail-label">Log Match</div>
           </div>
         </div>
 

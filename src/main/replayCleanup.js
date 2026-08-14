@@ -49,6 +49,17 @@ function runCleanup() {
     } catch (err) {
       console.error('[replay cleanup] failed to delete', filePath, err)
     }
+
+    // Same base filename, .json extension (see capture.js's writeSidecar/
+    // replays.js's sidecarPathFor) — deleted alongside the video it
+    // describes so a retention sweep doesn't leave orphaned metadata
+    // files behind for a recording that no longer exists.
+    const sidecarPath = filePath.slice(0, -path.extname(filePath).length) + '.json'
+    try {
+      if (fs.existsSync(sidecarPath)) fs.rmSync(sidecarPath)
+    } catch (err) {
+      console.error('[replay cleanup] failed to delete sidecar', sidecarPath, err)
+    }
   }
 }
 

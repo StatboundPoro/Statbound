@@ -55,8 +55,10 @@ function fitToAspectRatio(rect) {
 // on top of this screen — the embed is a native WebContentsView that always
 // paints above ordinary page content regardless of CSS z-index, so without
 // this it would sit visibly and un-clickably on top of any such modal
-// instead of behind it.
-export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop, embedHidden }) {
+// instead of behind it. `onLogMatch(deckId)` is the deck picker's own
+// manual "Log Match" button (see below) — it's lifted to App.jsx for the
+// exact same embedHidden reason, not handled locally in this component.
+export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop, embedHidden, onLogMatch }) {
   const containerRef = useRef(null)
   // Loaded/persisted straight through the existing Video Capture
   // preferences (settings:get-video-capture/settings:update-video-capture)
@@ -67,11 +69,40 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
   // with no state that needs to survive navigating away.
   const [autoStartRecording, setAutoStartRecording] = useState(null)
 
+  // The deck picker next to the recording controls. Persisted via
+  // preferences.js's lastSelectedPlayDeckId (play:get/set-selected-deck)
+  // rather than lifted to App.jsx, same reasoning as autoStartRecording
+  // above — it's a plain preference value. autoCapture.js reads the same
+  // preference directly (not over IPC) the instant a new match session
+  // starts, to snapshot which deck that session should be tagged with —
+  // see matchSessions.js.
+  const [decks, setDecks] = useState([])
+  const [selectedDeckId, setSelectedDeckId] = useState('')
+  const [decksReady, setDecksReady] = useState(false)
+
   useEffect(() => {
     window.api.settings
       .getVideoCapture()
       .then((prefs) => setAutoStartRecording(Boolean(prefs?.autoStartRecording)))
       .catch((err) => console.error('Failed to load auto-record preference:', err))
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([window.api.decks.list(), window.api.play.getSelectedDeck()])
+      .then(([deckList, savedDeckId]) => {
+        if (cancelled) return
+        setDecks(deckList)
+        // The saved deck may have been deleted since it was last picked —
+        // fall back to no selection rather than erroring or silently
+        // pointing at a deck that no longer exists.
+        setSelectedDeckId(savedDeckId && deckList.some((d) => d.id === savedDeckId) ? savedDeckId : '')
+        setDecksReady(true)
+      })
+      .catch((err) => console.error('Failed to load Play tab deck picker:', err))
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   function handleAutoStartToggle(e) {
@@ -80,6 +111,12 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
     window.api.settings
       .updateVideoCapture({ autoStartRecording: next })
       .catch((err) => console.error('Failed to save auto-record preference:', err))
+  }
+
+  function handleDeckChange(e) {
+    const next = e.target.value
+    setSelectedDeckId(next)
+    window.api.play.setSelectedDeck(next || null).catch((err) => console.error('Failed to save Play tab deck selection:', err))
   }
 
   // Shared by both effects below, so the 16:9-fitting math lives in exactly
@@ -140,6 +177,25 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
           {error && <div className="play-recording-error">{error}</div>}
         </div>
         <div className="topbar-actions recording-controls">
+          <div className="play-deck-picker">
+            <select
+              className="play-deck-select"
+              value={selectedDeckId}
+              onChange={handleDeckChange}
+              disabled={!decksReady}
+              aria-label="Deck being played"
+            >
+              <option value="">No deck selected</option>
+              {decks.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn" onClick={() => onLogMatch(selectedDeckId || null)}>
+              Log Match
+            </button>
+          </div>
           {recording && (
             <div className="recording-indicator">
               <span className="recording-dot" />

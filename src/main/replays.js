@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { getDb } from './db.js'
 import { getVideoCapturePrefs } from './preferences.js'
 import { getActiveCaptureFilePath } from './capture.js'
+import { listUnrecordedSessions, removeUnrecordedSession } from './matchSessions.js'
 
 // The only extension recording ever produces (see capture.js) — used to
 // filter out anything else a user might drop into the same folder (a
@@ -29,6 +30,32 @@ function startedAtFromFileName(fileName) {
   if (!match) return null
   const [, year, month, day, hour, minute, second] = match.map(Number)
   return new Date(year, month - 1, day, hour, minute, second).toISOString()
+}
+
+/** Same base filename as the video, `.json` extension — see capture.js's writeSidecar(). */
+function sidecarPathFor(videoFilePath) {
+  return videoFilePath.slice(0, -path.extname(videoFilePath).length) + '.json'
+}
+
+/**
+ * Reads a recording's sidecar JSON (see capture.js's writeSidecar()) for
+ * its captured gameInstanceId/deckId/startedAt, if any. A recording from
+ * before this feature existed (or one whose sidecar was lost/corrupted)
+ * has no sidecar at all — treated the same as one with a null deckId,
+ * never an error; no retroactive sidecar generation happens for those.
+ */
+function readSidecar(videoFilePath) {
+  try {
+    const raw = fs.readFileSync(sidecarPathFor(videoFilePath), 'utf-8')
+    const data = JSON.parse(raw)
+    return {
+      gameInstanceId: data.gameInstanceId ?? null,
+      deckId: data.deckId ?? null,
+      startedAt: data.startedAt ?? null
+    }
+  } catch {
+    return { gameInstanceId: null, deckId: null, startedAt: null }
+  }
 }
 
 /**
@@ -76,36 +103,82 @@ export function listUnlinkedReplays() {
 }
 
 /**
- * Same list as listUnlinkedReplays(), with each entry's real session
- * bounds attached — backs the Pending Recordings queue (Sidebar badge +
- * popover). `startedAt` comes from the filename's own embedded timestamp
- * (falling back to birthtime for a file that doesn't match RiftTrack's
- * naming, e.g. dropped in manually) and `endedAt` from the file's mtime —
- * the moment capture.js's write stream last wrote to it, i.e. when
- * recording actually stopped. No new table: this is pure filesystem
- * metadata layered on top of the same unlinked-file scan.
+ * The unified "Log Recent Match" queue — backs the Sidebar badge + popover.
+ * Merges two kinds of item, most-recent-first by `startedAt`:
+ *
+ *  - File-backed items (`hasRecording: true`): every unlinked recording,
+ *    same as listUnlinkedReplays(), plus whatever its sidecar JSON knows
+ *    (see readSidecar()) — `deckId`, and `startedAt` when the sidecar has
+ *    one (falling back to the pre-sidecar derivation: the filename's own
+ *    embedded timestamp, then file birthtime, for a recording made before
+ *    this feature existed or one whose sidecar is missing/corrupt).
+ *    `endedAt` is always the file's own mtime — the moment capture.js's
+ *    write stream last touched it, i.e. when recording actually stopped —
+ *    a sidecar has no endedAt of its own since it's written at *start*.
+ *  - In-memory items (`hasRecording: false`): sessions that finished with
+ *    no recording ever tied to them (see matchSessions.js), gone on
+ *    restart if never logged or discarded — there's nothing on disk to
+ *    persist them with.
+ *
+ * Every item carries a stable `id` for UI list keys (`filePath` for a
+ * recording, `session:<gameInstanceId>` for an in-memory one, since the
+ * latter has no file of its own).
  */
 export function listPendingReplays() {
-  return listUnlinkedReplays().map((file) => {
+  const fileItems = listUnlinkedReplays().map((file) => {
     const stat = fs.statSync(file.filePath)
+    const sidecar = readSidecar(file.filePath)
     return {
-      ...file,
-      startedAt: startedAtFromFileName(file.fileName) ?? file.createdAt,
+      id: file.filePath,
+      hasRecording: true,
+      filePath: file.filePath,
+      fileName: file.fileName,
+      sizeBytes: file.sizeBytes,
+      deckId: sidecar.deckId,
+      gameInstanceId: sidecar.gameInstanceId,
+      startedAt: sidecar.startedAt ?? startedAtFromFileName(file.fileName) ?? file.createdAt,
       endedAt: stat.mtime.toISOString()
     }
   })
+
+  const sessionItems = listUnrecordedSessions().map((session) => ({
+    id: `session:${session.gameInstanceId}`,
+    hasRecording: false,
+    filePath: null,
+    deckId: session.deckId,
+    gameInstanceId: session.gameInstanceId,
+    startedAt: session.startedAt,
+    endedAt: session.endedAt
+  }))
+
+  return [...fileItems, ...sessionItems].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
 }
 
 /**
- * Deletes an unlinked recording file — the Pending Recordings queue's
- * "Discard" action. Refuses to delete anything outside the configured
- * Video Capture folder (defense in depth: filePath should always come
- * from our own listPendingReplays() results, but this never trusts renderer
- * input blindly, the same reasoning replayProtocol.js's path-containment
- * check follows) or the file currently being recorded to.
+ * The "Log Recent Match" queue's "Discard" action for either item shape —
+ * takes a full item as returned by listPendingReplays(), not just a bare
+ * path, since what gets discarded differs by type. For `hasRecording:
+ * true`, deletes the video file and its sidecar JSON (refusing anything
+ * outside the configured Video Capture folder — defense in depth, the
+ * same reasoning replayProtocol.js's path-containment check follows — or
+ * the file currently being recorded to). For `hasRecording: false`, there's
+ * no file at all — it just drops the entry from matchSessions.js's
+ * in-memory queue. Also called (not just from a real Discard click) right
+ * after a `hasRecording: false` item gets successfully logged into a
+ * match, so a logged session doesn't linger in the queue looking unlogged
+ * — see App.jsx's handleQueuedMatchSaved().
  */
-export function discardPendingReplay(filePath) {
+export function discardPendingReplay(item) {
+  if (!item) return { success: false, reason: 'No item specified.' }
+
+  if (!item.hasRecording) {
+    if (!item.gameInstanceId) return { success: false, reason: 'No session specified.' }
+    removeUnrecordedSession(item.gameInstanceId)
+    return { success: true }
+  }
+
   const { directory } = getVideoCapturePrefs()
+  const filePath = item.filePath
   if (!directory || !filePath) return { success: false, reason: 'No file specified.' }
 
   const resolvedDir = path.resolve(directory)
@@ -116,11 +189,16 @@ export function discardPendingReplay(filePath) {
   if (resolved === getActiveCaptureFilePath()) {
     return { success: false, reason: 'That recording is still in progress.' }
   }
-  if (!fs.existsSync(resolved)) {
-    return { success: true } // already gone — treat as a successful discard
+
+  if (fs.existsSync(resolved)) fs.rmSync(resolved)
+
+  const sidecarPath = sidecarPathFor(resolved)
+  try {
+    if (fs.existsSync(sidecarPath)) fs.rmSync(sidecarPath)
+  } catch (err) {
+    console.error('[replays] failed to delete sidecar', sidecarPath, err)
   }
 
-  fs.rmSync(resolved)
   return { success: true }
 }
 

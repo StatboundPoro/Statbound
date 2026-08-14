@@ -1,4 +1,5 @@
-import { getVideoCapturePrefs } from './preferences.js'
+import { getPlayPrefs, getVideoCapturePrefs } from './preferences.js'
+import { completeSession, startSession } from './matchSessions.js'
 
 // How long to wait after the active match's WebSocket closes before
 // actually stopping the recording — covers a brief reconnect (network
@@ -23,6 +24,14 @@ let pendingStopTimer = null
 // join_game seen while IDLE goes straight to RECORDING in that case and
 // never leaves anything here to track.
 let pendingSessionGameInstanceId = null
+
+// Mirrors pendingStopTimer's reconnect-buffering purpose, but for a
+// session that was never recording in the first place (auto-start off,
+// no manual claim) — without this, a brief reconnect on an unrecorded
+// session would prematurely push it onto the "Log Recent Match" queue as
+// finished, then leave a second, orphaned entry once the real end
+// arrives. Only ever runs while `state` is IDLE.
+let pendingSessionStopTimer = null
 
 // Maps a WebSocket's CDP requestId to the gameInstanceId whose join_game
 // message was sent on it, so a later Network.webSocketClosed for that same
@@ -53,11 +62,39 @@ function sendAutoStop() {
   mainWindow?.webContents.send('capture:auto-stop')
 }
 
+// Pushed whenever a session with no recording finishes and lands on the
+// "Log Recent Match" queue — the equivalent of the recording-stopped
+// signal capture already gives the renderer (via capture:auto-stop's
+// downstream onStopped callback), but for the case where no recording
+// ever ran, so App.jsx has nothing else to key a refetch off of. Handled
+// in App.jsx by the same logic that pops open the Sidebar's self-
+// dismissing notification for a finished recording.
+function sendPendingQueueChanged() {
+  mainWindow?.webContents.send('replays:pending-queue-changed')
+}
+
 function clearPendingStopTimer() {
   if (pendingStopTimer) {
     clearTimeout(pendingStopTimer)
     pendingStopTimer = null
   }
+}
+
+function clearPendingSessionStopTimer() {
+  if (pendingSessionStopTimer) {
+    clearTimeout(pendingSessionStopTimer)
+    pendingSessionStopTimer = null
+  }
+}
+
+// The deck currently selected in the Play tab's picker, read fresh off
+// preferences.js — the same file PlayScreen.jsx's dropdown persists to on
+// every change. Only ever called at the exact moment a NEW session starts
+// (see startSession() call sites below), so what's captured is a
+// snapshot of that moment, not a live reference to whatever's selected
+// now.
+function currentlySelectedDeckId() {
+  return getPlayPrefs().lastSelectedPlayDeckId
 }
 
 /**
@@ -81,16 +118,25 @@ export function handleJoinGame({ gameInstanceId, requestId }) {
   requestIdToGameInstanceId.set(requestId, gameInstanceId)
 
   if (state === 'IDLE') {
+    if (gameInstanceId === pendingSessionGameInstanceId) {
+      // Reconnect resume for a still-unclaimed (auto-start off, no manual
+      // Start yet) session — cancel its stop grace timer if one's running
+      // and keep tracking it as the same session, not a new one.
+      clearPendingSessionStopTimer()
+      return
+    }
     if (!getVideoCapturePrefs().autoStartRecording) {
       // Auto-start is off — don't record yet, but remember this session so
       // a manual Start pressed before the match ends can still pick up
       // auto-stop (see handleManualStart below). The listener itself never
       // stops running just because this preference is off.
       pendingSessionGameInstanceId = gameInstanceId
+      startSession(gameInstanceId, currentlySelectedDeckId())
       return
     }
     state = 'RECORDING'
     activeGameInstanceId = gameInstanceId
+    startSession(gameInstanceId, currentlySelectedDeckId())
     sendAutoStart()
     return
   }
@@ -111,6 +157,7 @@ export function handleJoinGame({ gameInstanceId, requestId }) {
     finishStop()
     state = 'RECORDING'
     activeGameInstanceId = gameInstanceId
+    startSession(gameInstanceId, currentlySelectedDeckId())
     sendAutoStart()
     return
   }
@@ -125,14 +172,29 @@ export function handleJoinGame({ gameInstanceId, requestId }) {
     finishStop()
     state = 'RECORDING'
     activeGameInstanceId = gameInstanceId
+    startSession(gameInstanceId, currentlySelectedDeckId())
     sendAutoStart()
   }
 }
 
+/**
+ * Ends this module's tracking of whatever session `activeGameInstanceId`
+ * refers to — always a session that had (or was meant to have) a
+ * recording, since it only ever runs from RECORDING/PENDING_STOP
+ * contexts. completeSession() only pushes a "Log Recent Match" entry for
+ * a session that never actually got one (e.g. startRecording() itself
+ * failed) — the common case, a session that did get recorded, resolves
+ * via its own sidecar file instead (see capture.js), so no queue push
+ * happens here for it.
+ */
 function finishStop() {
+  const finishedGameInstanceId = activeGameInstanceId
   state = 'IDLE'
   activeGameInstanceId = null
   sendAutoStop()
+  if (finishedGameInstanceId && completeSession(finishedGameInstanceId)) {
+    sendPendingQueueChanged()
+  }
 }
 
 /**
@@ -146,10 +208,20 @@ export function handleSocketClosed({ requestId }) {
 
   if (state === 'IDLE') {
     // No recording is tied to this session (auto-start was off and no
-    // manual Start ever claimed it) — just stop tracking it. Nothing to
-    // stop, so no sendAutoStop().
+    // manual Start ever claimed it) — nothing to stop, so no
+    // sendAutoStop(). Still waits out the same grace period the RECORDING
+    // branch below does before treating the session as actually over, so
+    // a brief reconnect doesn't prematurely push it onto the "Log Recent
+    // Match" queue only for the real end to arrive moments later.
     if (gameInstanceId === pendingSessionGameInstanceId) {
-      pendingSessionGameInstanceId = null
+      pendingSessionStopTimer = setTimeout(() => {
+        pendingSessionStopTimer = null
+        const finishedGameInstanceId = pendingSessionGameInstanceId
+        pendingSessionGameInstanceId = null
+        if (finishedGameInstanceId && completeSession(finishedGameInstanceId)) {
+          sendPendingQueueChanged()
+        }
+      }, PENDING_STOP_DELAY_MS)
     }
     return
   }
@@ -181,9 +253,33 @@ export function handleSocketClosed({ requestId }) {
 export function handleManualStart() {
   if (state !== 'IDLE' || !pendingSessionGameInstanceId) return
 
+  clearPendingSessionStopTimer()
   state = 'RECORDING'
   activeGameInstanceId = pendingSessionGameInstanceId
   pendingSessionGameInstanceId = null
+}
+
+/**
+ * The gameInstanceId a freshly-started recording should be considered
+ * tied to, or null if there's no session to associate it with. Called by
+ * capture.js's startRecording() to know what to write into the
+ * recording's sidecar JSON (see capture.js) and to tell matchSessions.js
+ * this session did get a recording, before that fact is checked later at
+ * completeSession() time.
+ *
+ * Covers both ways a new recording can start: `activeGameInstanceId` is
+ * already set the moment this runs for an auto-started recording (handleJoinGame
+ * sets it before sendAutoStart() posts the IPC message that eventually
+ * triggers capture:start), and `pendingSessionGameInstanceId` is already
+ * set for a manual Start claiming a session auto-start left unclaimed
+ * (handleManualStart's own association happens slightly later, in
+ * response to a second IPC message, so this can't wait for that — it has
+ * to recognize the same session pendingSessionGameInstanceId already
+ * points at). Returns null for a manual Start with no session known at
+ * all yet.
+ */
+export function getGameInstanceIdForNewRecording() {
+  return activeGameInstanceId ?? pendingSessionGameInstanceId ?? null
 }
 
 /**

@@ -3,8 +3,10 @@ import path from 'path'
 import { spawn } from 'child_process'
 import { app } from 'electron'
 import ffmpegBinaryPath from 'ffmpeg-static'
-import { getVideoCapturePrefs } from './preferences.js'
+import { getPlayPrefs, getVideoCapturePrefs } from './preferences.js'
 import { getPlayWebContents } from './playView.js'
+import { getGameInstanceIdForNewRecording } from './autoCapture.js'
+import { getSessionDeckId, getSessionStartedAt, markSessionRecording } from './matchSessions.js'
 
 // The frame-grab loop's target rate — see captureLoopTick() below for why
 // this is a target, not a guarantee: webContents.capturePage() is async and
@@ -80,6 +82,28 @@ function resolveFfmpegPath() {
 
 function qualityToBitrate(quality) {
   return BITRATE_BY_QUALITY[quality] ?? DEFAULT_BITRATE
+}
+
+/**
+ * Writes this recording's sidecar JSON — same base filename as the video,
+ * `.json` extension, `{ gameInstanceId, deckId, startedAt }` — into the
+ * real Video Capture directory (not the temp folder the video itself is
+ * still encoding into). Called at the very start of startRecording(),
+ * before the async first-frame capture even runs, specifically so a crash
+ * partway through the recording still leaves this metadata on disk rather
+ * than losing it along with everything held only in memory. `deckId`/
+ * `gameInstanceId` may both be null (a manual recording with no currently-
+ * tracked match session — see getGameInstanceIdForNewRecording()); a
+ * missing/unparseable sidecar is handled the same way by replays.js
+ * either way, so there's nothing to special-case here.
+ */
+function writeSidecar({ directory, base, gameInstanceId, deckId, startedAt }) {
+  const sidecarPath = path.join(directory, `${base}.json`)
+  try {
+    fs.writeFileSync(sidecarPath, JSON.stringify({ gameInstanceId, deckId, startedAt }, null, 2))
+  } catch (err) {
+    console.error('[capture] failed to write recording sidecar', sidecarPath, err)
+  }
 }
 
 /**
@@ -251,6 +275,19 @@ export async function startRecording() {
   const base = `rifttrack-${localTimestampForFilename()}`
   const finalPath = path.join(directory, `${base}.mp4`)
   const tempVideoPath = path.join(tempDir, `${base}.video.mp4`)
+
+  // Tie this recording to whatever match session (if any) is currently
+  // known — see getGameInstanceIdForNewRecording()'s own comment for why
+  // this already works for both an auto-started recording and a manual
+  // Start claiming a session auto-start left unclaimed. Written to disk
+  // immediately (see writeSidecar) rather than deferred to stopRecording(),
+  // and matchSessions is told right away too, so a session that does end
+  // up with a recording is never also pushed onto the non-recorded queue.
+  const gameInstanceId = getGameInstanceIdForNewRecording()
+  const deckId = gameInstanceId ? getSessionDeckId(gameInstanceId) : (getPlayPrefs().lastSelectedPlayDeckId ?? null)
+  const startedAt = gameInstanceId ? (getSessionStartedAt(gameInstanceId) ?? new Date().toISOString()) : new Date().toISOString()
+  writeSidecar({ directory, base, gameInstanceId, deckId, startedAt })
+  if (gameInstanceId) markSessionRecording(gameInstanceId)
 
   const firstFrame = await webContents.capturePage()
   const { width, height } = firstFrame.getSize()

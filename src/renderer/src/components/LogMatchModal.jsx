@@ -273,18 +273,26 @@ function gamesFromMatch(match) {
 }
 
 // Manual match-entry form. In "create" mode (the default, launched from
-// Deck Detail's "Log Match" button, or from the Sidebar's Pending
-// Recordings queue with no particular deck in context) it starts blank
-// and posts a new match via matches:create. In "edit" mode (launched from
-// MatchDetailModal's "Edit" button) it's pre-filled from `match` and calls
-// matches:update against `match.id` instead — same form either way, no
-// second component. No auto-capture or replay parsing in either mode;
+// Deck Detail's "Log Match" button, the Play tab's own deck-picker-driven
+// "Log Match" button, or the Sidebar's Log Recent Match queue) it starts
+// blank and posts a new match via matches:create. In "edit" mode (launched
+// from MatchDetailModal's "Edit" button) it's pre-filled from `match` and
+// calls matches:update against `match.id` instead — same form either way,
+// no second component. No auto-capture or replay parsing in either mode;
 // every field is typed in by hand.
 //
-// `preselectedReplayPath`, when given (only ever from the Pending
-// Recordings queue — see App.jsx), pins the Recording section to that
-// exact file on open instead of defaulting to "most recent unlinked" —
-// the override dropdown is still fully available underneath it either way.
+// `preselectedReplayPath` has three meaningful states, all set by App.jsx:
+// left `undefined` (Deck Detail's button, the Play tab's own manual
+// button — no opinion), it falls back to auto-selecting the most recent
+// unlinked recording; a real path (a Log Recent Match queue item with
+// `hasRecording: true`) pins the Recording section to that exact file
+// instead; `null` (a queue item with `hasRecording: false`) explicitly
+// means no recording, overriding the auto-select so an unrelated unlinked
+// file never gets silently attached to a session that never had one. The
+// override dropdown is still fully available underneath any of these.
+// `initialDeckId` may legitimately be null (no deck known for this entry
+// point) — see the "never guess" effect below, which leaves the Deck
+// field genuinely unselected rather than defaulting to some deck.
 export default function LogMatchModal({
   initialDeckId,
   preselectedReplayPath,
@@ -327,14 +335,18 @@ export default function LogMatchModal({
       })
   }, [])
 
-  // Launched with no deck context at all (the Sidebar's Pending Recordings
-  // queue, unlike Deck Detail's "Log Match" button, isn't scoped to any
-  // one deck) — once the deck list loads, default to the first one rather
-  // than leaving the Deck field's underlying state undefined while the
-  // dropdown visually shows a deck selected. The user can still change it.
+  // A deck id passed in (initialDeckId, or match.deck_id in edit mode) can
+  // point at a deck that's since been deleted, or may be intentionally
+  // null/absent (e.g. a Log Recent Match queue item whose session never
+  // had a deck selected in the Play tab, or the Play tab's own manual Log
+  // Match button with nothing chosen in its picker) — in both cases the
+  // field should come up unselected rather than silently guessing a deck,
+  // once the real deck list is in and can actually be checked against.
   useEffect(() => {
-    if (!isEdit && !deckId && decks.length > 0) setDeckId(decks[0].id)
-  }, [isEdit, deckId, decks])
+    if (decksStatus === 'ready' && deckId && !decks.some((d) => d.id === deckId)) {
+      setDeckId('')
+    }
+  }, [decksStatus, decks, deckId])
 
   useEffect(() => {
     if (isEdit) return
@@ -345,10 +357,18 @@ export default function LogMatchModal({
         if (preselectedReplayPath) {
           // Opened for one specific queued recording — not "most recent."
           setSelectedReplayPath(preselectedReplayPath)
-        } else if (files.length > 0) {
-          // Simplest correct default: the most recent unlinked recording,
-          // since normally at most one is pending at a time. The dropdown
-          // below still lets a different one (or "No recording") be picked.
+        } else if (preselectedReplayPath === undefined && files.length > 0) {
+          // No opinion was given at all (Deck Detail's button, the Play
+          // tab's own manual button) — simplest correct default: the most
+          // recent unlinked recording, since normally at most one is
+          // pending at a time. The dropdown below still lets a different
+          // one (or "No recording") be picked.
+          //
+          // preselectedReplayPath === null (as opposed to undefined) is a
+          // deliberate, explicit "no recording" — the Log Recent Match
+          // queue's hasRecording: false items pass null on purpose, since
+          // guessing an unrelated unlinked file here would silently attach
+          // the wrong recording to this session.
           setSelectedReplayPath(files[0].filePath)
         }
       })
@@ -488,9 +508,10 @@ export default function LogMatchModal({
             <div className="form-column-title">My Side</div>
             <label className="form-field">
               <span>Deck</span>
-              <select value={deckId} onChange={(e) => setDeckId(e.target.value)} disabled={decksStatus !== 'ready'}>
+              <select value={deckId ?? ''} onChange={(e) => setDeckId(e.target.value)} disabled={decksStatus !== 'ready'}>
                 {decksStatus === 'loading' && <option>Loading decks…</option>}
                 {decksStatus === 'error' && <option>Could not load decks</option>}
+                {decksStatus === 'ready' && <option value="">Select a deck…</option>}
                 {decks.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -552,6 +573,9 @@ export default function LogMatchModal({
         {decidedGamesCount === 0 && (
           <div className="form-hint">Enter a result for at least one game to save.</div>
         )}
+        {!deckId && decksStatus === 'ready' && (
+          <div className="form-hint">Select a deck to save this match.</div>
+        )}
 
         {!isEdit && (
           <>
@@ -592,7 +616,7 @@ export default function LogMatchModal({
           <button className="btn" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving || decidedGamesCount === 0}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || decidedGamesCount === 0 || !deckId}>
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Match'}
           </button>
         </div>

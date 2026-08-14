@@ -70,7 +70,13 @@ contextBridge.exposeInMainWorld('api', {
         y: rect.y,
         width: rect.width,
         height: rect.height
-      })
+      }),
+    // The Play tab's own deck picker (see PlayScreen.jsx) — persisted
+    // across restarts via preferences.js, unlike show/hide/setBounds
+    // above these go through invoke/handle since the renderer needs the
+    // persisted value back, not just to fire a one-way UI sync event.
+    getSelectedDeck: () => ipcRenderer.invoke('play:get-selected-deck'),
+    setSelectedDeck: (deckId) => ipcRenderer.invoke('play:set-selected-deck', deckId)
   },
   capture: {
     // Video is captured and encoded entirely in the main process (frame-
@@ -104,10 +110,24 @@ contextBridge.exposeInMainWorld('api', {
   },
   replays: {
     listUnlinked: () => ipcRenderer.invoke('replays:list-unlinked'),
+    // The unified "Log Recent Match" queue — both file-backed recordings
+    // and in-memory not-recorded sessions, see src/main/replays.js.
     listPending: () => ipcRenderer.invoke('replays:list-pending'),
-    discardPending: (filePath) => ipcRenderer.invoke('replays:discard-pending', filePath),
+    // `item` is a full entry from listPending() above, not a bare path —
+    // see src/main/replays.js's discardPendingReplay() for why.
+    discardPending: (item) => ipcRenderer.invoke('replays:discard-pending', item),
     create: (replay) => ipcRenderer.invoke('replays:create', replay),
-    getByMatch: (matchId) => ipcRenderer.invoke('replays:get-by-match', matchId)
+    getByMatch: (matchId) => ipcRenderer.invoke('replays:get-by-match', matchId),
+    // Pushed by autoCapture.js when a session with no recording finishes
+    // and lands on the queue — there's no capture:auto-stop for this case
+    // (nothing was ever recording), so this is what tells the renderer to
+    // refetch and pop the Sidebar's notification open. Same shape as
+    // capture.onAutoStart/onAutoStop below.
+    onPendingQueueChanged: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on('replays:pending-queue-changed', handler)
+      return () => ipcRenderer.removeListener('replays:pending-queue-changed', handler)
+    }
   },
   // The Pending Recordings popover's overlay surface — see
   // src/main/pendingPanelView.js for why it's a second WebContentsView

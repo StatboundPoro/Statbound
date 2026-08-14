@@ -30,10 +30,12 @@ import {
 import {
   getAutoBackupPrefs,
   getHasSeenWelcomeTour,
+  getPlayPrefs,
   getVideoCapturePrefs,
   markWelcomeTourSeen,
   resetVideoCaptureDirectory,
   updateAutoBackupPrefs,
+  updatePlayPrefs,
   updateVideoCapturePrefs
 } from './preferences.js'
 import { startRecording, stopRecording } from './capture.js'
@@ -85,12 +87,21 @@ export function registerIpcHandlers() {
   ipcMain.handle('capture:stop', () => stopRecording())
   ipcMain.handle('replays:list-unlinked', () => listUnlinkedReplays())
   ipcMain.handle('replays:list-pending', () => listPendingReplays())
-  ipcMain.handle('replays:discard-pending', (_event, filePath) => discardPendingReplay(filePath))
+  // `item` is a full entry from listPendingReplays() (not a bare path) —
+  // discardPendingReplay() branches on its hasRecording flag to know
+  // whether to delete a file or just drop an in-memory session.
+  ipcMain.handle('replays:discard-pending', (_event, item) => discardPendingReplay(item))
   ipcMain.handle('replays:create', (_event, replay) => createReplay(replay))
   ipcMain.handle('replays:get-by-match', (_event, matchId) => {
     const replay = getReplayByMatchId(matchId)
     return replay ? { ...replay, url: replayFileUrl(replay.file_path) } : null
   })
+  // The Play tab's deck picker (see PlayScreen.jsx) — persisted so the
+  // selection survives a restart, and read directly by autoCapture.js
+  // (not over IPC) at the moment a new match session starts, to snapshot
+  // which deck it should be tagged with.
+  ipcMain.handle('play:get-selected-deck', () => getPlayPrefs().lastSelectedPlayDeckId)
+  ipcMain.handle('play:set-selected-deck', (_event, deckId) => updatePlayPrefs({ lastSelectedPlayDeckId: deckId ?? null }).lastSelectedPlayDeckId)
 
   // One-way (send/on, not invoke/handle) since these are fire-and-forget UI
   // sync events, not requests with a return value.

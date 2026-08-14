@@ -73,7 +73,7 @@ export default function PendingPanelWindow() {
   async function handleConfirmDiscard() {
     setDiscarding(true)
     try {
-      const result = await window.api.replays.discardPending(discardTarget.filePath)
+      const result = await window.api.replays.discardPending(discardTarget)
       if (result.success) {
         window.api.pendingPanel.notifyChanged()
       } else {
@@ -106,8 +106,12 @@ export default function PendingPanelWindow() {
 
       {discardTarget && (
         <ConfirmDialog
-          title="Discard Recording?"
-          message="This permanently deletes the recording file. It hasn't been linked to any match, so no logged match data is affected."
+          title={discardTarget.hasRecording ? 'Discard Recording?' : 'Discard Match?'}
+          message={
+            discardTarget.hasRecording
+              ? "This permanently deletes the recording file. It hasn't been linked to any match, so no logged match data is affected."
+              : "This removes it from the Log Recent Match queue. It hasn't been logged as a match, and there's no recording file to delete."
+          }
           confirmLabel="Discard"
           danger
           busy={discarding}

@@ -53,6 +53,16 @@ const DEFAULT_WELCOME_TOUR = {
   hasSeenWelcomeTour: false
 }
 
+// Which deck was last selected in the Play tab's deck picker (see
+// PlayScreen.jsx) — remembered across restarts for convenience, same
+// "setting about this installation" reasoning as everything else here.
+// Unlike auto-backup/video-capture above, there's no default-resolution-
+// on-first-read step: null (no deck selected) is already a valid,
+// displayable value, not a placeholder standing in for something real.
+const DEFAULT_PLAY = {
+  lastSelectedPlayDeckId: null
+}
+
 function readRaw() {
   try {
     const text = fs.readFileSync(preferencesPath(), 'utf-8')
@@ -148,4 +158,28 @@ export function markWelcomeTourSeen() {
   const welcomeTour = { ...DEFAULT_WELCOME_TOUR, ...raw.welcomeTour, hasSeenWelcomeTour: true }
   writeRaw({ ...raw, welcomeTour })
   return welcomeTour
+}
+
+/**
+ * Returns the current Play tab preferences (currently just
+ * lastSelectedPlayDeckId). Read directly (synchronously, off the same JSON
+ * file the renderer's selection writes to) by autoCapture.js at the exact
+ * moment a new match session begins, so a session gets tagged with whatever
+ * deck was selected right then — a snapshot, not a live reference; see
+ * autoCapture.js's startSession() call sites for why that matters.
+ */
+export function getPlayPrefs() {
+  const raw = readRaw()
+  return { ...DEFAULT_PLAY, ...raw.play }
+}
+
+/**
+ * Persists a Play tab preference change (currently just which deck is
+ * selected, written on every change from PlayScreen.jsx's dropdown).
+ */
+export function updatePlayPrefs(patch) {
+  const raw = readRaw()
+  const play = { ...DEFAULT_PLAY, ...raw.play, ...patch }
+  writeRaw({ ...raw, play })
+  return play
 }

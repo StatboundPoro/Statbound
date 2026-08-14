@@ -22,40 +22,57 @@ export default function App() {
   // the nav item itself still lands on "All Decks" as before.
   const [insightsDeckId, setInsightsDeckId] = useState(null)
 
-  // Pending Recordings (unlinked files, surfaced via the Sidebar badge)
-  // and the recording hook itself both live here, above the per-screen
-  // render tree — see lib/recording.js's module comment for why the
-  // recording hook specifically can't stay scoped to PlayScreen anymore
-  // now that auto-detection can fire while the user is on any screen.
+  // The unified "Log Recent Match" queue (recorded files + in-memory
+  // not-recorded sessions, see src/main/replays.js) and the recording hook
+  // itself both live here, above the per-screen render tree — see
+  // lib/recording.js's module comment for why the recording hook
+  // specifically can't stay scoped to PlayScreen anymore now that
+  // auto-detection can fire while the user is on any screen.
   const [pendingReplays, setPendingReplays] = useState([])
-  // The one pending recording opened via the Sidebar queue's "Log Match"
-  // button — rendered here, not inside any particular screen, since the
-  // queue itself is reachable from every screen.
+  // The one queue item opened via the Sidebar queue's "Log Match" button —
+  // rendered here, not inside any particular screen, since the queue
+  // itself is reachable from every screen. May be either item shape (see
+  // replays.js): a recorded file (hasRecording: true) or a bare session
+  // with no recording (hasRecording: false, no filePath).
   const [queuedReplay, setQueuedReplay] = useState(null)
-  // Bumped (not just a boolean) every time a recording finishes, so
-  // Sidebar's effect — which auto-opens the Pending Recordings popover as
-  // a self-dismissing notification — has a value that reliably changes on
-  // every stop, including back-to-back matches, rather than needing to
-  // infer "a new one just finished" from pendingReplays' length alone.
-  const [recordingStoppedSignal, setRecordingStoppedSignal] = useState(0)
+  // The Play tab's own manual "Log Match" button (see PlayScreen.jsx) —
+  // a plain shortcut with no queue/recording involved. `undefined` means
+  // closed; a string or null (no deck chosen) means open, pre-selecting
+  // that deck. Kept separate from queuedReplay above since the two are
+  // unrelated entry points into the same LogMatchModal.
+  const [manualLogMatchDeckId, setManualLogMatchDeckId] = useState(undefined)
+  // Bumped (not just a boolean) every time the queue gains a new entry —
+  // a recording finishing, or a non-recorded session ending — so
+  // Sidebar's effect, which auto-opens the queue popover as a self-
+  // dismissing notification, has a value that reliably changes on every
+  // such event, including back-to-back matches, rather than needing to
+  // infer "something new just landed" from pendingReplays' length alone.
+  const [logQueueSignal, setLogQueueSignal] = useState(0)
 
   const refreshPendingReplays = useCallback(() => {
     window.api.replays
       .listPending()
       .then(setPendingReplays)
-      .catch((err) => console.error('Failed to load pending recordings:', err))
+      .catch((err) => console.error('Failed to load the Log Recent Match queue:', err))
   }, [])
 
   useEffect(() => {
     refreshPendingReplays()
   }, [refreshPendingReplays])
 
-  const handleRecordingStopped = useCallback(() => {
+  const notifyQueueChanged = useCallback(() => {
     refreshPendingReplays()
-    setRecordingStoppedSignal((n) => n + 1)
+    setLogQueueSignal((n) => n + 1)
   }, [refreshPendingReplays])
 
-  const recording = useScreenRecording({ onStopped: handleRecordingStopped })
+  const recording = useScreenRecording({ onStopped: notifyQueueChanged })
+
+  // A session that finished with no recording ever tied to it has no
+  // capture:auto-stop to hook a refetch off of (nothing was recording) —
+  // this is what autoCapture.js pushes instead once such a session lands
+  // on the queue (see matchSessions.js), reusing the exact same
+  // refetch-and-notify path a finished recording already triggers above.
+  useEffect(() => window.api.replays.onPendingQueueChanged(notifyQueueChanged), [notifyQueueChanged])
 
   // First-run welcome tour: shown automatically exactly once, the first
   // time hasSeenWelcomeTour reads false. Checked in an effect (fires after
@@ -90,7 +107,27 @@ export default function App() {
   }
 
   function handleQueuedMatchSaved() {
+    // A hasRecording: false item has no file to unlink it via — it only
+    // ever leaves the queue when explicitly discarded or, here, once it's
+    // actually been logged, so it doesn't linger looking unlogged. A
+    // hasRecording: true item needs no such call: replays:create already
+    // linked its file during save, which is what drops it out of the next
+    // listUnlinked()/listPending() scan on its own.
+    if (queuedReplay && !queuedReplay.hasRecording) {
+      window.api.replays
+        .discardPending(queuedReplay)
+        .catch((err) => console.error('Failed to clear a logged session from the queue:', err))
+    }
     setQueuedReplay(null)
+    refreshPendingReplays()
+  }
+
+  function handleOpenManualLogMatch(deckId) {
+    setManualLogMatchDeckId(deckId ?? null)
+  }
+
+  function handleManualLogMatchSaved() {
+    setManualLogMatchDeckId(undefined)
     refreshPendingReplays()
   }
 
@@ -102,7 +139,7 @@ export default function App() {
         pendingReplays={pendingReplays}
         onLogMatch={setQueuedReplay}
         onPendingChanged={refreshPendingReplays}
-        recordingStoppedSignal={recordingStoppedSignal}
+        logQueueSignal={logQueueSignal}
       />
       {screen === 'play' ? (
         <PlayScreen
@@ -112,15 +149,17 @@ export default function App() {
           error={recording.error}
           onStart={recording.start}
           onStop={recording.stop}
+          onLogMatch={handleOpenManualLogMatch}
           // The Play embed is a native WebContentsView that always paints
           // above ordinary DOM content regardless of CSS z-index (the same
           // reason the Pending Recordings popover needed its own dedicated
           // overlay view — see pendingPanelView.js). LogMatchModal below
           // renders as plain DOM in this window's own document, so if it's
-          // opened via the Pending Recordings notification while the user
-          // is still on this screen, it would otherwise be stuck invisibly
+          // opened via the Log Recent Match queue notification, or this
+          // screen's own manual Log Match button, while the user is still
+          // on this screen, it would otherwise be stuck invisibly
           // underneath the embed with no way to click into it.
-          embedHidden={Boolean(queuedReplay)}
+          embedHidden={Boolean(queuedReplay) || manualLogMatchDeckId !== undefined}
         />
       ) : screen === 'matches' ? (
         <MatchHistory />
@@ -140,9 +179,18 @@ export default function App() {
 
       {queuedReplay && (
         <LogMatchModal
-          preselectedReplayPath={queuedReplay.filePath}
+          initialDeckId={queuedReplay.deckId ?? null}
+          preselectedReplayPath={queuedReplay.hasRecording ? queuedReplay.filePath : null}
           onClose={() => setQueuedReplay(null)}
           onSaved={handleQueuedMatchSaved}
+        />
+      )}
+
+      {manualLogMatchDeckId !== undefined && (
+        <LogMatchModal
+          initialDeckId={manualLogMatchDeckId}
+          onClose={() => setManualLogMatchDeckId(undefined)}
+          onSaved={handleManualLogMatchSaved}
         />
       )}
 
