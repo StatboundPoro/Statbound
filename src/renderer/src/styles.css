@@ -1128,12 +1128,6 @@ body {
   text-transform: capitalize;
   color: var(--text-dim);
 }
-.domain-pill .swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--pill-color);
-}
 .domain-pill-icon {
   width: 13px;
   height: 13px;

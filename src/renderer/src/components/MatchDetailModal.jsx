@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { domainColor, DomainGlyph } from '../lib/domains.jsx'
+import { domainColor } from '../lib/domains.jsx'
+import { domainIcon } from '../lib/domainIcons.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import LogMatchModal from './LogMatchModal.jsx'
 import ReplayPlayer from './ReplayPlayer.jsx'
@@ -70,11 +71,11 @@ function MatchDetailView({ match, deck, replay, onWatchReplay, onEdit, onDeleteC
           <div className="half b" style={{ background: domainColor(deck?.domain_2) }} />
           <div className="glyphs">
             <div className="glyph">
-              <DomainGlyph domain={deck?.domain_1} />
+              {domainIcon(deck?.domain_1) && <img src={domainIcon(deck?.domain_1)} alt="" />}
             </div>
             {deck?.domain_2 && (
               <div className="glyph">
-                <DomainGlyph domain={deck.domain_2} />
+                {domainIcon(deck.domain_2) && <img src={domainIcon(deck.domain_2)} alt="" />}
               </div>
             )}
           </div>

@@ -207,8 +207,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
           )}
           <div className="deck-detail-domains">
             {[deck.domain_1, deck.domain_2].filter(Boolean).map((domain) => (
-              <span key={domain} className="domain-pill" style={{ '--pill-color': domainColor(domain) }}>
-                <span className="swatch" />
+              <span key={domain} className="domain-pill">
                 {domainIcon(domain) && <img className="domain-pill-icon" src={domainIcon(domain)} alt="" />}
                 {domain}
               </span>
