@@ -12,23 +12,22 @@ const STEPS = [
     title: 'Welcome to Statbound',
     paragraphs: [
       'Statbound is a local companion app for the Riftbound TCG: deck tracking, match history, and matchup prep, all in one place.',
-      "Everything here is local-only, by design. Your decks, matches, notes, and recordings never leave this machine: no accounts, no servers, no telemetry."
+      "Everything here is local-only. Your decks, matches, notes, and recordings never leave your computer."
     ]
   },
   {
     accent: 'mind',
     title: 'Import a Deck',
     paragraphs: [
-      'Paste a decklist (Legend, Champion, Main Deck, Battlefields, and Runes, plus an optional Sideboard) and Statbound parses and validates it automatically.',
-      "Your deck's two Domains are derived straight from its Runes, so there's nothing else to fill in by hand."
+      'Simply hit the "Import" button and paste a decklist, give it a name and you are good to go.',
     ]
   },
   {
     accent: 'calm',
     title: 'Log a Match',
     paragraphs: [
-      "After a game, log it from that deck's page: opponent, format (Bo1/Bo3), each game's result, seat, and battlefields.",
-      'Win rate, streaks, and matchup records are all calculated automatically from the matches you log. Nothing gets entered twice.'
+      "After a game, log it directly from the play page or that deck's page: opponent, format (Bo1/Bo3), each game's result, seat, and battlefields.",
+      'Win rate, streaks, and matchup records are all calculated automatically from the matches you log.'
     ]
   },
   {
