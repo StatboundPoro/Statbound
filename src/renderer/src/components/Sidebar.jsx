@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import AppMark from '../lib/appMark.jsx'
 
 // How long an auto-shown notification (a recording just finished) stays
 // fully visible before it starts fading, and the total time (including
@@ -209,15 +210,7 @@ export default function Sidebar({
   return (
     <div className="rail">
       <div className="rail-mark">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M12 2 L21 7 L21 17 L12 22 L3 17 L3 7 Z" stroke="#ECE9E2" strokeWidth="1.4" />
-          <path
-            d="M12 2 V22 M3 7 L21 17 M21 7 L3 17"
-            stroke="#ECE9E2"
-            strokeWidth="1"
-            opacity="0.35"
-          />
-        </svg>
+        <AppMark />
       </div>
 
       <div className="rail-nav">

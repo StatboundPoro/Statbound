@@ -1,6 +1,6 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import { getDb } from './db.js'
 import { migrateLegacyUserData } from './userDataMigration.js'
 import { registerIpcHandlers } from './ipc.js'
@@ -61,6 +61,12 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  // No File/Edit/View/Window/Help bar — this app has no menu-driven
+  // actions (no keyboard-shortcut-only features, nothing that needs a
+  // native menu), so Electron's default application menu would only add
+  // unused chrome above the app's own UI.
+  Menu.setApplicationMenu(null)
+
   // Must run before getDb() below — see userDataMigration.js for why and
   // what it does.
   migrateLegacyUserData()
