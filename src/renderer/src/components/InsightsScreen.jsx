@@ -188,7 +188,6 @@ export default function InsightsScreen({ initialDeckId = null }) {
       <div className="topbar">
         <div>
           <h1>Insights</h1>
-          <div className="sub">Aggregate stats computed from your match history: nothing here is stored.</div>
         </div>
       </div>
 

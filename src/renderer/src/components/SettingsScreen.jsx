@@ -273,7 +273,6 @@ export default function SettingsScreen() {
       <div className="topbar">
         <div>
           <h1>Settings</h1>
-          <div className="sub">Local data lives only on this machine: nothing here syncs anywhere.</div>
         </div>
       </div>
 
