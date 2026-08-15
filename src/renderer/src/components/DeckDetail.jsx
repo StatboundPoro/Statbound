@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { domainColor, DomainGlyph } from '../lib/domains.jsx'
+import { domainColor } from '../lib/domains.jsx'
+import { domainIcon } from '../lib/domainIcons.js'
 import { computeRecord, computeStreak, computeWinRate } from '../lib/stats.js'
 import { serializeDecklist } from '../lib/parseDecklist.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
@@ -183,11 +184,15 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
           <div className="half b" style={{ background: domainColor(deck.domain_2) }} />
           <div className="glyphs">
             <div className="glyph">
-              <DomainGlyph domain={deck.domain_1} />
+              {domainIcon(deck.domain_1) && (
+                <img src={domainIcon(deck.domain_1)} alt="" />
+              )}
             </div>
             {deck.domain_2 && (
               <div className="glyph">
-                <DomainGlyph domain={deck.domain_2} />
+                {domainIcon(deck.domain_2) && (
+                  <img src={domainIcon(deck.domain_2)} alt="" />
+                )}
               </div>
             )}
           </div>
@@ -204,6 +209,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
             {[deck.domain_1, deck.domain_2].filter(Boolean).map((domain) => (
               <span key={domain} className="domain-pill" style={{ '--pill-color': domainColor(domain) }}>
                 <span className="swatch" />
+                {domainIcon(domain) && <img className="domain-pill-icon" src={domainIcon(domain)} alt="" />}
                 {domain}
               </span>
             ))}

@@ -581,6 +581,11 @@ body {
   width: 14px;
   height: 14px;
 }
+.glyph img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
 
 .deck-body {
   padding: 14px 16px 16px;
@@ -1086,6 +1091,11 @@ body {
   width: 18px;
   height: 18px;
 }
+.deck-detail-crest .glyph img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
 
 .deck-detail-heading h1 {
   font-family: 'Big Shoulders Display', sans-serif;
@@ -1123,6 +1133,11 @@ body {
   height: 10px;
   border-radius: 50%;
   background: var(--pill-color);
+}
+.domain-pill-icon {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
 }
 
 .stat-strip-3 {
