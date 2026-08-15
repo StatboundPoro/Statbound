@@ -182,20 +182,6 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
         <div className="deck-detail-crest">
           <div className="half a" style={{ background: domainColor(deck.domain_1) }} />
           <div className="half b" style={{ background: domainColor(deck.domain_2) }} />
-          <div className="glyphs">
-            <div className="glyph">
-              {domainIcon(deck.domain_1) && (
-                <img src={domainIcon(deck.domain_1)} alt="" />
-              )}
-            </div>
-            {deck.domain_2 && (
-              <div className="glyph">
-                {domainIcon(deck.domain_2) && (
-                  <img src={domainIcon(deck.domain_2)} alt="" />
-                )}
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="deck-detail-heading">

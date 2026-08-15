@@ -1074,28 +1074,6 @@ body {
   clip-path: polygon(85% 0, 100% 0, 100% 100%, 62% 100%);
   margin-left: -18%;
 }
-.deck-detail-crest .glyphs {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.deck-detail-crest .glyph {
-  width: 34px;
-  height: 34px;
-}
-.deck-detail-crest .glyph svg {
-  width: 18px;
-  height: 18px;
-}
-.deck-detail-crest .glyph img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
 
 .deck-detail-heading h1 {
   font-family: 'Big Shoulders Display', sans-serif;

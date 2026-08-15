@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { DecklistParseError, parseDecklist } from '../lib/parseDecklist.js'
-import { domainColor, DomainGlyph } from '../lib/domains.jsx'
+import { domainColor } from '../lib/domains.jsx'
+import { domainIcon } from '../lib/domainIcons.js'
 
 const PLACEHOLDER = `Legend:
 1 LeBlanc, Deceiver
@@ -124,11 +125,11 @@ export default function ImportDeckModal({
                 <div className="half b" style={{ background: domainColor(parsed.domain_2) }} />
                 <div className="glyphs">
                   <div className="glyph">
-                    <DomainGlyph domain={parsed.domain_1} />
+                    {domainIcon(parsed.domain_1) && <img src={domainIcon(parsed.domain_1)} alt="" />}
                   </div>
                   {parsed.domain_2 && (
                     <div className="glyph">
-                      <DomainGlyph domain={parsed.domain_2} />
+                      {domainIcon(parsed.domain_2) && <img src={domainIcon(parsed.domain_2)} alt="" />}
                     </div>
                   )}
                 </div>
