@@ -19,7 +19,7 @@ const STEPS = [
     accent: 'mind',
     title: 'Import a Deck',
     paragraphs: [
-      'Simply hit the "Import" button and paste a decklist, give it a name and you are good to go!',
+      'Simply hit the "Import" button and paste a decklist, give it a name and you are good to go.',
     ]
   },
   {
