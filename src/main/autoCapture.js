@@ -38,10 +38,9 @@ const LOBBY_CHECK_SCRIPT = `
 let mainWindow = null
 
 // IDLE -> TRACKING -> RECORDING -> IDLE, or IDLE -> RECORDING -> IDLE
-// directly when auto-start is on or the user presses manual Start with no
-// join_game ever seen for the session (see handleManualStart). In-memory
-// only, mirrors one Play tab's worth of match-detection state — there is
-// exactly one of these for the app's lifetime, not one per WebContentsView.
+// directly when auto-start is on. In-memory only, mirrors one Play tab's
+// worth of match-detection state — there is exactly one of these for the
+// app's lifetime, not one per WebContentsView.
 //
 //  - IDLE: no session tracked, nothing polling.
 //  - TRACKING: a join_game was seen but autoStartRecording is off, so
@@ -49,10 +48,7 @@ let mainWindow = null
 //    unclaimed session can be marked finished (and land on the "Log Recent
 //    Match" queue) even if the user never presses manual Start.
 //  - RECORDING: actively recording, polling for the lobby logo to know
-//    when to stop — every recording ends up here regardless of how it
-//    started (auto-detected, claimed from TRACKING, or started fully
-//    manually with nothing tracked at all), so every recording gets the
-//    same lobby-detection auto-stop with no separate "manual" stop path.
+//    when to stop.
 //
 // A further join_game seen while already TRACKING or RECORDING is always a
 // no-op (see handleJoinGame) — this is what lets one Bo3's several games
@@ -255,38 +251,25 @@ export function handleJoinGame({ gameInstanceId }) {
 
 /**
  * Called when the user presses the Play tab's manual Start button (see
- * lib/recording.js), after the recording has actually started. Two cases:
+ * lib/recording.js), after the recording has actually started. If a
+ * join_game was seen while auto-start was off and its session is still
+ * open (TRACKING), associate this manual recording with it so the existing
+ * lobby-detection stop path applies to it exactly as it would to an
+ * auto-started recording — no sendAutoStart() here, since the renderer
+ * already started the recording itself. Lobby polling is already running
+ * from when TRACKING began, so there's nothing to (re)start.
  *
- *  - A join_game was seen while auto-start was off and its session is
- *    still open (TRACKING) — associate this manual recording with it so
- *    the existing lobby-detection stop path applies to it exactly as it
- *    would to an auto-started recording. Lobby polling is already running
- *    from when TRACKING began, so there's nothing to (re)start.
- *  - No session is currently pending at all (e.g. Start was pressed before
- *    any join_game fired, or entirely outside of anything auto-detection
- *    ever saw) — this is still a real recording that should stop itself
- *    the same way any other one does, so this starts lobby polling for it
- *    directly, with no gameInstanceId to associate it with in
- *    matchSessions.js (capture.js's sidecar just ends up with a null
- *    gameInstanceId/deckId fallback the same as it always has for an
- *    untracked manual recording — see getGameInstanceIdForNewRecording()).
- *
- * Neither branch calls sendAutoStart() — the renderer already started the
- * recording itself by the time this runs.
+ * If no session is currently pending (e.g. Start was pressed before any
+ * join_game fired this session), this is a no-op: that recording has
+ * nothing to associate with and simply requires a manual Stop, the same as
+ * it would have before auto-detection existed at all.
  */
 export function handleManualStart() {
-  if (state === 'TRACKING' && pendingSessionGameInstanceId) {
-    state = 'RECORDING'
-    activeGameInstanceId = pendingSessionGameInstanceId
-    pendingSessionGameInstanceId = null
-    return
-  }
+  if (state !== 'TRACKING' || !pendingSessionGameInstanceId) return
 
-  if (state === 'IDLE') {
-    state = 'RECORDING'
-    activeGameInstanceId = null
-    startLobbyPolling()
-  }
+  state = 'RECORDING'
+  activeGameInstanceId = pendingSessionGameInstanceId
+  pendingSessionGameInstanceId = null
 }
 
 /**
