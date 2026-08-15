@@ -2454,6 +2454,12 @@ body {
   color: var(--fury);
 }
 
+.settings-footnote {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
 /* ---------- CONFIRM DIALOG TYPE-TO-CONFIRM GUARD ---------- */
 .confirm-type-guard {
   margin-top: 14px;

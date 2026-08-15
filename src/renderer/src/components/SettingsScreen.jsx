@@ -550,6 +550,11 @@ export default function SettingsScreen() {
         </div>
       </div>
 
+      <div className="settings-footnote">
+        Statbound was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot
+        Games. Riot Games does not endorse or sponsor this project.
+      </div>
+
       {importCandidate && !importSuccess && (
         <ConfirmDialog
           title="Replace All Current Data?"
