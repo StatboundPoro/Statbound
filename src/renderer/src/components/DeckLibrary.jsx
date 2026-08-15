@@ -126,19 +126,19 @@ export default function DeckLibrary({ onOpenDeck, onPlay }) {
         <div className="stat-cell">
           <div className="label">Overall Win Rate</div>
           <div className={`value ${overallWinRate !== null ? 'pos' : ''}`}>
-            {overallWinRate === null ? '—' : `${Math.round(overallWinRate * 100)}%`}
+            {overallWinRate === null ? '-' : `${Math.round(overallWinRate * 100)}%`}
           </div>
         </div>
         <div className="stat-cell">
           <div className="label">Current Streak</div>
           <div className={`value ${currentStreak ? (currentStreak.result === 'win' ? 'pos' : 'neg') : ''}`}>
-            {currentStreak ? `${currentStreak.result === 'win' ? 'W' : 'L'}${currentStreak.count}` : '—'}
+            {currentStreak ? `${currentStreak.result === 'win' ? 'W' : 'L'}${currentStreak.count}` : '-'}
           </div>
         </div>
         <div className="stat-cell">
           <div className="label">Best Deck</div>
           <div className="value" style={{ fontSize: 15, paddingTop: 4, color: 'var(--text-dim)' }}>
-            {bestDeck ? bestDeck.deck.name : '—'}
+            {bestDeck ? bestDeck.deck.name : '-'}
           </div>
         </div>
         <div className="stat-cell">
@@ -152,7 +152,7 @@ export default function DeckLibrary({ onOpenDeck, onPlay }) {
       <div className="section-label">Your Decks</div>
       {decks.length === 0 ? (
         <div className="placeholder-panel deck-library-empty">
-          <p>No decks yet — import your first deck to get started.</p>
+          <p>No decks yet. Import your first deck to get started.</p>
           <button className="btn btn-primary" onClick={() => setImportOpen(true)}>
             <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
               <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />

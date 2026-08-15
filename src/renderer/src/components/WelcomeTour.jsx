@@ -7,7 +7,7 @@ import { useState } from 'react'
 const STEPS = [
   {
     accent: 'order',
-    title: 'Welcome to RiftTrack',
+    title: 'Welcome to Statbound',
     icon: (
       <svg viewBox="0 0 24 24" fill="none">
         <path d="M12 2 L21 7 L21 17 L12 22 L3 17 L3 7 Z" stroke="currentColor" strokeWidth="1.4" />
@@ -15,8 +15,8 @@ const STEPS = [
       </svg>
     ),
     paragraphs: [
-      'RiftTrack is a local companion app for the Riftbound TCG: deck tracking, match history, and matchup prep, all in one place.',
-      "Everything here is local-only, by design. Your decks, matches, notes, and recordings never leave this machine — no accounts, no servers, no telemetry."
+      'Statbound is a local companion app for the Riftbound TCG: deck tracking, match history, and matchup prep, all in one place.',
+      "Everything here is local-only, by design. Your decks, matches, notes, and recordings never leave this machine: no accounts, no servers, no telemetry."
     ]
   },
   {
@@ -31,7 +31,7 @@ const STEPS = [
       </svg>
     ),
     paragraphs: [
-      'Paste a decklist — Legend, Champion, Main Deck, Battlefields, and Runes, plus an optional Sideboard — and RiftTrack parses and validates it automatically.',
+      'Paste a decklist (Legend, Champion, Main Deck, Battlefields, and Runes, plus an optional Sideboard) and Statbound parses and validates it automatically.',
       "Your deck's two Domains are derived straight from its Runes, so there's nothing else to fill in by hand."
     ]
   },
@@ -47,7 +47,7 @@ const STEPS = [
     ),
     paragraphs: [
       "After a game, log it from that deck's page: opponent, format (Bo1/Bo3), each game's result, seat, and battlefields.",
-      'Win rate, streaks, and matchup records are all calculated automatically from the matches you log — nothing gets entered twice.'
+      'Win rate, streaks, and matchup records are all calculated automatically from the matches you log. Nothing gets entered twice.'
     ]
   },
   {
@@ -75,7 +75,7 @@ const STEPS = [
       </svg>
     ),
     paragraphs: [
-      'The Play tab embeds Rift Atlas right inside RiftTrack, with an optional recording of just that game — video only, no audio.',
+      'The Play tab embeds Rift Atlas right inside Statbound, with an optional recording of just that game (video only, no audio).',
       'Turn on Auto-record to start and stop capture on its own as matches begin and end, then link a finished recording to a match from the Pending Recordings queue.'
     ]
   }

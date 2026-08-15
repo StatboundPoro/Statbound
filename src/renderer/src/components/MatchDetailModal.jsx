@@ -26,28 +26,28 @@ function GameDetail({ game }) {
       <div className="match-detail-field-grid">
         <div className="match-detail-field">
           <span className="match-detail-field-label">My Score</span>
-          <span className="match-detail-field-value mono">{game.my_score ?? '—'}</span>
+          <span className="match-detail-field-value mono">{game.my_score ?? '-'}</span>
         </div>
         <div className="match-detail-field">
           <span className="match-detail-field-label">Opponent Score</span>
-          <span className="match-detail-field-value mono">{game.opponent_score ?? '—'}</span>
+          <span className="match-detail-field-value mono">{game.opponent_score ?? '-'}</span>
         </div>
         <div className="match-detail-field">
           <span className="match-detail-field-label">Seat</span>
-          <span className="match-detail-field-value">{SEAT_LABELS[game.seat] ?? '—'}</span>
+          <span className="match-detail-field-value">{SEAT_LABELS[game.seat] ?? '-'}</span>
         </div>
         <div className="match-detail-field">
           <span className="match-detail-field-label">My Battlefield</span>
-          <span className="match-detail-field-value">{game.my_battlefield ?? '—'}</span>
+          <span className="match-detail-field-value">{game.my_battlefield ?? '-'}</span>
         </div>
         <div className="match-detail-field">
           <span className="match-detail-field-label">Opponent Battlefield</span>
-          <span className="match-detail-field-value">{game.opponent_battlefield ?? '—'}</span>
+          <span className="match-detail-field-value">{game.opponent_battlefield ?? '-'}</span>
         </div>
         <div className="match-detail-field">
           <span className="match-detail-field-label">Extra Battlefields</span>
           <span className="match-detail-field-value">
-            {game.extra_battlefields?.length > 0 ? game.extra_battlefields.join(', ') : '—'}
+            {game.extra_battlefields?.length > 0 ? game.extra_battlefields.join(', ') : '-'}
           </span>
         </div>
       </div>
@@ -91,7 +91,7 @@ function MatchDetailView({ match, deck, replay, onWatchReplay, onEdit, onDeleteC
         <div className="match-detail-summary-right">
           <div className="field-label">Result</div>
           <div className={`result-badge ${match.result ?? ''}`}>
-            {match.result ? `${match.result.toUpperCase()} ${match.score}` : '—'}
+            {match.result ? `${match.result.toUpperCase()} ${match.score}` : '-'}
           </div>
         </div>
       </div>
@@ -105,18 +105,18 @@ function MatchDetailView({ match, deck, replay, onWatchReplay, onEdit, onDeleteC
           </div>
           <div className="match-detail-field">
             <span className="match-detail-field-label">My Legend</span>
-            <span className="match-detail-field-value">{deck?.legend_name ?? '—'}</span>
+            <span className="match-detail-field-value">{deck?.legend_name ?? '-'}</span>
           </div>
         </div>
         <div className="form-column">
           <div className="form-column-title">Opponent</div>
           <div className="match-detail-field">
             <span className="match-detail-field-label">Opponent Name</span>
-            <span className="match-detail-field-value">{match.opponent_name ?? '—'}</span>
+            <span className="match-detail-field-value">{match.opponent_name ?? '-'}</span>
           </div>
           <div className="match-detail-field">
             <span className="match-detail-field-label">Opponent Legend</span>
-            <span className="match-detail-field-value">{match.opponent_legend ?? '—'}</span>
+            <span className="match-detail-field-value">{match.opponent_legend ?? '-'}</span>
           </div>
         </div>
       </div>

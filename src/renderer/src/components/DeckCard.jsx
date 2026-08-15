@@ -47,7 +47,7 @@ export default function DeckCard({ deck, matches, onClick, onDeleteClick }) {
             <div className="deck-name">{deck.name}</div>
             <div className="deck-domains">
               {[deck.domain_1, deck.domain_2].filter(Boolean).join(' · ')}
-              {deck.legend_name ? ` — ${deck.legend_name}` : ''}
+              {deck.legend_name ? ` · ${deck.legend_name}` : ''}
             </div>
           </div>
           {onDeleteClick && (

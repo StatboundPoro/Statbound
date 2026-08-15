@@ -14,7 +14,7 @@ function preferencesPath() {
 }
 
 export function defaultAutoBackupDirectory() {
-  return path.join(app.getPath('documents'), 'RiftTrack Backups')
+  return path.join(app.getPath('documents'), 'Statbound Backups')
 }
 
 // Same reasoning as the auto-backup directory above applies to where replay

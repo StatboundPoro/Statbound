@@ -75,7 +75,7 @@ export default function MatchupRecord({ matches, deckName, onChanged }) {
   const [selectedMatchId, setSelectedMatchId] = useState(null)
 
   if (matches.length === 0) {
-    return <div className="placeholder-panel">No matchup data yet — log a match to start tracking.</div>
+    return <div className="placeholder-panel">No matchup data yet. Log a match to start tracking.</div>
   }
 
   const records = sortRecords(computeMatchupRecords(matches), sortKey)
@@ -121,10 +121,10 @@ export default function MatchupRecord({ matches, deckName, onChanged }) {
                   {row.record.wins}-{row.record.losses}
                 </div>
                 <div className={`matchup-row-winrate ${row.winRate === null ? '' : row.winRate >= 0.5 ? 'pos' : 'neg'}`}>
-                  {row.winRate === null ? '—' : `${Math.round(row.winRate * 100)}%`}
+                  {row.winRate === null ? '-' : `${Math.round(row.winRate * 100)}%`}
                 </div>
                 <div className={`matchup-row-streak ${row.streak ? (row.streak.result === 'win' ? 'pos' : 'neg') : ''}`}>
-                  {row.streak ? `${row.streak.result === 'win' ? 'W' : 'L'}${row.streak.count}` : '—'}
+                  {row.streak ? `${row.streak.result === 'win' ? 'W' : 'L'}${row.streak.count}` : '-'}
                 </div>
                 <div className="matchup-row-games">{row.gamesPlayed}</div>
                 <div className="matchup-row-chevron">{isExpanded ? '▾' : '▸'}</div>

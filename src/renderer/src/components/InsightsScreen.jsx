@@ -10,7 +10,7 @@ const SORT_OPTIONS = [
 ]
 
 function formatRate(rate) {
-  return rate === null ? '—' : `${rate}%`
+  return rate === null ? '-' : `${rate}%`
 }
 
 function rateClass(rate) {
@@ -188,7 +188,7 @@ export default function InsightsScreen({ initialDeckId = null }) {
       <div className="topbar">
         <div>
           <h1>Insights</h1>
-          <div className="sub">Aggregate stats computed from your match history — nothing here is stored.</div>
+          <div className="sub">Aggregate stats computed from your match history: nothing here is stored.</div>
         </div>
       </div>
 
@@ -209,8 +209,8 @@ export default function InsightsScreen({ initialDeckId = null }) {
       {!hasData ? (
         <div className="placeholder-panel">
           {selectedDeckName
-            ? `No match data yet for "${selectedDeckName}" — log some matches to see insights here.`
-            : 'No match data yet — log some matches to see insights here.'}
+            ? `No match data yet for "${selectedDeckName}". Log some matches to see insights here.`
+            : 'No match data yet. Log some matches to see insights here.'}
         </div>
       ) : (
         <>
@@ -238,7 +238,7 @@ export default function InsightsScreen({ initialDeckId = null }) {
             <div className="stat-cell insights-side-card">
               <div className="label">Current Streak</div>
               <div className={`value ${streak ? (streak.result === 'win' ? 'pos' : 'neg') : ''}`}>
-                {streak ? `${streak.result === 'win' ? 'W' : 'L'}${streak.count}` : '—'}
+                {streak ? `${streak.result === 'win' ? 'W' : 'L'}${streak.count}` : '-'}
               </div>
             </div>
           </div>

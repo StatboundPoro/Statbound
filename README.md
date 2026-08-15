@@ -1,4 +1,4 @@
-# RiftTrack
+# Statbound
 
 A desktop companion app for the **Riftbound TCG** — deck building, match tracking, and
 replay logging, built as a local-first tool for players.
@@ -7,7 +7,7 @@ replay logging, built as a local-first tool for players.
 
 ## Privacy
 
-**All data is stored 100% locally on your machine.** RiftTrack has no accounts, no
+**All data is stored 100% locally on your machine.** Statbound has no accounts, no
 backend server, and makes no network calls. Your decks, match history, and notes live
 in a single SQLite database file in your own user data directory (see below) — nothing
 is ever uploaded anywhere. There is a `sync_status` column reserved on each table for a
@@ -32,7 +32,7 @@ npm run dev
 `npm run dev` starts the Vite dev server for the UI and launches the Electron window,
 with hot reload for renderer changes.
 
-On first launch, RiftTrack creates its SQLite database file (and tables) automatically
+On first launch, Statbound creates its SQLite database file (and tables) automatically
 if one doesn't already exist.
 
 ### Where the database file lives
@@ -41,10 +41,10 @@ Electron's `app.getPath('userData')` resolves to an OS-specific per-user app dat
 folder. On Windows that's:
 
 ```
-%APPDATA%\rifttrack\rifttrack.db
+%APPDATA%\Statbound\rifttrack.db
 ```
 
-(typically `C:\Users\<you>\AppData\Roaming\rifttrack\rifttrack.db`).
+(typically `C:\Users\<you>\AppData\Roaming\Statbound\rifttrack.db`).
 
 ## Project structure
 

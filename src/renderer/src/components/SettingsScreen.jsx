@@ -40,9 +40,9 @@ function importWarningMessage(summary) {
   }, and ${summary.notes} note${summary.notes === 1 ? '' : 's'}`
 
   return (
-    `Importing will COMPLETELY REPLACE all decks, matches, and notes currently in RiftTrack with the ` +
-    `contents of this backup file (${counts}). Every deck, match, and note you have now — anything not ` +
-    `in this backup — will be permanently deleted. This cannot be undone from inside the app, and your ` +
+    `Importing will COMPLETELY REPLACE all decks, matches, and notes currently in Statbound with the ` +
+    `contents of this backup file (${counts}). Every deck, match, and note you have now (anything not ` +
+    `in this backup) will be permanently deleted. This cannot be undone from inside the app, and your ` +
     `current data will be unrecoverable unless you've exported it separately first.`
   )
 }
@@ -224,7 +224,7 @@ export default function SettingsScreen() {
     }
     if (result.canceled) return
     if (!result.valid) {
-      setImportError(result.reason || 'That file is not a valid RiftTrack backup.')
+      setImportError(result.reason || 'That file is not a valid Statbound backup.')
       return
     }
     setImportCandidate({ filePath: result.filePath, summary: result.summary })
@@ -273,7 +273,7 @@ export default function SettingsScreen() {
       <div className="topbar">
         <div>
           <h1>Settings</h1>
-          <div className="sub">Local data lives only on this machine — nothing here syncs anywhere.</div>
+          <div className="sub">Local data lives only on this machine: nothing here syncs anywhere.</div>
         </div>
       </div>
 
@@ -296,7 +296,7 @@ export default function SettingsScreen() {
           <div>
             <div className="settings-row-title">Import Backup</div>
             <div className="settings-row-desc">
-              Load a previously exported backup file, replacing everything currently in RiftTrack.
+              Load a previously exported backup file, replacing everything currently in Statbound.
             </div>
           </div>
           <div className="settings-row-actions">
@@ -309,7 +309,7 @@ export default function SettingsScreen() {
           <div>
             <div className="settings-row-title">App Data Location</div>
             <div className="settings-row-desc">
-              Where RiftTrack's database file lives on disk.
+              Where Statbound's database file lives on disk.
               {appDataPath && (
                 <>
                   <br />
@@ -328,7 +328,7 @@ export default function SettingsScreen() {
           <div>
             <div className="settings-row-title">Welcome Tour</div>
             <div className="settings-row-desc">
-              Replay the 5-step introduction to RiftTrack's core features shown on first launch.
+              Replay the 5-step introduction to Statbound's core features shown on first launch.
             </div>
           </div>
           <div className="settings-row-actions">
@@ -461,7 +461,7 @@ export default function SettingsScreen() {
           <div>
             <div className="settings-row-title">Quality</div>
             <div className="settings-row-desc">
-              Higher presets record at a higher bitrate — larger files, sharper video.
+              Higher presets record at a higher bitrate: larger files, sharper video.
             </div>
           </div>
           <div className="settings-row-actions">
@@ -485,7 +485,7 @@ export default function SettingsScreen() {
             <div className="settings-row-title">Automatically Delete Unlinked Recordings</div>
             <div className="settings-row-desc">
               Recordings never linked to a match are cleaned up automatically after the retention window
-              below. Off by default — recordings are kept forever unless you turn this on. A recording
+              below. Off by default. Recordings are kept forever unless you turn this on. A recording
               linked to a match is never deleted, regardless of age.
             </div>
           </div>
@@ -526,7 +526,7 @@ export default function SettingsScreen() {
         {videoCapture && (
           <div className="settings-status">
             {replaysFolderSize == null
-              ? "The replays folder doesn't exist yet — nothing has been recorded."
+              ? "The replays folder doesn't exist yet. Nothing has been recorded."
               : `Estimated disk usage: ${formatBytes(replaysFolderSize)}`}
           </div>
         )}
@@ -539,7 +539,7 @@ export default function SettingsScreen() {
           <div>
             <div className="settings-row-title">Reset All Data</div>
             <div className="settings-row-desc">
-              Permanently delete every deck, match, and note. There is no undo — export a backup first if
+              Permanently delete every deck, match, and note. There is no undo. Export a backup first if
               you want a way back.
             </div>
           </div>
@@ -581,7 +581,7 @@ export default function SettingsScreen() {
             <p className="confirm-message">
               <span className="settings-path">{importSuccess.safetyBackupPath}</span>
             </p>
-            <p className="confirm-message">Reloading RiftTrack…</p>
+            <p className="confirm-message">Reloading Statbound…</p>
           </div>
         </div>
       )}
@@ -589,7 +589,7 @@ export default function SettingsScreen() {
       {resetConfirmOpen && !resetSuccess && (
         <ConfirmDialog
           title="Reset All Data?"
-          message="This permanently deletes every deck, match, and note in RiftTrack. A safety copy of your current data is saved automatically first, but export a backup yourself too if you want an easy way to bring it back."
+          message="This permanently deletes every deck, match, and note in Statbound. A safety copy of your current data is saved automatically first, but export a backup yourself too if you want an easy way to bring it back."
           confirmLabel="Delete Everything"
           danger
           requireText="RESET"
@@ -616,7 +616,7 @@ export default function SettingsScreen() {
             <p className="confirm-message">
               <span className="settings-path">{resetSuccess.safetyBackupPath}</span>
             </p>
-            <p className="confirm-message">Reloading RiftTrack…</p>
+            <p className="confirm-message">Reloading Statbound…</p>
           </div>
         </div>
       )}

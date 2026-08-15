@@ -487,7 +487,7 @@ export default function LogMatchModal({
           <div>
             <div className="field-label">Result</div>
             <div className={`result-badge ${matchSummary.result ?? ''}`}>
-              {matchSummary.result ? `${matchSummary.result === 'win' ? 'WIN' : 'LOSS'} ${matchSummary.score}` : '—'}
+              {matchSummary.result ? `${matchSummary.result === 'win' ? 'WIN' : 'LOSS'} ${matchSummary.score}` : '-'}
             </div>
           </div>
           <div>
@@ -589,7 +589,7 @@ export default function LogMatchModal({
                   <option value="">No recording</option>
                   {unlinkedReplays.map((file) => (
                     <option key={file.filePath} value={file.filePath}>
-                      {file.fileName} — {formatRelativeTime(file.createdAt)}
+                      {file.fileName} ({formatRelativeTime(file.createdAt)})
                     </option>
                   ))}
                 </select>

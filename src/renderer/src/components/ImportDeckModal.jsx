@@ -137,7 +137,7 @@ export default function ImportDeckModal({
               <div className="import-preview-body">
                 <div className="deck-domains">
                   {[parsed.domain_1, parsed.domain_2].filter(Boolean).join(' · ')}
-                  {parsed.legend_name ? ` — ${parsed.legend_name}` : ''}
+                  {parsed.legend_name ? ` · ${parsed.legend_name}` : ''}
                 </div>
                 <div className="import-preview-stats">
                   <div>

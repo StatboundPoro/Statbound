@@ -199,7 +199,7 @@ export default function MatchHistory() {
                   </div>
                   <div className="match-history-opponent">{match.opponent_legend ?? 'Unknown'}</div>
                   <div className={`match-history-result ${match.result ?? ''}`}>
-                    {match.result ? `${match.result.toUpperCase()} ${match.score}` : '—'}
+                    {match.result ? `${match.result.toUpperCase()} ${match.score}` : '-'}
                   </div>
                   <div className="match-history-format">{match.format}</div>
                 </button>

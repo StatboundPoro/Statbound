@@ -2,6 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { app, BrowserWindow } from 'electron'
 import { getDb } from './db.js'
+import { migrateLegacyUserData } from './userDataMigration.js'
 import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
 import { initPendingPanelView } from './pendingPanelView.js'
@@ -60,6 +61,10 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  // Must run before getDb() below — see userDataMigration.js for why and
+  // what it does.
+  migrateLegacyUserData()
+
   // Open the database and make sure tables exist before any window can
   // ask for data.
   getDb()

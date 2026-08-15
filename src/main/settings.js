@@ -68,14 +68,14 @@ function inspectBackupFile(filePath) {
     if (missingTables.length > 0) {
       return {
         valid: false,
-        reason: `This file doesn't look like a RiftTrack backup (missing table${missingTables.length === 1 ? '' : 's'}: ${missingTables.join(', ')}).`
+        reason: `This file doesn't look like a Statbound backup (missing table${missingTables.length === 1 ? '' : 's'}: ${missingTables.join(', ')}).`
       }
     }
 
     const deckColumns = new Set(db.prepare("PRAGMA table_info('decks')").all().map((col) => col.name))
     const missingColumns = REQUIRED_DECK_COLUMNS.filter((name) => !deckColumns.has(name))
     if (missingColumns.length > 0) {
-      return { valid: false, reason: "This file doesn't match RiftTrack's database format." }
+      return { valid: false, reason: "This file doesn't match Statbound's database format." }
     }
 
     const summary = {
@@ -86,7 +86,7 @@ function inspectBackupFile(filePath) {
 
     return { valid: true, summary }
   } catch {
-    return { valid: false, reason: "This file doesn't match RiftTrack's database format." }
+    return { valid: false, reason: "This file doesn't match Statbound's database format." }
   } finally {
     db.close()
   }
@@ -182,9 +182,9 @@ export function openAppDataFolder() {
 export async function exportBackup() {
   const defaultName = `rifttrack-backup-${new Date().toISOString().slice(0, 10)}.db`
   const { canceled, filePath } = await dialog.showSaveDialog(focusedWindow(), {
-    title: 'Export RiftTrack Backup',
+    title: 'Export Statbound Backup',
     defaultPath: path.join(app.getPath('documents'), defaultName),
-    filters: [{ name: 'RiftTrack Backup', extensions: ['db'] }]
+    filters: [{ name: 'Statbound Backup', extensions: ['db'] }]
   })
   if (canceled || !filePath) return { canceled: true }
 
@@ -200,10 +200,10 @@ export async function exportBackup() {
  */
 export async function pickImportFile() {
   const { canceled, filePaths } = await dialog.showOpenDialog(focusedWindow(), {
-    title: 'Import RiftTrack Backup',
+    title: 'Import Statbound Backup',
     properties: ['openFile'],
     filters: [
-      { name: 'RiftTrack Backup', extensions: ['db'] },
+      { name: 'Statbound Backup', extensions: ['db'] },
       { name: 'All Files', extensions: ['*'] }
     ]
   })

@@ -188,7 +188,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
           <h1>{deck.name}</h1>
           {(deck.legend_name || championName) && (
             <div className="deck-detail-champion">
-              {[deck.legend_name, championName].filter(Boolean).join(' — ')}
+              {[deck.legend_name, championName].filter(Boolean).join(' and ')}
             </div>
           )}
           <div className="deck-detail-domains">
@@ -206,7 +206,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
         <div className="stat-cell">
           <div className="label">Win Rate</div>
           <div className={`value ${winRate !== null ? 'pos' : ''}`}>
-            {winRate === null ? '—' : `${Math.round(winRate * 100)}%`}
+            {winRate === null ? '-' : `${Math.round(winRate * 100)}%`}
           </div>
         </div>
         <div className="stat-cell">
@@ -224,7 +224,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
         <div className="stat-cell">
           <div className="label">Current Streak</div>
           <div className={`value ${streak ? (streak.result === 'win' ? 'pos' : 'neg') : ''}`}>
-            {streak ? `${streak.result === 'win' ? 'W' : 'L'}${streak.count}` : '—'}
+            {streak ? `${streak.result === 'win' ? 'W' : 'L'}${streak.count}` : '-'}
           </div>
         </div>
       </div>
@@ -297,7 +297,7 @@ function DecklistSection({ title, cards, wide }) {
     <div className={`decklist-section ${wide ? 'wide' : ''}`}>
       <div className="decklist-section-title">{title}</div>
       {list.length === 0 ? (
-        <div className="decklist-empty">—</div>
+        <div className="decklist-empty">-</div>
       ) : (
         <ul className="decklist-cards">
           {list.map((card, index) => (
