@@ -30,6 +30,11 @@ function createMainWindow() {
     width: 1920,
     height: 1080,
     show: false,
+    // Only matters in dev / an unpacked run — a packaged build gets its
+    // icon baked in by electron-builder (see package.json's "build" field)
+    // instead. Without this, dev shows the generic Electron icon in the
+    // taskbar rather than Statbound's.
+    icon: path.join(__dirname, '../../build/icons/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
