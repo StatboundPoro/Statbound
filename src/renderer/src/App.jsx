@@ -50,10 +50,16 @@ export default function App() {
   const [logQueueSignal, setLogQueueSignal] = useState(0)
 
   const refreshPendingReplays = useCallback(() => {
-    window.api.replays
+    return window.api.replays
       .listPending()
-      .then(setPendingReplays)
-      .catch((err) => console.error('Failed to load the Log Recent Match queue:', err))
+      .then((list) => {
+        setPendingReplays(list)
+        return list
+      })
+      .catch((err) => {
+        console.error('Failed to load the Log Recent Match queue:', err)
+        return []
+      })
   }, [])
 
   useEffect(() => {
@@ -65,14 +71,34 @@ export default function App() {
     setLogQueueSignal((n) => n + 1)
   }, [refreshPendingReplays])
 
-  const recording = useScreenRecording({ onStopped: notifyQueueChanged })
+  // The lobby-detection stop trigger (src/main/autoCapture.js) — the sole
+  // automatic-stop mechanism now, for both Bo1 and Bo3 alike — auto-opens
+  // LogMatchModal on top of the existing queue refetch/notification, pinned
+  // to whatever just landed at the front of the queue (listPending()'s own
+  // most-recent-first order). A manual Stop press never reaches this path:
+  // it only runs from an `auto: true` recording stop or the
+  // replays:pending-queue-changed push, both of which are now exclusively
+  // produced by the lobby trigger (see autoCapture.js's module comment) —
+  // see lib/recording.js's onStopped doc for why manual/auto are threaded
+  // through as a flag rather than inferred here.
+  const autoOpenLogMatch = useCallback(() => {
+    refreshPendingReplays().then((list) => {
+      setLogQueueSignal((n) => n + 1)
+      if (list.length > 0) setQueuedReplay(list[0])
+    })
+  }, [refreshPendingReplays])
+
+  const recording = useScreenRecording({
+    onStopped: (info) => (info?.auto ? autoOpenLogMatch() : notifyQueueChanged())
+  })
 
   // A session that finished with no recording ever tied to it has no
   // capture:auto-stop to hook a refetch off of (nothing was recording) —
   // this is what autoCapture.js pushes instead once such a session lands
-  // on the queue (see matchSessions.js), reusing the exact same
-  // refetch-and-notify path a finished recording already triggers above.
-  useEffect(() => window.api.replays.onPendingQueueChanged(notifyQueueChanged), [notifyQueueChanged])
+  // on the queue (see matchSessions.js). Always the lobby-detection
+  // trigger too (a TRACKING session with no recording only ever ends that
+  // way), so this always auto-opens as well.
+  useEffect(() => window.api.replays.onPendingQueueChanged(autoOpenLogMatch), [autoOpenLogMatch])
 
   // First-run welcome tour: shown automatically exactly once, the first
   // time hasSeenWelcomeTour reads false. Checked in an effect (fires after

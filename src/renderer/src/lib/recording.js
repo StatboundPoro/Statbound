@@ -42,7 +42,11 @@ export function formatElapsedTime(totalSeconds) {
  * `onStopped`, if given, fires once a recording has fully finished writing
  * to disk (after capture:stop resolves) — the moment a new file genuinely
  * exists as a pending recording, which is what the Pending Recordings
- * badge count needs to know to refetch.
+ * badge count needs to know to refetch. Called with `{ auto }`: true for a
+ * stop driven by main's lobby-detection trigger (see
+ * src/main/autoCapture.js), false for a plain manual Stop press — App.jsx
+ * uses this to auto-open LogMatchModal only for the former, never the
+ * latter (manual control must behave exactly as it always has).
  */
 export function useScreenRecording({ onStopped } = {}) {
   const [recording, setRecording] = useState(false)
@@ -114,14 +118,14 @@ export function useScreenRecording({ onStopped } = {}) {
     [starting, teardown]
   )
 
-  const stop = useCallback(() => {
+  const stop = useCallback(({ auto = false } = {}) => {
     if (!activeRef.current) return
     activeRef.current = false
 
     window.api.capture
       .stop()
       .catch((err) => console.error('Failed to finalize recording:', err))
-      .finally(() => onStoppedRef.current?.())
+      .finally(() => onStoppedRef.current?.({ auto }))
 
     teardown()
     setRecording(false)
@@ -136,7 +140,7 @@ export function useScreenRecording({ onStopped } = {}) {
   // screen still triggers a real recording, not just while on Play tab.
   useEffect(() => {
     const unsubscribeStart = window.api.capture.onAutoStart(() => start({ manual: false }))
-    const unsubscribeStop = window.api.capture.onAutoStop(() => stop())
+    const unsubscribeStop = window.api.capture.onAutoStop(() => stop({ auto: true }))
     return () => {
       unsubscribeStart()
       unsubscribeStop()
