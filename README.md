@@ -52,7 +52,7 @@ Statbound is local-only. The app makes no network calls on its own behalf; the o
 
 ## Project status
 
-Statbound is pre-1.0 and actively developed. There is no packaged installer available yet; packaged releases for Windows, macOS, and Linux are planned.
+Statbound is pre-1.0 and actively developed. A packaged Windows installer is available on the [Releases page](../../releases). It's currently unsigned, so Windows SmartScreen will show an "unknown publisher" warning when you run it. macOS and Linux builds aren't available yet..
 
 ## Tech stack
 
