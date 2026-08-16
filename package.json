@@ -10,7 +10,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "dist": "electron-vite build && electron-builder"
+    "dist": "electron-vite build && electron-builder --win"
   },
   "dependencies": {
     "@fontsource/big-shoulders-display": "^5.3.0",
@@ -36,11 +36,24 @@
   },
   "build": {
     "appId": "com.statbound.app",
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**"
     ],
     "win": {
-      "icon": "build/icons/icon.ico"
+      "icon": "build/icons/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "mac": {
       "icon": "build/icons/icon.icns"
