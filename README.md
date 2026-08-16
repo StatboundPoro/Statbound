@@ -9,52 +9,42 @@ A local desktop companion app for the Riftbound TCG: deck tracking, match histor
 Build up a library of decks by pasting a text export directly into the app. The library view shows every saved deck alongside a stat strip (win rate, streak, best deck, last played).
 
 ![Deck Library screenshot](docs/screenshots/deck-library.png)
-*Screenshot coming soon*
 
 ### Deck Detail
 
 Every deck has its own detail page: A stat summary, the full decklist, recent matches, matchup record, and notes, all in one place.
 
-![Deck Detail screenshot](docs/screenshots/deck-detail.png)
-*Screenshot coming soon*
+![Deck Detail screenshot](docs/screenshots/deck-detail01.png)
+![Deck Detail screenshot](docs/screenshots/deck-detail02.png)
 
 ### Log Match
 
 Log a match by hand: Bo1 or Bo3, your deck, your opponent's name and Legend, one or more games with results, seat, battlefields, and any extra board features, plus free-text tags and notes. Matches can be edited or deleted later from their detail view.
 
 ![Log Match screenshot](docs/screenshots/log-match.png)
-*Screenshot coming soon*
 
 ### Match History
 
 A single running list of every match you've logged across every deck, filterable by deck, opponent Legend, result, and format.
 
 ![Match History screenshot](docs/screenshots/match-history.png)
-*Screenshot coming soon*
-
-![Deck Notes screenshot](docs/screenshots/deck-notes.png)
-*Screenshot coming soon*
+![Match Details screenshot](docs/screenshots/match-details.png)
 
 ### Insights
 
 A stats dashboard across your whole match history, or narrowed to a single deck.
 
 ![Insights screenshot](docs/screenshots/insights.png)
-*Screenshot coming soon*
 
 ### Play tab
 
 An embedded view of the Rift Atlas web client, right inside Statbound, so you can play without leaving the app.
 
 ![Play tab screenshot](docs/screenshots/play-tab.png)
-*Screenshot coming soon*
 
 ### Replay recording
 
-Record video of your games as you play them. You can start and stop recording manually, or turn on Auto-record so Statbound starts recording automatically when a game begins and stops automatically once you're back at the lobby.
-
-![Replay Recording screenshot](docs/screenshots/replay-recording.png)
-*Screenshot coming soon*
+Record video of your games as you play them. You can start and stop recording manually, or turn on Auto-record so Statbound starts recording automatically when a game begins and stops automatically once you're back at the lobby. You can watch them from the Match Details screen.
 
 ## Your data stays on your machine
 
