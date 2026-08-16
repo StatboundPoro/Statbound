@@ -16,10 +16,19 @@ import { app } from 'electron'
 // before this migration existed.
 const OLD_USERDATA_FOLDER_NAME = 'rifttrack'
 
-// Matches db.js's getDbPath() filename exactly — the database filename
-// itself was NOT part of the RiftTrack -> Statbound rename (see CLAUDE.md),
-// so this is still the right thing to check for on both sides of the copy.
-const DB_FILENAME = 'rifttrack.db'
+// db.js's current and legacy database filenames. Either one's presence in
+// the new folder means this migration already ran (or a deliberate fresh
+// start already created a real database under one name or the other) —
+// checking both matters because db.js's own separate rifttrack.db ->
+// statbound.db rename (see its migrateLegacyDbFilename(), which runs right
+// after this migration in index.js) means a previously-migrated install's
+// file here can be named either way depending on whether that second
+// migration has run yet. Checking DB_FILENAME alone would make this
+// function think a real database it just renamed away doesn't exist, and
+// re-copy the entire legacy folder on top of live data on every subsequent
+// launch.
+const DB_FILENAME = 'statbound.db'
+const LEGACY_DB_FILENAME = 'rifttrack.db'
 
 function copyRecursive(srcDir, destDir) {
   fs.mkdirSync(destDir, { recursive: true })
@@ -46,10 +55,11 @@ function copyRecursive(srcDir, destDir) {
  * is left fully intact afterward as an implicit safety net. Nothing in
  * this codebase ever deletes it.
  *
- * Idempotent: once the new folder has `rifttrack.db` in it — whether from
- * a previous run of this migration or a genuinely fresh start under the
- * new name — this is a no-op, so it never overwrites live Statbound data
- * with stale RiftTrack data on a second launch.
+ * Idempotent: once the new folder has a real database in it, under either
+ * filename (see the DB_FILENAME/LEGACY_DB_FILENAME comment above) — whether
+ * from a previous run of this migration or a genuinely fresh start under
+ * the new name — this is a no-op, so it never overwrites live Statbound
+ * data with stale RiftTrack data on a second launch.
  *
  * Never throws. A failure here (e.g. a permissions error) is logged and
  * the app continues starting up normally against whatever's already in
@@ -63,7 +73,9 @@ export function migrateLegacyUserData() {
 
     const newPath = app.getPath('userData')
     const newDbPath = path.join(newPath, DB_FILENAME)
-    if (fs.existsSync(newDbPath)) return // already migrated, or a deliberate fresh start under the new name
+    const legacyDbPath = path.join(newPath, LEGACY_DB_FILENAME)
+    // already migrated (under either filename), or a deliberate fresh start under the new name
+    if (fs.existsSync(newDbPath) || fs.existsSync(legacyDbPath)) return
 
     copyRecursive(oldPath, newPath)
     console.log(`Migrated userData from the legacy "${OLD_USERDATA_FOLDER_NAME}" folder to "${newPath}".`)

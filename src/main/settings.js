@@ -6,9 +6,9 @@ import Database from 'better-sqlite3'
 import { closeDb, getDb, getDbPath } from './db.js'
 
 // The set of tables (and, for `decks`, a spot-check of a few columns) that
-// make a file recognizable as a RiftTrack database rather than an arbitrary
+// make a file recognizable as a Statbound database rather than an arbitrary
 // SQLite file someone picked by mistake. Not a full schema diff — just
-// enough to catch "this obviously isn't a RiftTrack backup" before it ever
+// enough to catch "this obviously isn't a Statbound backup" before it ever
 // touches the live database.
 const REQUIRED_TABLES = ['decks', 'matches', 'games', 'replays', 'deck_notes']
 const REQUIRED_DECK_COLUMNS = ['id', 'name', 'decklist']
@@ -43,7 +43,7 @@ export async function writeCleanBackup(destinationPath) {
 
 /**
  * Opens a candidate backup file read-only and checks it actually looks like
- * a RiftTrack database before anything downstream is allowed to touch it.
+ * a Statbound database before anything downstream is allowed to touch it.
  * Returns `{ valid: true, summary }` with row counts for the confirmation
  * dialog, or `{ valid: false, reason }` with a message safe to show the
  * user directly.

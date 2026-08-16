@@ -1,8 +1,15 @@
+import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import Database from 'better-sqlite3'
 import { LEGEND_NAMES } from './data/legends.js'
+
+// The live database's current filename. Was rifttrack.db until the
+// RiftTrack -> Statbound internal rename — see migrateLegacyDbFilename()
+// below for how an existing install's file gets renamed in place.
+const DB_FILENAME = 'statbound.db'
+const LEGACY_DB_FILENAME = 'rifttrack.db'
 
 let db = null
 
@@ -95,7 +102,49 @@ const SCHEMA = `
  * import file's schema without disturbing the live connection.
  */
 export function getDbPath() {
-  return path.join(app.getPath('userData'), 'rifttrack.db')
+  return path.join(app.getPath('userData'), DB_FILENAME)
+}
+
+/**
+ * One-time migration for existing installs: renames an existing
+ * rifttrack.db (the database's original filename, from before the
+ * RiftTrack -> Statbound internal rename) to statbound.db, in place, within
+ * the already-current userData folder. Must be called before getDb() ever
+ * opens a connection — see index.js's call site.
+ *
+ * A rename, not a copy, unlike userDataMigration.js's folder-level
+ * migration: this moves a file within one already-migrated folder rather
+ * than copying across a folder boundary, so there's no old copy left
+ * behind as a safety net. WAL mode means an unclosed previous session can
+ * leave `-wal`/`-shm` sidecar files next to the main one holding writes not
+ * yet checkpointed in; renaming only the main file and leaving those under
+ * their old name would orphan them; SQLite would then open the newly
+ * renamed main file as if those pending writes never happened. Both
+ * sidecars are renamed alongside the main file, if present, to avoid that.
+ *
+ * Idempotent: once rifttrack.db no longer exists (already renamed, or a
+ * genuinely fresh install that only ever had statbound.db), this is a
+ * no-op. Never throws — a failure here (e.g. a permissions error, or a
+ * sidecar locked by another process) is logged and getDb() falls back to
+ * its normal fresh-database creation under the new name, exactly like
+ * userDataMigration.js's own failure handling.
+ */
+export function migrateLegacyDbFilename() {
+  try {
+    const userDataPath = app.getPath('userData')
+    const oldPath = path.join(userDataPath, LEGACY_DB_FILENAME)
+    const newPath = path.join(userDataPath, DB_FILENAME)
+    if (!fs.existsSync(oldPath) || fs.existsSync(newPath)) return
+
+    fs.renameSync(oldPath, newPath)
+    for (const suffix of ['-wal', '-shm']) {
+      const oldSidecar = oldPath + suffix
+      if (fs.existsSync(oldSidecar)) fs.renameSync(oldSidecar, newPath + suffix)
+    }
+    console.log(`Renamed legacy database file "${LEGACY_DB_FILENAME}" to "${DB_FILENAME}".`)
+  } catch (err) {
+    console.error('Database filename migration failed; continuing with a fresh database:', err)
+  }
 }
 
 function openDatabase(dbPath) {

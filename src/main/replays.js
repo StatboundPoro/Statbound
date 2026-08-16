@@ -13,8 +13,14 @@ import { listUnrecordedSessions, removeUnrecordedSession } from './matchSessions
 // — Phase 1's desktopCapturer+MediaRecorder pipeline produced .webm.)
 const VIDEO_EXTENSIONS = new Set(['.mp4'])
 
-// Matches capture.js's own filename shape: rifttrack-YYYY-MM-DD_HH-mm-ss.mp4
-const FILENAME_TIMESTAMP_PATTERN = /^rifttrack-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.mp4$/
+// Matches capture.js's own filename shape: statbound-YYYY-MM-DD_HH-mm-ss.mp4.
+// Also accepts the old rifttrack- prefix capture.js used to write before the
+// RiftTrack -> Statbound internal rename — existing recordings on disk keep
+// their original filenames (never renamed retroactively), so this has to
+// stay dual-prefix indefinitely, not just during a transition window. Only
+// the write path (capture.js) changed to the new prefix; every read/scan
+// path recognizes both.
+const FILENAME_TIMESTAMP_PATTERN = /^(?:rifttrack|statbound)-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.mp4$/
 
 /**
  * Recovers a recording's actual start time from its own filename (the
@@ -22,7 +28,7 @@ const FILENAME_TIMESTAMP_PATTERN = /^rifttrack-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(
  * birthtime — birthtime can be unreliable across filesystems/copies, while
  * the filename is the definitive record of when this app started writing
  * it. Returns null for anything that doesn't match the pattern (e.g. a
- * non-RiftTrack .mp4 someone dropped in the folder), so callers can fall
+ * non-Statbound .mp4 someone dropped in the folder), so callers can fall
  * back to filesystem metadata instead.
  */
 function startedAtFromFileName(fileName) {

@@ -4,7 +4,7 @@ import { pathToFileURL } from 'url'
 import { protocol, net } from 'electron'
 import { getVideoCapturePrefs } from './preferences.js'
 
-export const REPLAY_PROTOCOL = 'rifttrack-replay'
+export const REPLAY_PROTOCOL = 'statbound-replay'
 
 // Must run at module load, before app.whenReady() resolves — Electron only
 // honors registerSchemesAsPrivileged() calls made before the app is ready.
@@ -29,7 +29,7 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-// Resolves a rifttrack-replay:// URL down to an absolute path and rejects
+// Resolves a statbound-replay:// URL down to an absolute path and rejects
 // anything that doesn't land inside the *currently configured* Video
 // Capture folder — including any ../ segments — so this protocol can never
 // be used to read an arbitrary file off disk. path.resolve() collapses ..
@@ -51,7 +51,7 @@ function resolveReplayFilePath(requestUrl) {
 }
 
 /**
- * Builds the rifttrack-replay:// URL a <video> element can load for a given
+ * Builds the statbound-replay:// URL a <video> element can load for a given
  * replay file — the only way ReplayPlayer.jsx ever reaches a recording, no
  * raw file:// URLs from the renderer. `file_path` is stored as an absolute
  * path in the `replays` table; this re-expresses it relative to the

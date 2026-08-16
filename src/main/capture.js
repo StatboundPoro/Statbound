@@ -252,6 +252,32 @@ function spawnEncodeProcess({ width, height, bitrate, tempVideoPath }) {
 }
 
 /**
+/**
+ * One-time startup cleanup: removes a leftover `.rifttrack-tmp` folder from
+ * before the temp folder was renamed to `.statbound-tmp` (see startRecording()
+ * below). Safe to delete outright rather than migrate — this folder only
+ * ever holds a recording still mid-encode, so anything found here on
+ * startup is scratch space from a session that never finished cleanly (e.g.
+ * the app was killed mid-recording), not real data. A no-op if the video
+ * capture folder doesn't exist yet or has no such leftover. Never throws —
+ * logged and ignored on failure, the same as every other startup migration
+ * in this codebase.
+ */
+export function cleanupLegacyTempDir() {
+  try {
+    const { directory } = getVideoCapturePrefs()
+    if (!directory) return
+    const legacyTempDir = path.join(directory, '.rifttrack-tmp')
+    if (fs.existsSync(legacyTempDir)) {
+      fs.rmSync(legacyTempDir, { recursive: true, force: true })
+      console.log('Removed leftover legacy temp folder:', legacyTempDir)
+    }
+  } catch (err) {
+    console.error('[capture] failed to clean up legacy .rifttrack-tmp folder:', err)
+  }
+}
+
+/**
  * Starts a new recording session: resolves this session's file paths,
  * captures one frame from the Play tab to learn its pixel dimensions (fixed
  * for the rest of the session, see updateLastGoodFrame above), spawns ffmpeg to
@@ -269,10 +295,10 @@ export async function startRecording() {
 
   const { directory, quality } = getVideoCapturePrefs()
   fs.mkdirSync(directory, { recursive: true })
-  const tempDir = path.join(directory, '.rifttrack-tmp')
+  const tempDir = path.join(directory, '.statbound-tmp')
   fs.mkdirSync(tempDir, { recursive: true })
 
-  const base = `rifttrack-${localTimestampForFilename()}`
+  const base = `statbound-${localTimestampForFilename()}`
   const finalPath = path.join(directory, `${base}.mp4`)
   const tempVideoPath = path.join(tempDir, `${base}.video.mp4`)
 

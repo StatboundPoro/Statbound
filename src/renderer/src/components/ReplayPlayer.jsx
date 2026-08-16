@@ -1,5 +1,5 @@
 // A simple playback modal for one linked replay. `src` is a
-// rifttrack-replay:// URL built by main (see replayProtocol.js) — never a
+// statbound-replay:// URL built by main (see replayProtocol.js) — never a
 // raw file:// path, since the renderer has no filesystem access of its
 // own and shouldn't be trusted to construct a path into the Video Capture
 // folder itself.

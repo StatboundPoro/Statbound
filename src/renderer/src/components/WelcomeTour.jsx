@@ -49,7 +49,7 @@ const STEPS = [
 ]
 
 // A one-time (or on-demand, via Settings) 5-step modal explaining
-// RiftTrack's core features. Completing it ("Get Started" on the final
+// Statbound's core features. Completing it ("Get Started" on the final
 // step) and Skipping it from any step both call the same finish() path —
 // skipping is not "ask again later," it's treated as done, exactly like
 // finishing. `onClose` is called either way so the caller (App.jsx or

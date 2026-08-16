@@ -1,7 +1,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { app, BrowserWindow, Menu } from 'electron'
-import { getDb } from './db.js'
+import { getDb, migrateLegacyDbFilename } from './db.js'
 import { migrateLegacyUserData } from './userDataMigration.js'
 import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
@@ -9,8 +9,9 @@ import { initPendingPanelView } from './pendingPanelView.js'
 import { initAutoBackup } from './autoBackup.js'
 import { initAutoCapture } from './autoCapture.js'
 import { initReplayCleanup } from './replayCleanup.js'
+import { cleanupLegacyTempDir } from './capture.js'
 // Imported (not just called) before app.whenReady() below — its module
-// body registers the rifttrack-replay:// scheme as privileged, which
+// body registers the statbound-replay:// scheme as privileged, which
 // Electron only honors when done before the app is ready.
 import { registerReplayProtocol } from './replayProtocol.js'
 
@@ -70,6 +71,10 @@ app.whenReady().then(() => {
   // Must run before getDb() below — see userDataMigration.js for why and
   // what it does.
   migrateLegacyUserData()
+  // Also must run before getDb() below — see db.js's migrateLegacyDbFilename()
+  // for why (renaming after the database is opened risks orphaning WAL/SHM
+  // sidecar files under the old name).
+  migrateLegacyDbFilename()
 
   // Open the database and make sure tables exist before any window can
   // ask for data.
@@ -77,6 +82,7 @@ app.whenReady().then(() => {
   registerIpcHandlers()
   initAutoBackup()
   initReplayCleanup()
+  cleanupLegacyTempDir()
   registerReplayProtocol()
 
   const win = createMainWindow()
