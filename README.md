@@ -2,10 +2,6 @@
 
 A local desktop companion app for the Riftbound TCG: deck tracking, match history, replay logging, and matchup prep for players.
 
-## Unofficial project
-
-Statbound was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.
-
 ## Your data stays on your machine
 
 Statbound is local-only. There is no backend server, no user accounts, and no telemetry or analytics of any kind. The app makes no network calls on its own behalf; the only exception is the optional embedded Play tab, which loads the Rift Atlas web client, and only when you explicitly open that tab yourself. Your decks, match history, notes, and recordings are stored in a local database and local files on your own computer.
@@ -77,4 +73,4 @@ Statbound is pre-1.0 and actively developed. There is no packaged installer avai
 
 ## License
 
-Statbound is licensed under the [MIT License](LICENSE).
+Statbound is licensed under the [GNU General Public License v3.0](LICENSE) (GPLv3). In practical terms: you're free to use, modify, and distribute the app, including commercially, but any distributed modifications or forks must also be released as open source under GPLv3, this isn't a restriction on using the app itself, just on redistributing changed versions privately or proprietarily.
