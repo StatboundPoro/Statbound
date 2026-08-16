@@ -2,10 +2,6 @@
 
 A local desktop companion app for the Riftbound TCG: deck tracking, match history, replay logging, and matchup prep for players.
 
-## Your data stays on your machine
-
-Statbound is local-only. There is no backend server, no user accounts, and no telemetry or analytics of any kind. The app makes no network calls on its own behalf; the only exception is the optional embedded Play tab, which loads the Rift Atlas web client, and only when you explicitly open that tab yourself. Your decks, match history, notes, and recordings are stored in a local database and local files on your own computer.
-
 ## Features
 
 ### Deck Library and import
@@ -59,6 +55,10 @@ Record video of your games as you play them. You can start and stop recording ma
 
 ![Replay Recording screenshot](docs/screenshots/replay-recording.png)
 *Screenshot coming soon*
+
+## Your data stays on your machine
+
+Statbound is local-only. The app makes no network calls on its own behalf; the only exception is the optional embedded Play tab, which loads the Rift Atlas web client, and only when you explicitly open that tab yourself. Your decks, match history, notes, and recordings are stored in a local database and local files on your own computer.
 
 ## Project status
 
