@@ -71,8 +71,18 @@ export function getSessionStartedAt(gameInstanceId) {
  * Recent Match" item exists). Returns null for an unknown id or a session
  * that did get a recording (its pending-queue entry comes from the
  * recording's sidecar instead, so it must not also appear here).
+ *
+ * `matchResult` is the match-result auto-fill object matchResultCapture.js
+ * finalized for this session (see its own module comment), or null — kept
+ * on the pushed entry so replays.js's listPendingReplays() can surface it
+ * straight through to LogMatchModal's pre-fill. Harmless to pass for a
+ * session that did get a recording too (info.hasRecording true): that
+ * branch returns before this parameter is ever read, since a recorded
+ * session's result instead goes through
+ * matchResultCapture.stashResultForRecording() to reach capture.js's
+ * stopRecording().
  */
-export function completeSession(gameInstanceId) {
+export function completeSession(gameInstanceId, matchResult = null) {
   const info = sessions.get(gameInstanceId)
   if (!info) return null
   sessions.delete(gameInstanceId)
@@ -82,7 +92,8 @@ export function completeSession(gameInstanceId) {
     gameInstanceId,
     deckId: info.deckId,
     startedAt: info.startedAt,
-    endedAt: new Date().toISOString()
+    endedAt: new Date().toISOString(),
+    matchResult: matchResult ?? null
   }
   unrecordedSessions.push(entry)
   return entry

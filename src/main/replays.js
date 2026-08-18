@@ -45,10 +45,13 @@ function sidecarPathFor(videoFilePath) {
 
 /**
  * Reads a recording's sidecar JSON (see capture.js's writeSidecar()) for
- * its captured gameInstanceId/deckId/startedAt, if any. A recording from
- * before this feature existed (or one whose sidecar was lost/corrupted)
- * has no sidecar at all — treated the same as one with a null deckId,
- * never an error; no retroactive sidecar generation happens for those.
+ * its captured gameInstanceId/deckId/startedAt, if any, plus whatever
+ * match-result auto-fill data (see matchResultCapture.js) got merged in
+ * later by capture.js's stopRecording() once the match actually ended.
+ * A recording from before either feature existed (or one whose sidecar
+ * was lost/corrupted) has no sidecar at all — treated the same as one with
+ * every field null, never an error; no retroactive sidecar generation
+ * happens for those.
  */
 function readSidecar(videoFilePath) {
   try {
@@ -57,10 +60,11 @@ function readSidecar(videoFilePath) {
     return {
       gameInstanceId: data.gameInstanceId ?? null,
       deckId: data.deckId ?? null,
-      startedAt: data.startedAt ?? null
+      startedAt: data.startedAt ?? null,
+      matchResult: data.matchResult ?? null
     }
   } catch {
-    return { gameInstanceId: null, deckId: null, startedAt: null }
+    return { gameInstanceId: null, deckId: null, startedAt: null, matchResult: null }
   }
 }
 
@@ -128,7 +132,14 @@ export function listUnlinkedReplays() {
  *
  * Every item carries a stable `id` for UI list keys (`filePath` for a
  * recording, `session:<gameInstanceId>` for an in-memory one, since the
- * latter has no file of its own).
+ * latter has no file of its own), plus a `matchResult` (see
+ * matchResultCapture.js) — the auto-fill data App.jsx hands straight
+ * through to LogMatchModal when this item is opened via the "Log Recent
+ * Match" queue's lobby-trigger auto-open. May be null for either shape:
+ * a file item whose sidecar has no matchResult yet/at all (a manual Stop
+ * pressed before the lobby trigger fired, or a pre-existing recording from
+ * before this feature existed), or a session item from a session that
+ * somehow completed with nothing ever captured.
  */
 export function listPendingReplays() {
   const fileItems = listUnlinkedReplays().map((file) => {
@@ -143,7 +154,8 @@ export function listPendingReplays() {
       deckId: sidecar.deckId,
       gameInstanceId: sidecar.gameInstanceId,
       startedAt: sidecar.startedAt ?? startedAtFromFileName(file.fileName) ?? file.createdAt,
-      endedAt: stat.mtime.toISOString()
+      endedAt: stat.mtime.toISOString(),
+      matchResult: sidecar.matchResult
     }
   })
 
@@ -154,7 +166,8 @@ export function listPendingReplays() {
     deckId: session.deckId,
     gameInstanceId: session.gameInstanceId,
     startedAt: session.startedAt,
-    endedAt: session.endedAt
+    endedAt: session.endedAt,
+    matchResult: session.matchResult ?? null
   }))
 
   return [...fileItems, ...sessionItems].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))

@@ -272,14 +272,39 @@ function gamesFromMatch(match) {
   }))
 }
 
-// Manual match-entry form. In "create" mode (the default, launched from
-// Deck Detail's "Log Match" button, the Play tab's own deck-picker-driven
-// "Log Match" button, or the Sidebar's Log Recent Match queue) it starts
-// blank and posts a new match via matches:create. In "edit" mode (launched
-// from MatchDetailModal's "Edit" button) it's pre-filled from `match` and
-// calls matches:update against `match.id` instead — same form either way,
-// no second component. No auto-capture or replay parsing in either mode;
-// every field is typed in by hand.
+// Maps a match-result auto-fill object (see src/main/matchResultCapture.js
+// — Legend, in-game score, battlefield, winner, Bo3 series score, seat,
+// and opponent name, combined from Rift Atlas's own WebSocket traffic and
+// the Play tab's rendered DOM) onto this form's own per-game shape. Only
+// ever read once, at mount, the same way gamesFromMatch() feeds an edit's
+// initial state — every pre-filled value stays fully editable afterward,
+// and nothing here writes to the database; that only ever happens if the
+// user reviews and presses Save themselves. Returns null (not an empty
+// array) when there's nothing to pre-fill, so the caller can fall back to
+// the normal blank single-game default instead of rendering a zero-game
+// form.
+function gamesFromAutoFill(autoFillResult) {
+  if (!autoFillResult?.games?.length) return null
+  return autoFillResult.games.map((g) => ({
+    game_number: g.gameNumber,
+    result: g.won === true ? 'win' : g.won === false ? 'loss' : '',
+    my_score: g.inGameScore?.self ?? '',
+    opponent_score: g.inGameScore?.opponent ?? '',
+    seat: g.wentFirst === true ? 'went_1st' : g.wentFirst === false ? 'went_2nd' : '',
+    my_battlefield: g.myBattlefield ?? '',
+    opponent_battlefield: g.opponentBattlefield ?? '',
+    extra_battlefields: []
+  }))
+}
+
+// Match-entry form, always saved by an explicit user click — never
+// auto-saved. In "create" mode (the default, launched from Deck Detail's
+// "Log Match" button, the Play tab's own deck-picker-driven "Log Match"
+// button, or the Sidebar's Log Recent Match queue) it starts blank (or
+// pre-filled from `autoFillResult`, see below) and posts a new match via
+// matches:create. In "edit" mode (launched from MatchDetailModal's "Edit"
+// button) it's pre-filled from `match` and calls matches:update against
+// `match.id` instead — same form either way, no second component.
 //
 // `preselectedReplayPath` has three meaningful states, all set by App.jsx:
 // left `undefined` (Deck Detail's button, the Play tab's own manual
@@ -293,9 +318,18 @@ function gamesFromMatch(match) {
 // `initialDeckId` may legitimately be null (no deck known for this entry
 // point) — see the "never guess" effect below, which leaves the Deck
 // field genuinely unselected rather than defaulting to some deck.
+//
+// `autoFillResult` (create mode only, ignored entirely in edit mode) is
+// the match-result auto-fill object matchResultCapture.js finalized when
+// the lobby-detection trigger fired — see App.jsx's queuedReplay wiring.
+// It only ever pre-fills initial form state (format, games, opponent
+// Legend/name); every field it touches remains exactly as editable as if
+// the user had typed it by hand, and nothing is written to the database
+// until Save is pressed, same as every other entry point into this modal.
 export default function LogMatchModal({
   initialDeckId,
   preselectedReplayPath,
+  autoFillResult,
   mode = 'create',
   match,
   onClose,
@@ -306,10 +340,14 @@ export default function LogMatchModal({
   const [decks, setDecks] = useState([])
   const [decksStatus, setDecksStatus] = useState('loading')
   const [deckId, setDeckId] = useState(isEdit ? match.deck_id : initialDeckId)
-  const [opponentName, setOpponentName] = useState(isEdit ? match.opponent_name ?? '' : '')
-  const [opponentLegend, setOpponentLegend] = useState(isEdit ? match.opponent_legend ?? '' : '')
-  const [format, setFormat] = useState(isEdit ? match.format : 'Bo1')
-  const [games, setGames] = useState(isEdit ? gamesFromMatch(match) : [makeEmptyGame(1)])
+  const [opponentName, setOpponentName] = useState(isEdit ? match.opponent_name ?? '' : autoFillResult?.opponentName ?? '')
+  const [opponentLegend, setOpponentLegend] = useState(
+    isEdit ? match.opponent_legend ?? '' : autoFillResult?.opponentLegend ?? ''
+  )
+  const [format, setFormat] = useState(isEdit ? match.format : autoFillResult?.matchFormat === 'bo3' ? 'Bo3' : 'Bo1')
+  const [games, setGames] = useState(
+    isEdit ? gamesFromMatch(match) : gamesFromAutoFill(autoFillResult) ?? [makeEmptyGame(1)]
+  )
   const [expandedGameNumber, setExpandedGameNumber] = useState(games[0]?.game_number ?? 1)
   const [flags, setFlags] = useState(isEdit ? match.flags ?? [] : [])
   const [notes, setNotes] = useState(isEdit ? match.notes ?? '' : '')

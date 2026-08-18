@@ -1,11 +1,19 @@
 import { getPlayPrefs, getVideoCapturePrefs } from './preferences.js'
 import { completeSession, startSession } from './matchSessions.js'
+import {
+  finalizeResult,
+  ingestDomState,
+  ingestWebSocketMessage,
+  resetCapture,
+  stashResultForRecording
+} from './matchResultCapture.js'
 
 // How often the Play tab's own DOM is polled for the lobby logo, and how
 // many consecutive positive polls are required before treating "back in
 // the lobby" as confirmed rather than a brief transitional flicker (e.g. a
 // loading screen that happens to render something matching for one frame).
-// See LOBBY_LOGO_SELECTOR/LOBBY_CHECK_SCRIPT below for the check itself.
+// See LOBBY_LOGO_SELECTOR/SESSION_STATE_CHECK_SCRIPT below for the check
+// itself.
 const LOBBY_POLL_INTERVAL_MS = 1_000
 const LOBBY_CONFIRM_THRESHOLD = 2
 
@@ -25,13 +33,84 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 // spec'd to be null for position:fixed elements regardless of whether
 // they're visible — a false negative this logo's own layout could easily
 // hit) to determine "actually rendered on screen."
-const LOBBY_CHECK_SCRIPT = `
+//
+// This same poll tick also reads Source B of the match-result auto-fill
+// feature (see matchResultCapture.js and CLAUDE.md's Decision Log): the
+// opponent's Legend and both players' in-game score, straight off the Play
+// tab's own rendered markup, confirmed against real inspected DOM. Every
+// field is extracted inside its own try/catch, matching in-lobby
+// detection's own long-standing "never crash, just skip this signal"
+// posture — an unexpected markup change degrades one field to null, never
+// the whole poll.
+//
+// Opponent score's node has no aria-pressed/data-* marking which of its
+// nine children (values 0-8) is active — only a differing `class` string
+// does, EXCEPT the last child (value 8), which always carries distinct
+// "winning" styling regardless of whether it's actually active (confirmed
+// against a real capture with aria-pressed="false" on the self side while
+// still fully styled as "winning"). So the last child is excluded outright,
+// and the active one among the remaining 8 (values 0-7) is found by
+// comparing each child's class string against the majority/baseline
+// pattern shared by the rest — structurally, never against a hardcoded
+// color value, so a future theme change can't silently break this. If none
+// of the first 8 differ from the baseline, the score is 8 by elimination.
+const SESSION_STATE_CHECK_SCRIPT = `
 (() => {
-  const el = document.querySelector('${LOBBY_LOGO_SELECTOR}');
-  if (!el) return false;
-  const style = window.getComputedStyle(el);
-  if (style.display === 'none' || style.visibility === 'hidden') return false;
-  return el.getClientRects().length > 0;
+  const result = { inLobby: false, opponentLegend: null, selfScore: null, opponentScore: null };
+
+  try {
+    const el = document.querySelector('${LOBBY_LOGO_SELECTOR}');
+    if (el) {
+      const style = window.getComputedStyle(el);
+      const hidden = style.display === 'none' || style.visibility === 'hidden';
+      result.inLobby = !hidden && el.getClientRects().length > 0;
+    }
+  } catch (err) {}
+
+  try {
+    const img = document.querySelector('section[data-zone-owner="opponent"] [data-drop-zone="legend"] img');
+    result.opponentLegend = (img && img.alt) || null;
+  } catch (err) {}
+
+  try {
+    const container = document.querySelector('[role="group"][aria-label="Your score track"]');
+    const active = container ? container.querySelector('[aria-pressed="true"]') : null;
+    const label = active ? active.getAttribute('aria-label') || '' : '';
+    const match = label.match(/(\\d+)/);
+    result.selfScore = match ? Number(match[1]) : null;
+  } catch (err) {}
+
+  try {
+    const container = document.querySelector('[role="group"][aria-label="Opponent score track"]');
+    const children = container ? Array.from(container.children) : [];
+    const trackable = children.slice(0, 8);
+    if (trackable.length === 8) {
+      const counts = new Map();
+      for (const el of trackable) {
+        const cls = el.className;
+        counts.set(cls, (counts.get(cls) || 0) + 1);
+      }
+      let baseline = null;
+      let baselineCount = -1;
+      for (const [cls, count] of counts) {
+        if (count > baselineCount) {
+          baseline = cls;
+          baselineCount = count;
+        }
+      }
+      const outlier = trackable.find((el) => el.className !== baseline);
+      if (outlier) {
+        const span = outlier.querySelector('span');
+        const text = span ? span.textContent.trim() : '';
+        const num = Number(text);
+        result.opponentScore = text !== '' && Number.isFinite(num) ? num : null;
+      } else {
+        result.opponentScore = 8;
+      }
+    }
+  } catch (err) {}
+
+  return result;
 })()
 `
 
@@ -135,8 +214,11 @@ function stopLobbyPolling() {
 
 /**
  * One poll tick: asks the Play tab's own DOM whether the lobby logo is
- * genuinely visible right now. A single positive read isn't enough to act
- * on — only two consecutive positive polls (~1s apart, see
+ * genuinely visible right now, and — same round trip — whatever match-
+ * result auto-fill's Source B fields (opponent Legend, both players'
+ * in-game score) currently read as, feeding them into matchResultCapture.js
+ * regardless of the lobby-logo result. A single positive lobby read isn't
+ * enough to act on — only two consecutive positive polls (~1s apart, see
  * LOBBY_CONFIRM_THRESHOLD) confirm the player is really back in the lobby
  * rather than passing through some transitional screen that happened to
  * match for a moment. Any negative read resets the streak immediately.
@@ -144,18 +226,24 @@ function stopLobbyPolling() {
 async function pollLobbyState() {
   if (!attachedWebContents || attachedWebContents.isDestroyed()) return
 
-  let inLobby = false
+  let domState
   try {
-    inLobby = await attachedWebContents.executeJavaScript(LOBBY_CHECK_SCRIPT)
+    domState = await attachedWebContents.executeJavaScript(SESSION_STATE_CHECK_SCRIPT)
   } catch (err) {
     // A mid-navigation JS-context teardown, or Rift Atlas changing its
     // markup in a way that makes the selector throw — never fatal, just
     // skip this tick and try again on the next one.
-    console.error('[auto capture] lobby DOM check failed:', err.message)
+    console.error('[auto capture] session state DOM check failed:', err.message)
     return
   }
 
-  if (!inLobby) {
+  ingestDomState({
+    opponentLegend: domState?.opponentLegend ?? null,
+    selfScore: domState?.selfScore ?? null,
+    opponentScore: domState?.opponentScore ?? null
+  })
+
+  if (!domState?.inLobby) {
     lobbyConfirmCount = 0
     return
   }
@@ -184,14 +272,31 @@ function handleLobbyConfirmed() {
   activeGameInstanceId = null
   pendingSessionGameInstanceId = null
 
+  // Commits whatever match-result auto-fill (see matchResultCapture.js)
+  // has cached so far as this session's final result, and clears its live
+  // capture — the session is genuinely over the moment the lobby is
+  // confirmed, same as everything else in this function. A RECORDING
+  // session's result has nowhere to go yet (its sidecar was written at
+  // recording *start*, before any of this was known) — stashed here for
+  // capture.js's stopRecording() to pick up shortly, once the auto-stop
+  // IPC round trip below actually runs it. A non-recording session's
+  // result is handed straight to completeSession() instead, to land
+  // directly on the "Log Recent Match" queue entry.
+  const matchResult = finalizeResult()
+  if (wasRecording && finishedGameInstanceId) {
+    stashResultForRecording(finishedGameInstanceId, matchResult)
+  }
+
   if (wasRecording) sendAutoStop()
 
   // completeSession() only pushes a "Log Recent Match" entry for a session
   // that never actually got a recording (the common TRACKING case, or the
   // rare case startRecording() itself failed) — a session that did get
   // recorded resolves via its own sidecar file instead (see capture.js),
-  // so no queue push happens here for it.
-  if (finishedGameInstanceId && completeSession(finishedGameInstanceId)) {
+  // so no queue push happens here for it. matchResult is harmless to pass
+  // in the wasRecording case too: completeSession() returns before ever
+  // looking at it once it sees that session's hasRecording flag is true.
+  if (finishedGameInstanceId && completeSession(finishedGameInstanceId, matchResult)) {
     sendPendingQueueChanged()
   }
 }
@@ -207,8 +312,17 @@ function handleLobbyConfirmed() {
  * own already-idempotent, already-error-handled start() (see
  * lib/recording.js) — the same function the Play tab's manual button
  * calls.
+ *
+ * `playerId` is this same join_game frame's own `.playerId` field — self's
+ * player id, used only by matchResultCapture.js's match-result auto-fill
+ * (see its own module comment and CLAUDE.md's Decision Log) to tell self
+ * apart from the opponent in fields keyed by playerId. resetCapture() is
+ * only ever called from the two branches below that begin tracking a
+ * genuinely NEW session, never on a reconnect/rejoin no-op — a Bo3's later
+ * games must keep accumulating into the same capture, not restart one per
+ * game.
  */
-export function handleJoinGame({ gameInstanceId }) {
+export function handleJoinGame({ gameInstanceId, playerId = null }) {
   if (!gameInstanceId) return
 
   if (state !== 'IDLE') {
@@ -237,6 +351,7 @@ export function handleJoinGame({ gameInstanceId }) {
     // match ends can still pick up auto-stop (see handleManualStart below).
     pendingSessionGameInstanceId = gameInstanceId
     startSession(gameInstanceId, currentlySelectedDeckId())
+    resetCapture(playerId)
     state = 'TRACKING'
     startLobbyPolling()
     return
@@ -245,6 +360,7 @@ export function handleJoinGame({ gameInstanceId }) {
   state = 'RECORDING'
   activeGameInstanceId = gameInstanceId
   startSession(gameInstanceId, currentlySelectedDeckId())
+  resetCapture(playerId)
   sendAutoStart()
   startLobbyPolling()
 }
@@ -298,26 +414,33 @@ export function getGameInstanceIdForNewRecording() {
  * Attaches Chrome DevTools Protocol debugging to the Play tab's
  * WebContentsView the moment it's created (see playView.js), listening
  * only for WebSocket frame events on Rift Atlas's own connections — never
- * intercepting or modifying any request, never reading page content beyond
- * the narrow lobby-logo DOM check the polling above runs.
+ * intercepting or modifying any request. Reads three message types, all
+ * with Rift Atlas's confirmed permission (see CLAUDE.md's Decision Log for
+ * the "match result auto-fill" entry, which supersedes this comment's
+ * older "pending a reply" framing for the fields listed below):
  *
- * Scoped as narrowly as the START detection logic needs it to be: a sent
- * frame is parsed as JSON purely to check `.type === 'join_game'`, and if
- * it matches, only `gameInstanceId` is ever read out of it — the rest of
- * the payload (which, in adjacent frames, carries an auth token) is never
- * stored, logged, or inspected. Everything here is wrapped in try/catch —
- * if Rift Atlas ever changes their message shape, this must fail silently
- * into "no auto-start detection," never crash the app or break the Play
- * tab's normal browsing.
+ *  - `join_game` (sent by the client): only `gameInstanceId` (the existing
+ *    START signal) and `playerId` (self's player id, feeding
+ *    matchResultCapture.js's result auto-fill) are ever read out of it —
+ *    the rest of the payload, which in adjacent frames carries an auth
+ *    token, is never stored, logged, or inspected.
+ *  - `room_shell_sync` / `authoritative_snapshot` (received from the
+ *    server): routed to matchResultCapture.js's ingestWebSocketMessage(),
+ *    which reads only the specific `.sessionDoc`/`.snapshot` fields listed
+ *    in CLAUDE.md's Decision Log — never opponent deck/decklist data (
+ *    confirmed the opponent's entry in `.snapshot.players[]` never carries
+ *    any), never anything used to infer game state beyond those named
+ *    fields.
  *
- * STOP detection no longer reads WebSocket traffic at all — see
- * pollLobbyState()/LOBBY_CHECK_SCRIPT above, which reads only the Play
- * tab's own rendered DOM (never opponent data, never network traffic) to
- * decide when a match has truly ended.
+ * Every frame is wrapped in try/catch — if Rift Atlas ever changes their
+ * message shape, this must fail silently into "no detection for that
+ * signal," never crash the app or break the Play tab's normal browsing.
  *
- * The join_game START signal this still reads is done without Rift
- * Atlas's confirmed permission — a request is pending a reply as of when
- * this was built. See CLAUDE.md's decision log for the full reasoning.
+ * STOP detection still reads no WebSocket traffic at all — see
+ * pollLobbyState()/SESSION_STATE_CHECK_SCRIPT above, which reads only the
+ * Play tab's own rendered DOM to decide when a match has truly ended (that
+ * same DOM poll is also now Source B of match-result auto-fill — see its
+ * own comment).
  */
 export function attachAutoCapture(webContents) {
   attachedWebContents = webContents
@@ -334,19 +457,22 @@ export function attachAutoCapture(webContents) {
   })
 
   webContents.debugger.on('message', (_event, method, params) => {
-    if (method !== 'Network.webSocketFrameSent') return
+    if (method !== 'Network.webSocketFrameSent' && method !== 'Network.webSocketFrameReceived') return
     try {
       const payload = params?.response?.payloadData
       if (!payload) return
       const message = JSON.parse(payload)
       if (message?.type === 'join_game' && message?.gameInstanceId) {
-        handleJoinGame({ gameInstanceId: message.gameInstanceId })
+        handleJoinGame({ gameInstanceId: message.gameInstanceId, playerId: message.playerId ?? null })
+        return
+      }
+      if (message?.type === 'room_shell_sync' || message?.type === 'authoritative_snapshot') {
+        ingestWebSocketMessage(message)
       }
     } catch {
       // A frame that isn't JSON, or doesn't have the shape expected —
-      // deliberately not logged with any payload content. Auto-start
-      // detection just doesn't fire for this event; nothing else is
-      // affected.
+      // deliberately not logged with any payload content. That one signal
+      // just doesn't get captured for this tick; nothing else is affected.
     }
   })
 }

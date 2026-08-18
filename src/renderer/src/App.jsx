@@ -207,6 +207,7 @@ export default function App() {
         <LogMatchModal
           initialDeckId={queuedReplay.deckId ?? null}
           preselectedReplayPath={queuedReplay.hasRecording ? queuedReplay.filePath : null}
+          autoFillResult={queuedReplay.matchResult ?? null}
           onClose={() => setQueuedReplay(null)}
           onSaved={handleQueuedMatchSaved}
         />

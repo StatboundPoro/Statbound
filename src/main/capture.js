@@ -7,6 +7,7 @@ import { getPlayPrefs, getVideoCapturePrefs } from './preferences.js'
 import { getPlayWebContents } from './playView.js'
 import { getGameInstanceIdForNewRecording } from './autoCapture.js'
 import { getSessionDeckId, getSessionStartedAt, markSessionRecording } from './matchSessions.js'
+import { consumeStashedResult } from './matchResultCapture.js'
 
 // The frame-grab loop's target rate — see captureLoopTick() below for why
 // this is a target, not a guarantee: webContents.capturePage() is async and
@@ -103,6 +104,28 @@ function writeSidecar({ directory, base, gameInstanceId, deckId, startedAt }) {
     fs.writeFileSync(sidecarPath, JSON.stringify({ gameInstanceId, deckId, startedAt }, null, 2))
   } catch (err) {
     console.error('[capture] failed to write recording sidecar', sidecarPath, err)
+  }
+}
+
+/**
+ * Merges match-result auto-fill data (see matchResultCapture.js) into a
+ * recording's already-written sidecar, once it's known — which is never
+ * before the match ends, well after writeSidecar() above already ran at
+ * recording *start*. Called from stopRecording() with whatever
+ * matchResultCapture.consumeStashedResult() had waiting for this session,
+ * which may be null (a manual Stop pressed before the lobby-detection
+ * trigger ever fired, so nothing was ever stashed) — in that case the
+ * sidecar is left exactly as writeSidecar() wrote it, no different from a
+ * recording made before this feature existed.
+ */
+function mergeMatchResultIntoSidecar(sidecarPath, matchResult) {
+  try {
+    const raw = fs.readFileSync(sidecarPath, 'utf-8')
+    const data = JSON.parse(raw)
+    data.matchResult = matchResult
+    fs.writeFileSync(sidecarPath, JSON.stringify(data, null, 2))
+  } catch (err) {
+    console.error('[capture] failed to merge match result into recording sidecar', sidecarPath, err)
   }
 }
 
@@ -331,6 +354,13 @@ export async function startRecording() {
   session = {
     finalPath,
     tempVideoPath,
+    // Remembered so stopRecording() can merge match-result auto-fill data
+    // into this exact sidecar once the match ends (see
+    // mergeMatchResultIntoSidecar above) — gameInstanceId may legitimately
+    // be null (a manual recording with no tracked session), in which case
+    // stopRecording() just skips that step entirely.
+    gameInstanceId,
+    sidecarPath: path.join(directory, `${base}.json`),
     ffmpeg,
     ffmpegExit: exitPromise,
     getStderr,
@@ -415,6 +445,11 @@ export async function stopRecording() {
     fs.renameSync(current.tempVideoPath, current.finalPath)
   } finally {
     cleanupTempFiles(current)
+  }
+
+  if (current.gameInstanceId) {
+    const matchResult = consumeStashedResult(current.gameInstanceId)
+    if (matchResult) mergeMatchResultIntoSidecar(current.sidecarPath, matchResult)
   }
 
   return { filePath: current.finalPath }
