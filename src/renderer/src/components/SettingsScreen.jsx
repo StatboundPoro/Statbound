@@ -48,15 +48,12 @@ function importWarningMessage(summary) {
 }
 
 // Settings has five sections. General holds Export/Import plus a read-only
-// display of where the database file lives; Data Sources discloses the
-// app's two outbound network calls (the Riftcodex legend sync and the
-// GitHub release check, see CLAUDE.md's Legends and Check-Only Auto-Update
-// entries) — the Legend Names row stays a plain disclosure with no
-// control, since that sync isn't something a user would ever need to
-// trigger by hand, but App Updates gets a manual "Check for Updates"
-// button next to its own disclosure text, for exactly that case; Automatic
-// Backups holds the scheduled background-backup toggle; Video Capture
-// holds replay-recording preferences (save location, quality preset, and
+// display of where the database file lives; Version shows the running
+// app's own version number next to a manual "Check for Updates" button
+// (see CLAUDE.md's Check-Only Auto-Update entry) — no disclosure copy
+// here by design, just the number and the control; Automatic Backups
+// holds the scheduled background-backup toggle; Video Capture holds
+// replay-recording preferences (save location, quality preset, and
 // unlinked-recording cleanup — the actual recording control lives on the
 // Play tab, see PlayScreen.jsx); Danger Zone holds Reset All Data,
 // visually separated (border/background tint, red title) so it doesn't
@@ -92,6 +89,7 @@ export default function SettingsScreen() {
   // an un-completion of first-run state.
   const [tourOpen, setTourOpen] = useState(false)
 
+  const [appVersion, setAppVersion] = useState(null)
   const [checkingForUpdate, setCheckingForUpdate] = useState(false)
   const [updateCheckStatus, setUpdateCheckStatus] = useState(null) // { message } | { error }
 
@@ -100,6 +98,13 @@ export default function SettingsScreen() {
       .getAppDataPath()
       .then(setAppDataPath)
       .catch((err) => console.error('Failed to load app data path:', err))
+  }, [])
+
+  useEffect(() => {
+    window.api.updates
+      .getStatus()
+      .then((status) => setAppVersion(status.currentVersion))
+      .catch((err) => console.error('Failed to load app version:', err))
   }, [])
 
   useEffect(() => {
@@ -378,25 +383,11 @@ export default function SettingsScreen() {
         {appDataFolderError && <div className="settings-status error">{appDataFolderError}</div>}
       </div>
 
-      <div className="section-label">Data Sources</div>
+      <div className="section-label">Version</div>
       <div className="settings-panel">
         <div className="settings-row">
           <div>
-            <div className="settings-row-title">Legend Names</div>
-            <div className="settings-row-desc">
-              Legend names are kept up to date automatically from Riftcodex (riftcodex.com), a public
-              Riftbound card database. No information about you or your matches is ever sent.
-            </div>
-          </div>
-        </div>
-        <div className="settings-row">
-          <div>
-            <div className="settings-row-title">App Updates</div>
-            <div className="settings-row-desc">
-              Statbound checks GitHub once a day for a newer released version. If one is found, a
-              badge appears in the sidebar linking to the release page. Nothing is ever downloaded or
-              installed automatically, and no information about you or your usage is ever sent.
-            </div>
+            <div className="settings-row-title">Statbound {appVersion}</div>
           </div>
           <div className="settings-row-actions">
             <button className="btn" onClick={handleCheckForUpdates} disabled={checkingForUpdate}>
