@@ -58,6 +58,19 @@ function createMainWindow() {
     win.show()
   })
 
+  // Menu.setApplicationMenu(null) below removes the default menu bar, which
+  // also silently takes Electron's default DevTools toggle with it (that
+  // accelerator is normally supplied by the default menu, not a standalone
+  // global shortcut) -- so without this, there's no way to open DevTools at
+  // all. F12 and Ctrl/Cmd+Shift+I are wired directly to the window instead.
+  win.webContents.on('before-input-event', (_event, input) => {
+    const isDevToolsShortcut =
+      input.type === 'keyDown' &&
+      (input.key === 'F12' ||
+        (input.key.toUpperCase() === 'I' && input.shift && (input.control || input.meta)))
+    if (isDevToolsShortcut) win.webContents.toggleDevTools()
+  })
+
   if (RENDERER_DEV_SERVER_URL) {
     win.loadURL(RENDERER_DEV_SERVER_URL)
   } else {
