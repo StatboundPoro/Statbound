@@ -9,6 +9,7 @@ import InsightsScreen from './components/InsightsScreen.jsx'
 import LogMatchModal from './components/LogMatchModal.jsx'
 import WelcomeTour from './components/WelcomeTour.jsx'
 import { useScreenRecording } from './lib/recording.js'
+import { usePlayTabHealthPrompt } from './lib/playTabHealth.js'
 
 // No router yet — still just view state, now toggling between the five
 // rail sections that have screens (Play; Decks, with its own nested
@@ -91,6 +92,12 @@ export default function App() {
   const recording = useScreenRecording({
     onStopped: (info) => (info?.auto ? autoOpenLogMatch() : notifyQueueChanged())
   })
+
+  // Play tab health check's recovery prompt (see
+  // src/main/services/playTabHealth.js) — lives here rather than inside
+  // PlayScreen.jsx for the same reason `recording` above does: it has to
+  // survive the user navigating away from the Play tab mid-match.
+  const playTabHealth = usePlayTabHealthPrompt()
 
   // A session that finished with no recording ever tied to it has no
   // capture:auto-stop to hook a refetch off of (nothing was recording) —
@@ -176,6 +183,9 @@ export default function App() {
           onStart={recording.start}
           onStop={recording.stop}
           onLogMatch={handleOpenManualLogMatch}
+          healthPromptVisible={playTabHealth.visible}
+          onConfirmHealthReload={playTabHealth.confirmReload}
+          onDismissHealthPrompt={playTabHealth.dismiss}
           // The Play embed is a native WebContentsView that always paints
           // above ordinary DOM content regardless of CSS z-index (the same
           // reason the Pending Recordings popover needed its own dedicated

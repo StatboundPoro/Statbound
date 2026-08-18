@@ -15,6 +15,7 @@ import {
   showPlayView
 } from './playView.js'
 import { handleManualStart } from './autoCapture.js'
+import { confirmHealthReload, dismissHealthPrompt } from './services/playTabHealth.js'
 import {
   collapsePendingPanel,
   expandPendingPanel,
@@ -141,4 +142,10 @@ export function registerIpcHandlers() {
   ipcMain.on('pending-panel:log-match', (_event, replay) => relayLogMatch(replay))
   ipcMain.on('pending-panel:mouse-enter', () => relayMouseEnter())
   ipcMain.on('pending-panel:changed', () => relayChanged())
+  // Play tab health check (see services/playTabHealth.js) — the prompt
+  // shown when a recording/session is active and the embed has read
+  // "Unknown" past the threshold. The idle-reload path needs no renderer
+  // round trip at all, so it has no channel here.
+  ipcMain.on('play-tab-health:confirm-reload', () => confirmHealthReload())
+  ipcMain.on('play-tab-health:dismiss-prompt', () => dismissHealthPrompt())
 }

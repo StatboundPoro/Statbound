@@ -143,6 +143,25 @@ contextBridge.exposeInMainWorld('api', {
       return () => ipcRenderer.removeListener('replays:pending-queue-changed', handler)
     }
   },
+  // Play tab health check (see src/main/services/playTabHealth.js) — the
+  // context-aware recovery prompt shown when a recording/match session is
+  // active and the embed has read as stuck ("Unknown") past the threshold.
+  // The idle-reload path is handled entirely in main with no renderer
+  // involvement, so there's nothing here for that case.
+  playTabHealth: {
+    confirmReload: () => ipcRenderer.send('play-tab-health:confirm-reload'),
+    dismissPrompt: () => ipcRenderer.send('play-tab-health:dismiss-prompt'),
+    onShowPrompt: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on('play-tab-health:show-prompt', handler)
+      return () => ipcRenderer.removeListener('play-tab-health:show-prompt', handler)
+    },
+    onHidePrompt: (callback) => {
+      const handler = () => callback()
+      ipcRenderer.on('play-tab-health:hide-prompt', handler)
+      return () => ipcRenderer.removeListener('play-tab-health:hide-prompt', handler)
+    }
+  },
   // The Pending Recordings popover's overlay surface — see
   // src/main/pendingPanelView.js for why it's a second WebContentsView
   // rather than a plain DOM portal. Used from both sides: Sidebar.jsx

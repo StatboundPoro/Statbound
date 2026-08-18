@@ -58,7 +58,19 @@ function fitToAspectRatio(rect) {
 // instead of behind it. `onLogMatch(deckId)` is the deck picker's own
 // manual "Log Match" button (see below) — it's lifted to App.jsx for the
 // exact same embedHidden reason, not handled locally in this component.
-export default function PlayScreen({ recording, starting, elapsedSeconds, error, onStart, onStop, embedHidden, onLogMatch }) {
+export default function PlayScreen({
+  recording,
+  starting,
+  elapsedSeconds,
+  error,
+  onStart,
+  onStop,
+  embedHidden,
+  onLogMatch,
+  healthPromptVisible,
+  onConfirmHealthReload,
+  onDismissHealthPrompt
+}) {
   const containerRef = useRef(null)
   // Loaded/persisted straight through the existing Video Capture
   // preferences (settings:get-video-capture/settings:update-video-capture)
@@ -262,6 +274,19 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
           </button>
         </div>
       </div>
+      {healthPromptVisible && (
+        <div className="play-health-banner" role="alert">
+          <span>Play tab isn't responding. Reload it?</span>
+          <div className="play-health-banner-actions">
+            <button className="btn" onClick={onConfirmHealthReload}>
+              Reload
+            </button>
+            <button className="btn" onClick={onDismissHealthPrompt}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <div className="play-embed" ref={containerRef} />
     </div>
   )
