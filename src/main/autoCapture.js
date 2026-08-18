@@ -36,12 +36,23 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 //
 // This same poll tick also reads Source B of the match-result auto-fill
 // feature (see matchResultCapture.js and CLAUDE.md's Decision Log): the
-// opponent's Legend and both players' in-game score, straight off the Play
-// tab's own rendered markup, confirmed against real inspected DOM. Every
-// field is extracted inside its own try/catch, matching in-lobby
-// detection's own long-standing "never crash, just skip this signal"
-// posture — an unexpected markup change degrades one field to null, never
-// the whole poll.
+// opponent's Legend, both players' in-game score, and (as of this pass)
+// both players' battlefield, straight off the Play tab's own rendered
+// markup. Every field is extracted inside its own try/catch, matching
+// in-lobby detection's own long-standing "never crash, just skip this
+// signal" posture — an unexpected markup change degrades one field to
+// null, never the whole poll.
+//
+// Battlefield reads a real WebSocket field (`selfPlayer`/`publicPlayers[]`)
+// was originally assumed to carry (see the Decision Log's "match result
+// auto-fill" entry) — confirmed via real testing to be wrong: neither
+// object ever reflected a chosen battlefield, staying byte-for-byte
+// identical from join to match end even after a real pick. Moved to DOM
+// instead, mirroring the already-confirmed-working opponent Legend
+// selector's exact `data-zone-owner`/`data-drop-zone` pattern for both
+// sides — **not yet confirmed against real markup** the way Legend/score
+// were; if this doesn't populate, inspect a real battlefield element's
+// `data-drop-zone` value in devtools and correct the selector below.
 //
 // Opponent score's node has no aria-pressed/data-* marking which of its
 // nine children (values 0-8) is active — only a differing `class` string
@@ -56,7 +67,14 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 // of the first 8 differ from the baseline, the score is 8 by elimination.
 const SESSION_STATE_CHECK_SCRIPT = `
 (() => {
-  const result = { inLobby: false, opponentLegend: null, selfScore: null, opponentScore: null };
+  const result = {
+    inLobby: false,
+    opponentLegend: null,
+    selfBattlefield: null,
+    opponentBattlefield: null,
+    selfScore: null,
+    opponentScore: null
+  };
 
   try {
     const el = document.querySelector('${LOBBY_LOGO_SELECTOR}');
@@ -70,6 +88,16 @@ const SESSION_STATE_CHECK_SCRIPT = `
   try {
     const img = document.querySelector('section[data-zone-owner="opponent"] [data-drop-zone="legend"] img');
     result.opponentLegend = (img && img.alt) || null;
+  } catch (err) {}
+
+  try {
+    const img = document.querySelector('section[data-zone-owner="self"] [data-drop-zone="battlefield"] img');
+    result.selfBattlefield = (img && img.alt) || null;
+  } catch (err) {}
+
+  try {
+    const img = document.querySelector('section[data-zone-owner="opponent"] [data-drop-zone="battlefield"] img');
+    result.opponentBattlefield = (img && img.alt) || null;
   } catch (err) {}
 
   try {
@@ -147,11 +175,6 @@ let pendingSessionGameInstanceId = null
 
 let lobbyPollTimer = null
 let lobbyConfirmCount = 0
-// Diagnostic-only (see attachAutoCapture's debugger listener below) —
-// every distinct WebSocket message `.type` seen so far, across the whole
-// app session (not reset per match), so a type worth routing turns up
-// once and never spams on repeat.
-const seenMessageTypes = new Set()
 // The Play tab's own WebContents, remembered here (not re-fetched from
 // playView.js on every poll) so this module has a stable reference to run
 // executeJavaScript() against for as long as the view lives — see
@@ -244,6 +267,8 @@ async function pollLobbyState() {
 
   ingestDomState({
     opponentLegend: domState?.opponentLegend ?? null,
+    selfBattlefield: domState?.selfBattlefield ?? null,
+    opponentBattlefield: domState?.opponentBattlefield ?? null,
     selfScore: domState?.selfScore ?? null,
     opponentScore: domState?.opponentScore ?? null
   })
@@ -467,21 +492,6 @@ export function attachAutoCapture(webContents) {
       const payload = params?.response?.payloadData
       if (!payload) return
       const message = JSON.parse(payload)
-
-      // Diagnostic-only: battlefield selection was reported not showing up
-      // anywhere in room_shell_sync/authoritative_snapshot's sessionDoc
-      // (selfPlayer/publicPlayers stayed byte-for-byte identical from join
-      // to match end in a real test) — the leading hypothesis is that it's
-      // its own distinct message `.type`, currently dropped silently since
-      // only join_game/room_shell_sync/authoritative_snapshot are routed
-      // anywhere. This surfaces every other type actually seen, once each,
-      // with its full payload, so a type worth routing can be identified
-      // instead of guessed at. See CLAUDE.md's Decision Log.
-      if (message?.type && !seenMessageTypes.has(message.type)) {
-        seenMessageTypes.add(message.type)
-        console.info(`[auto capture] new WS message type seen (${method}):`, message.type, JSON.stringify(message))
-      }
-
       if (message?.type === 'join_game' && message?.gameInstanceId) {
         handleJoinGame({ gameInstanceId: message.gameInstanceId, playerId: message.playerId ?? null })
         return

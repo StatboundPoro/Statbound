@@ -10,12 +10,17 @@
 // SOURCE A — WebSocket (ingestWebSocketMessage below): room_shell_sync and
 // authoritative_snapshot frames carry a `.sessionDoc` (both message types)
 // and authoritative_snapshot alone also carries a `.snapshot`. Only the
-// specific fields named in the Decision Log are ever read.
+// specific fields named in the Decision Log are ever read. Battlefield was
+// originally read from here too (`selfPlayer`/`publicPlayers[]`'s assumed
+// `.selectedBattlefield`) — confirmed via real testing to be wrong, moved
+// to Source B below instead (see the Decision Log's "match result
+// auto-fill" entry for the full story).
 //
 // SOURCE B — DOM (ingestDomState below): fed by autoCapture.js's existing
-// lobby-poll tick, which now also reads the opponent's Legend and both
-// players' in-game score (0-8) directly off the Play tab's own rendered
-// markup, on the same ~1s interval as the lobby-logo check.
+// lobby-poll tick, which reads the opponent's Legend, both players'
+// battlefield, and both players' in-game score (0-8), all directly off
+// the Play tab's own rendered markup, on the same ~1s interval as the
+// lobby-logo check.
 //
 // Every individual field is read inside its own try/catch — a failure on
 // any one field (an unexpected message shape, a missing DOM node) must
@@ -38,27 +43,23 @@ function emptyCapture(selfPlayerId) {
     matchFormat: null,
     winsByPlayerId: {},
     usedBattlefieldsByPlayerId: {},
-    bo1Battlefields: { self: null, opponent: null },
     firstPlayerId: null,
     bo1Outcome: { winnerPlayerIds: null, reason: null },
     opponentName: null,
     currentGameNumber: null,
     seenGameNumbers: new Set(),
-    // gameNumber -> { wins, firstPlayerId, domScore } snapshotted the
-    // instant that gameNumber was first observed — see
+    // gameNumber -> { wins, firstPlayerId, domScore, domBattlefield }
+    // snapshotted the instant that gameNumber was first observed — see
     // buildBo3Result()'s comment for why this is what lets a Bo3's
-    // per-game breakdown be recovered from otherwise-cumulative fields.
+    // per-game breakdown be recovered from otherwise-cumulative/live-only
+    // fields.
     boundarySnapshots: {},
     domOpponentLegend: null,
-    domScore: { self: null, opponent: null },
-    // Diagnostic-only, not part of the result: last-logged JSON for the
-    // shape dumps below, so a long match logs only when selfPlayer/
-    // publicPlayers actually change (e.g. the moment a battlefield gets
-    // selected) rather than spamming the same structure on every message
-    // — see the "battlefields not filling" debugging note in CLAUDE.md's
-    // Decision Log.
-    lastLoggedSelfPlayerJson: null,
-    lastLoggedPublicPlayersJson: null
+    // Both players' current battlefield, Source B (DOM) only — see
+    // ingestDomState below and the Decision Log's "match result auto-fill"
+    // entry for why this moved off the WebSocket fields it originally read.
+    domBattlefield: { self: null, opponent: null },
+    domScore: { self: null, opponent: null }
   }
 }
 
@@ -85,7 +86,8 @@ function snapshotCurrentGameState() {
   return {
     wins: { ...capture.winsByPlayerId },
     firstPlayerId: capture.firstPlayerId,
-    domScore: { ...capture.domScore }
+    domScore: { ...capture.domScore },
+    domBattlefield: { ...capture.domBattlefield }
   }
 }
 
@@ -116,63 +118,8 @@ export function ingestWebSocketMessage(message) {
 
     try {
       if (doc.usedBattlefieldsByPlayerId && typeof doc.usedBattlefieldsByPlayerId === 'object') {
-        const changed = JSON.stringify(doc.usedBattlefieldsByPlayerId) !== JSON.stringify(capture.usedBattlefieldsByPlayerId)
         capture.usedBattlefieldsByPlayerId = doc.usedBattlefieldsByPlayerId
         inferOpponentPlayerId(Object.keys(doc.usedBattlefieldsByPlayerId))
-        // Only logged when the value actually changes, not on every message
-        // it happens to ride along in — same diagnostic purpose as the
-        // selfPlayer/publicPlayers dumps above, for the Bo3 battlefield path.
-        if (changed) {
-          console.info(
-            '[match result capture] doc.usedBattlefieldsByPlayerId changed:',
-            JSON.stringify(doc.usedBattlefieldsByPlayerId),
-            'resolved selfPlayerId:', capture.selfPlayerId,
-            'resolved opponentPlayerId:', capture.opponentPlayerId
-          )
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      // Change-gated diagnostic dump — battlefield pre-fill was reported
-      // not working for either side in a real match while Legend/name/
-      // score (fed by completely different fields/sources) worked fine,
-      // which means either `selfPlayer` isn't shaped the way this was
-      // built against, or `.selectedBattlefield` isn't the real field
-      // name. A FIRST-SEEN-only dump missed it (that snapshot was from
-      // right at join, before battlefield selection happens) — this logs
-      // on every actual change instead, so the moment a battlefield gets
-      // picked shows up as a new line with whatever field it actually
-      // adds.
-      if (doc.selfPlayer) {
-        const json = JSON.stringify(doc.selfPlayer)
-        if (json !== capture.lastLoggedSelfPlayerJson) {
-          capture.lastLoggedSelfPlayerJson = json
-          console.info('[match result capture] doc.selfPlayer changed:', json)
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      const selfBattlefield = doc.selfPlayer?.selectedBattlefield
-      if (selfBattlefield) capture.bo1Battlefields.self = selfBattlefield
-    } catch {
-      // ignore
-    }
-
-    try {
-      // Same change-gated diagnostic dump as doc.selfPlayer above, for the
-      // opponent side.
-      if (Array.isArray(doc.publicPlayers) && doc.publicPlayers.length > 0) {
-        const json = JSON.stringify(doc.publicPlayers)
-        if (json !== capture.lastLoggedPublicPlayersJson) {
-          capture.lastLoggedPublicPlayersJson = json
-          console.info('[match result capture] doc.publicPlayers changed:', json)
-        }
       }
     } catch {
       // ignore
@@ -189,11 +136,10 @@ export function ingestWebSocketMessage(message) {
           if (!isOpponent) continue
           if (playerId) capture.opponentPlayerId = playerId
           if (player.name) capture.opponentName = player.name
-          if (player.selectedBattlefield) capture.bo1Battlefields.opponent = player.selectedBattlefield
         }
       }
     } catch {
-      // ignore — opponentName/bo1Battlefields.opponent stay at last known value
+      // ignore — opponentName/opponentPlayerId stay at last known value
     }
 
     try {
@@ -245,10 +191,26 @@ export function ingestWebSocketMessage(message) {
  * didn't match) simply leaves the previously cached value in place rather
  * than clobbering it with a transient read failure.
  */
-export function ingestDomState({ opponentLegend, selfScore, opponentScore } = {}) {
+export function ingestDomState({
+  opponentLegend,
+  selfBattlefield,
+  opponentBattlefield,
+  selfScore,
+  opponentScore
+} = {}) {
   if (!capture) return
   try {
     if (opponentLegend) capture.domOpponentLegend = opponentLegend
+  } catch {
+    // ignore
+  }
+  try {
+    if (selfBattlefield) capture.domBattlefield.self = selfBattlefield
+  } catch {
+    // ignore
+  }
+  try {
+    if (opponentBattlefield) capture.domBattlefield.opponent = opponentBattlefield
   } catch {
     // ignore
   }
@@ -270,15 +232,17 @@ function resolveWentFirst(c, firstPlayerId) {
 }
 
 /**
- * Builds the Bo3 portion of a finalized result. usedBattlefieldsByPlayerId
- * and winsByPlayerId both arrive from the server already cumulative across
- * the whole series, so no per-game snapshotting is needed for battlefields
- * at all — reading index (gameNumber-1) off the final array is enough. Wins
- * are cumulative too, so a given game's own winner has to be recovered as a
- * delta between the wins total entering that game and the wins total
- * entering the next one (or the final total, for the series' last game) —
- * that's what boundarySnapshots (captured every time a new gameNumber was
- * first observed) exists for.
+ * Builds the Bo3 portion of a finalized result. winsByPlayerId arrives from
+ * the server already cumulative across the whole series, so a given game's
+ * own winner has to be recovered as a delta between the wins total entering
+ * that game and the wins total entering the next one (or the final total,
+ * for the series' last game) — that's what boundarySnapshots (captured
+ * every time a new gameNumber was first observed) exists for. Battlefield
+ * and in-game score are both DOM-only (Source B) and live-only (the DOM
+ * only ever shows the *current* game's state, with no history of earlier
+ * games the way winsByPlayerId's cumulative shape provides) — so both are
+ * recovered the exact same way as each other: read from whichever snapshot
+ * captures that game's state right as it ended (see `ending` below).
  */
 function buildBo3Result(c, result) {
   try {
@@ -300,17 +264,11 @@ function buildBo3Result(c, result) {
   }
   if (!totalGames || totalGames < 1) return
 
-  let selfBattlefields = []
-  let opponentBattlefields = []
-  try {
-    selfBattlefields = c.usedBattlefieldsByPlayerId?.[c.selfPlayerId] ?? []
-  } catch {
-    selfBattlefields = []
-  }
-  try {
-    opponentBattlefields = c.opponentPlayerId ? c.usedBattlefieldsByPlayerId?.[c.opponentPlayerId] ?? [] : []
-  } catch {
-    opponentBattlefields = []
+  const emptySnapshot = {
+    wins: {},
+    firstPlayerId: null,
+    domScore: { self: null, opponent: null },
+    domBattlefield: { self: null, opponent: null }
   }
 
   for (let gameNumber = 1; gameNumber <= totalGames; gameNumber++) {
@@ -323,19 +281,21 @@ function buildBo3Result(c, result) {
       inGameScore: null
     }
 
-    try {
-      game.myBattlefield = selfBattlefields[gameNumber - 1] ?? null
-    } catch {
-      // ignore
-    }
-    try {
-      game.opponentBattlefield = opponentBattlefields[gameNumber - 1] ?? null
-    } catch {
-      // ignore
+    const entering = c.boundarySnapshots[gameNumber] ?? emptySnapshot
+    const ending = c.boundarySnapshots[gameNumber + 1] ?? {
+      wins: c.winsByPlayerId,
+      firstPlayerId: c.firstPlayerId,
+      domScore: c.domScore,
+      domBattlefield: c.domBattlefield
     }
 
-    const entering = c.boundarySnapshots[gameNumber] ?? { wins: {}, firstPlayerId: null, domScore: { self: null, opponent: null } }
-    const ending = c.boundarySnapshots[gameNumber + 1] ?? { wins: c.winsByPlayerId, firstPlayerId: c.firstPlayerId, domScore: c.domScore }
+    try {
+      const bf = ending.domBattlefield
+      if (bf?.self) game.myBattlefield = bf.self
+      if (bf?.opponent) game.opponentBattlefield = bf.opponent
+    } catch {
+      // ignore
+    }
 
     try {
       if (c.selfPlayerId && c.opponentPlayerId) {
@@ -376,8 +336,8 @@ function buildBo3Result(c, result) {
 function buildBo1Result(c, result) {
   const game = {
     gameNumber: 1,
-    myBattlefield: c.bo1Battlefields.self ?? null,
-    opponentBattlefield: c.bo1Battlefields.opponent ?? null,
+    myBattlefield: c.domBattlefield.self ?? null,
+    opponentBattlefield: c.domBattlefield.opponent ?? null,
     won: null,
     wentFirst: null,
     inGameScore: null
@@ -447,8 +407,7 @@ export function finalizeResult() {
     matchFormat: c.matchFormat,
     selfPlayerId: c.selfPlayerId,
     opponentPlayerId: c.opponentPlayerId,
-    bo1Battlefields: c.bo1Battlefields,
-    usedBattlefieldsByPlayerId: c.usedBattlefieldsByPlayerId,
+    domBattlefield: c.domBattlefield,
     resultGames: result.games.map((g) => ({
       gameNumber: g.gameNumber,
       myBattlefield: g.myBattlefield,
