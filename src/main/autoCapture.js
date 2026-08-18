@@ -147,6 +147,11 @@ let pendingSessionGameInstanceId = null
 
 let lobbyPollTimer = null
 let lobbyConfirmCount = 0
+// Diagnostic-only (see attachAutoCapture's debugger listener below) —
+// every distinct WebSocket message `.type` seen so far, across the whole
+// app session (not reset per match), so a type worth routing turns up
+// once and never spams on repeat.
+const seenMessageTypes = new Set()
 // The Play tab's own WebContents, remembered here (not re-fetched from
 // playView.js on every poll) so this module has a stable reference to run
 // executeJavaScript() against for as long as the view lives — see
@@ -462,6 +467,21 @@ export function attachAutoCapture(webContents) {
       const payload = params?.response?.payloadData
       if (!payload) return
       const message = JSON.parse(payload)
+
+      // Diagnostic-only: battlefield selection was reported not showing up
+      // anywhere in room_shell_sync/authoritative_snapshot's sessionDoc
+      // (selfPlayer/publicPlayers stayed byte-for-byte identical from join
+      // to match end in a real test) — the leading hypothesis is that it's
+      // its own distinct message `.type`, currently dropped silently since
+      // only join_game/room_shell_sync/authoritative_snapshot are routed
+      // anywhere. This surfaces every other type actually seen, once each,
+      // with its full payload, so a type worth routing can be identified
+      // instead of guessed at. See CLAUDE.md's Decision Log.
+      if (message?.type && !seenMessageTypes.has(message.type)) {
+        seenMessageTypes.add(message.type)
+        console.info(`[auto capture] new WS message type seen (${method}):`, message.type, JSON.stringify(message))
+      }
+
       if (message?.type === 'join_game' && message?.gameInstanceId) {
         handleJoinGame({ gameInstanceId: message.gameInstanceId, playerId: message.playerId ?? null })
         return
