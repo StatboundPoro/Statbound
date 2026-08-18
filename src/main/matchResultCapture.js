@@ -50,7 +50,13 @@ function emptyCapture(selfPlayerId) {
     // per-game breakdown be recovered from otherwise-cumulative fields.
     boundarySnapshots: {},
     domOpponentLegend: null,
-    domScore: { self: null, opponent: null }
+    domScore: { self: null, opponent: null },
+    // Diagnostic-only, not part of the result: guards the one-time shape
+    // dumps below so a long match doesn't spam the console with the same
+    // structure on every message — see the "battlefields not filling"
+    // debugging note in CLAUDE.md's Decision Log.
+    loggedSelfPlayerShape: false,
+    loggedPublicPlayersShape: false
   }
 }
 
@@ -108,8 +114,36 @@ export function ingestWebSocketMessage(message) {
 
     try {
       if (doc.usedBattlefieldsByPlayerId && typeof doc.usedBattlefieldsByPlayerId === 'object') {
+        const changed = JSON.stringify(doc.usedBattlefieldsByPlayerId) !== JSON.stringify(capture.usedBattlefieldsByPlayerId)
         capture.usedBattlefieldsByPlayerId = doc.usedBattlefieldsByPlayerId
         inferOpponentPlayerId(Object.keys(doc.usedBattlefieldsByPlayerId))
+        // Only logged when the value actually changes, not on every message
+        // it happens to ride along in — same diagnostic purpose as the
+        // selfPlayer/publicPlayers dumps above, for the Bo3 battlefield path.
+        if (changed) {
+          console.info(
+            '[match result capture] doc.usedBattlefieldsByPlayerId changed:',
+            JSON.stringify(doc.usedBattlefieldsByPlayerId),
+            'resolved selfPlayerId:', capture.selfPlayerId,
+            'resolved opponentPlayerId:', capture.opponentPlayerId
+          )
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      // One-time diagnostic dump — battlefield pre-fill was reported not
+      // working for either side in a real match while Legend/name/score
+      // (fed by completely different fields/sources) worked fine, which
+      // means either `selfPlayer` isn't shaped the way this was built
+      // against, or `.selectedBattlefield` isn't the real field name. This
+      // makes the real shape visible in the main process console the next
+      // time someone reproduces it, instead of guessing again.
+      if (doc.selfPlayer && !capture.loggedSelfPlayerShape) {
+        capture.loggedSelfPlayerShape = true
+        console.info('[match result capture] doc.selfPlayer (first seen this session):', JSON.stringify(doc.selfPlayer))
       }
     } catch {
       // ignore
@@ -118,6 +152,17 @@ export function ingestWebSocketMessage(message) {
     try {
       const selfBattlefield = doc.selfPlayer?.selectedBattlefield
       if (selfBattlefield) capture.bo1Battlefields.self = selfBattlefield
+    } catch {
+      // ignore
+    }
+
+    try {
+      // Same one-time diagnostic dump as doc.selfPlayer above, for the
+      // opponent side.
+      if (Array.isArray(doc.publicPlayers) && doc.publicPlayers.length > 0 && !capture.loggedPublicPlayersShape) {
+        capture.loggedPublicPlayersShape = true
+        console.info('[match result capture] doc.publicPlayers (first seen this session):', JSON.stringify(doc.publicPlayers))
+      }
     } catch {
       // ignore
     }
@@ -382,6 +427,23 @@ export function finalizeResult() {
   } catch (err) {
     console.error('[match result capture] failed to finalize result:', err.message)
   }
+
+  // Diagnostic-only summary, always logged once at session end (cheap —
+  // one small object, not per-message) — the fastest way to see exactly
+  // why a battlefield came back null: which internal source held what,
+  // and what the final per-game result actually says.
+  console.info('[match result capture] finalized:', {
+    matchFormat: c.matchFormat,
+    selfPlayerId: c.selfPlayerId,
+    opponentPlayerId: c.opponentPlayerId,
+    bo1Battlefields: c.bo1Battlefields,
+    usedBattlefieldsByPlayerId: c.usedBattlefieldsByPlayerId,
+    resultGames: result.games.map((g) => ({
+      gameNumber: g.gameNumber,
+      myBattlefield: g.myBattlefield,
+      opponentBattlefield: g.opponentBattlefield
+    }))
+  })
 
   return result
 }
