@@ -420,22 +420,6 @@ export function finalizeResult() {
     console.error('[match result capture] failed to finalize result:', err.message)
   }
 
-  // Diagnostic-only summary, always logged once at session end (cheap —
-  // one small object, not per-message) — the fastest way to see exactly
-  // why a battlefield came back null: which internal source held what,
-  // and what the final per-game result actually says.
-  console.info('[match result capture] finalized:', {
-    matchFormat: c.matchFormat,
-    selfPlayerId: c.selfPlayerId,
-    opponentPlayerId: c.opponentPlayerId,
-    domBattlefield: c.domBattlefield,
-    resultGames: result.games.map((g) => ({
-      gameNumber: g.gameNumber,
-      myBattlefield: g.myBattlefield,
-      opponentBattlefield: g.opponentBattlefield
-    }))
-  })
-
   return result
 }
 
