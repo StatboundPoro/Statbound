@@ -80,6 +80,18 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
   const [selectedDeckId, setSelectedDeckId] = useState('')
   const [decksReady, setDecksReady] = useState(false)
 
+  // Back/Forward button enablement, driven by the embed's real navigation
+  // history (see src/main/playView.js) rather than assumed always-clickable.
+  const [navState, setNavState] = useState({ canGoBack: false, canGoForward: false })
+
+  useEffect(() => {
+    window.api.play
+      .getNavState()
+      .then(setNavState)
+      .catch((err) => console.error('Failed to load Play tab navigation state:', err))
+    return window.api.play.onNavStateChanged(setNavState)
+  }, [])
+
   useEffect(() => {
     window.api.settings
       .getVideoCapture()
@@ -177,6 +189,33 @@ export default function PlayScreen({ recording, starting, elapsedSeconds, error,
           {error && <div className="play-recording-error">{error}</div>}
         </div>
         <div className="topbar-actions recording-controls">
+          <div className="play-nav-controls">
+            <button
+              className="btn"
+              onClick={() => window.api.play.goBack()}
+              disabled={!navState.canGoBack}
+              title="Back"
+              aria-label="Back"
+            >
+              ← Back
+            </button>
+            <button
+              className="btn"
+              onClick={() => window.api.play.goForward()}
+              disabled={!navState.canGoForward}
+              title="Forward"
+              aria-label="Forward"
+            >
+              Forward →
+            </button>
+            <button
+              className="btn"
+              onClick={() => window.api.play.returnToLobby()}
+              title="Return to the Rift Atlas lobby"
+            >
+              Return to Lobby
+            </button>
+          </div>
           <div className="play-deck-picker">
             <select
               className="play-deck-select"

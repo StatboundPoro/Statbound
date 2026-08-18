@@ -76,7 +76,21 @@ contextBridge.exposeInMainWorld('api', {
     // above these go through invoke/handle since the renderer needs the
     // persisted value back, not just to fire a one-way UI sync event.
     getSelectedDeck: () => ipcRenderer.invoke('play:get-selected-deck'),
-    setSelectedDeck: (deckId) => ipcRenderer.invoke('play:set-selected-deck', deckId)
+    setSelectedDeck: (deckId) => ipcRenderer.invoke('play:set-selected-deck', deckId),
+    // Back/Forward/Return-to-Lobby controls for the Play tab's header (see
+    // src/main/playView.js). getNavState() is a one-time fetch for initial
+    // button state on mount; onNavStateChanged pushes updates whenever the
+    // embed actually navigates, same shape as capture.onAutoStart/onAutoStop
+    // below.
+    getNavState: () => ipcRenderer.invoke('play:get-nav-state'),
+    goBack: () => ipcRenderer.send('play:go-back'),
+    goForward: () => ipcRenderer.send('play:go-forward'),
+    returnToLobby: () => ipcRenderer.send('play:return-to-lobby'),
+    onNavStateChanged: (callback) => {
+      const handler = (_event, state) => callback(state)
+      ipcRenderer.on('play:nav-state-changed', handler)
+      return () => ipcRenderer.removeListener('play:nav-state-changed', handler)
+    }
   },
   capture: {
     // Video is captured and encoded entirely in the main process (frame-

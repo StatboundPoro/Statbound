@@ -53,6 +53,29 @@ function ensurePlayView() {
     console.error('[play embed] failed to load', validatedURL, errorCode, errorDescription)
   })
 
+  // Rift Atlas's own UI (e.g. its deck editor) opens some links via
+  // window.open()/target="_blank", which Electron's default behavior turns
+  // into a brand-new, un-managed BrowserWindow outside this app entirely.
+  // Denying every open request and loading the destination into this same
+  // view instead makes the Play tab behave like a real embedded browser
+  // tab: every navigation, including genuinely external links (e.g. a
+  // Terms of Service link to another domain), stays inside it. This is a
+  // deliberate, universal choice, not scoped to Rift Atlas's own domain.
+  playView.webContents.setWindowOpenHandler(({ url }) => {
+    if (url && url !== 'about:blank') {
+      playView.webContents.loadURL(url)
+    }
+    return { action: 'deny' }
+  })
+
+  // Pushes Back/Forward availability to the renderer whenever it changes,
+  // so PlayScreen's controls can enable/disable against real history
+  // instead of guessing. Covers both full navigations and in-page ones
+  // (e.g. hash changes) — either can change what canGoBack()/canGoForward()
+  // report.
+  playView.webContents.on('did-navigate', pushNavState)
+  playView.webContents.on('did-navigate-in-page', pushNavState)
+
   // Attached once, right here at creation, so it covers the view's whole
   // lifetime — the view is only ever detached/reattached after this (see
   // hidePlayView/showPlayView below), never destroyed and recreated. See
@@ -130,4 +153,43 @@ export function setPlayBounds(rect) {
  */
 export function getPlayWebContents() {
   return playView ? playView.webContents : null
+}
+
+function pushNavState() {
+  if (!mainWindow || !playView) return
+  mainWindow.webContents.send('play:nav-state-changed', getPlayNavState())
+}
+
+/**
+ * Back/Forward/Return-to-Lobby controls for the Play tab's header. Modern
+ * Electron (confirmed against this project's installed version) deprecated
+ * webContents.canGoBack()/goBack()/goForward() in favor of
+ * webContents.navigationHistory's equivalents — that's the API used here,
+ * not the deprecated direct methods.
+ */
+export function getPlayNavState() {
+  if (!playView) return { canGoBack: false, canGoForward: false }
+  const nav = playView.webContents.navigationHistory
+  return { canGoBack: nav.canGoBack(), canGoForward: nav.canGoForward() }
+}
+
+export function playGoBack() {
+  if (!playView) return
+  const nav = playView.webContents.navigationHistory
+  if (nav.canGoBack()) nav.goBack()
+}
+
+export function playGoForward() {
+  if (!playView) return
+  const nav = playView.webContents.navigationHistory
+  if (nav.canGoForward()) nav.goForward()
+}
+
+// A guaranteed escape hatch back to a known-good state, regardless of how
+// deep into Rift Atlas's own navigation the user has gone or whether
+// history is intact — always the original entry point, never dependent on
+// canGoBack()/goBack().
+export function playReturnToLobby() {
+  if (!playView) return
+  playView.webContents.loadURL(PLAY_URL)
 }

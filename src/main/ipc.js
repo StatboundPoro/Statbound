@@ -5,7 +5,15 @@ import { createMatch, deleteMatch, getMatchById, listMatches, updateMatch } from
 import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } from './deckNotes.js'
 import { listLegends } from './legends.js'
 import { getInsights } from './insights.js'
-import { hidePlayView, setPlayBounds, showPlayView } from './playView.js'
+import {
+  getPlayNavState,
+  hidePlayView,
+  playGoBack,
+  playGoForward,
+  playReturnToLobby,
+  setPlayBounds,
+  showPlayView
+} from './playView.js'
 import { handleManualStart } from './autoCapture.js'
 import {
   collapsePendingPanel,
@@ -108,6 +116,13 @@ export function registerIpcHandlers() {
   ipcMain.on('play:show', () => showPlayView())
   ipcMain.on('play:hide', () => hidePlayView())
   ipcMain.on('play:set-bounds', (_event, rect) => setPlayBounds(rect))
+  // Back/Forward/Return-to-Lobby controls for the Play tab's header — see
+  // playView.js for the navigationHistory-based implementation and the
+  // window-open interception these controls exist alongside.
+  ipcMain.handle('play:get-nav-state', () => getPlayNavState())
+  ipcMain.on('play:go-back', () => playGoBack())
+  ipcMain.on('play:go-forward', () => playGoForward())
+  ipcMain.on('play:return-to-lobby', () => playReturnToLobby())
   // Fired once a manually-started recording has actually begun, so
   // autoCapture.js's state machine can associate it with a match session
   // it already knows about (join_game seen while autoStartRecording was

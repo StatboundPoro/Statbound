@@ -412,6 +412,14 @@ body {
 .recording-controls {
   align-items: center;
 }
+.play-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 10px;
+  margin-right: 4px;
+  border-right: 1px solid var(--border-soft);
+}
 .play-deck-picker {
   display: flex;
   align-items: center;
