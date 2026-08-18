@@ -200,37 +200,59 @@ export default function PlayScreen({
         <div className="topbar-actions recording-controls">
           <div className="play-nav-controls">
             <button
-              className="btn"
+              className="btn btn-icon"
               onClick={() => window.api.play.goBack()}
               disabled={!navState.canGoBack}
               title="Back"
               aria-label="Back"
             >
-              ← Back
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             <button
-              className="btn"
+              className="btn btn-icon"
               onClick={() => window.api.play.goForward()}
               disabled={!navState.canGoForward}
               title="Forward"
               aria-label="Forward"
             >
-              Forward →
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             <button
-              className="btn"
+              className="btn btn-icon"
               onClick={() => window.api.play.reload()}
               title="Reload the current page"
               aria-label="Reload"
             >
-              Reload
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </button>
             <button
-              className="btn"
+              className="btn btn-icon"
               onClick={() => window.api.play.returnToLobby()}
               title="Return to the Rift Atlas lobby"
+              aria-label="Return to Lobby"
             >
-              Return to Lobby
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path d="M9 22V12h6v10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           </div>
           <div className="play-deck-picker">

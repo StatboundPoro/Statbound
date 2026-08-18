@@ -347,6 +347,17 @@ body {
   background: var(--panel);
   border-color: var(--border);
 }
+.btn-icon {
+  padding: 8px;
+  width: 34px;
+  height: 34px;
+  justify-content: center;
+}
+.btn-icon svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
 .btn-primary:disabled:hover {
   background: var(--order);
   border-color: var(--order);
