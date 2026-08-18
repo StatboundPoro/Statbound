@@ -3,7 +3,9 @@ import path from 'path'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import Database from 'better-sqlite3'
-import { LEGEND_NAMES } from './data/legends.js'
+import { FALLBACK_LEGEND_NAMES } from './data/legendsFallback.js'
+import { fetchLegendsFromRiftcodex } from './services/legendSync.js'
+import { getLegendSyncPrefs, updateLegendSyncPrefs } from './preferences.js'
 
 // The live database's current filename. Was rifttrack.db until the
 // RiftTrack -> Statbound internal rename — see migrateLegacyDbFilename()
@@ -78,11 +80,13 @@ const SCHEMA = `
     sync_status TEXT NOT NULL DEFAULT 'local_only'
   );
 
-  -- Static reference data (real Riftbound Legend names, bundled in
-  -- data/legends.js) surfaced as autocomplete suggestions on the free-text
-  -- deck_notes.scope and matches.opponent_legend columns. No sync_status —
-  -- this is shipped reference data, not user-generated content, so it isn't
-  -- a sync candidate (see CLAUDE.md's sync_status convention).
+  -- Reference data (real Riftbound Legend names, kept current via a
+  -- throttled sync against the Riftcodex API with a bundled offline
+  -- fallback -- see services/legendSync.js and data/legendsFallback.js)
+  -- surfaced as autocomplete suggestions on the free-text deck_notes.scope
+  -- and matches.opponent_legend columns. No sync_status — this is shipped/
+  -- fetched reference data, not user-generated content, so it isn't a sync
+  -- candidate (see CLAUDE.md's sync_status convention).
   CREATE TABLE IF NOT EXISTS legends (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -172,7 +176,14 @@ export function getDb() {
   if (db) return db
 
   db = openDatabase(getDbPath())
-  syncLegends(db)
+  seedFallbackLegendsIfEmpty(db)
+  // Fire-and-forget: the fallback seed above already guarantees the table
+  // isn't empty, so a slow or failed live sync can never block startup or
+  // leave autocomplete without data. See syncLegendsFromRiftcodex() for the
+  // throttling/error-handling contract.
+  syncLegendsFromRiftcodex(db).catch((err) =>
+    console.error('Unexpected error syncing legends from Riftcodex:', err)
+  )
   cleanupSeededDemoDeck(db)
 
   return db
@@ -191,26 +202,65 @@ export function closeDb() {
   db = null
 }
 
-// Inserts any LEGEND_NAMES not already present in the legends table, keyed
-// on an exact (case-sensitive) match against `name`. Runs on every startup
-// regardless of the `seed` option — unlike the demo deck, this is bundled
-// reference data rather than user data, so it isn't part of the "does this
-// database look freshly imported/reset" decision, and rows are only ever
-// added here, never removed, so a name dropped from LEGEND_NAMES later
-// doesn't retroactively delete anyone's existing matchup data referencing
-// it.
-function syncLegends(db) {
+// Shared by both legend data sources below (the bundled fallback and a live
+// Riftcodex fetch): inserts any of `names` not already present in the
+// legends table, keyed on an exact (case-sensitive) match against `name`.
+// Additive only, same as the old static-list version this replaced — rows
+// are never removed, so a name missing from a later fetch doesn't
+// retroactively delete anyone's existing matchup data referencing it.
+function insertLegendNames(db, names) {
   const insert = db.prepare(
     'INSERT OR IGNORE INTO legends (id, name, created_at) VALUES (@id, @name, @created_at)'
   )
   const now = new Date().toISOString()
 
-  const syncAll = db.transaction((names) => {
-    for (const name of names) {
+  const insertAll = db.transaction((list) => {
+    for (const name of list) {
       insert.run({ id: randomUUID(), name, created_at: now })
     }
   })
-  syncAll(LEGEND_NAMES)
+  insertAll(names)
+}
+
+function legendsTableIsEmpty(db) {
+  return db.prepare('SELECT COUNT(*) AS count FROM legends').get().count === 0
+}
+
+// Synchronous floor, run on every startup before anything async: guarantees
+// the legends table already has the bundled snapshot (see
+// data/legendsFallback.js) the instant getDb() returns, so autocomplete
+// works immediately -- offline, on a first-ever launch, or before the async
+// Riftcodex sync below has had a chance to run. A no-op once the table has
+// any rows at all, whether from a prior fallback seed or a prior live sync.
+function seedFallbackLegendsIfEmpty(db) {
+  if (legendsTableIsEmpty(db)) {
+    insertLegendNames(db, FALLBACK_LEGEND_NAMES)
+  }
+}
+
+const LEGEND_SYNC_THROTTLE_MS = 24 * 60 * 60 * 1000
+
+// Throttled, best-effort refresh of the legends table from the live
+// Riftcodex API (see services/legendSync.js) -- outbound-only, fetches
+// nothing but public card data, and never blocks getDb() (see its call
+// site above, which never awaits this). Skips the network call entirely if
+// the last successful sync was under 24h ago, per preferences.json's
+// lastLegendSyncAt. A network failure, a malformed response, or an empty
+// result all leave the table exactly as it was (the fallback seed already
+// guarantees it isn't empty) -- lastLegendSyncAt is only updated after a
+// fetch actually succeeds, so a transient failure gets retried on the very
+// next launch rather than being silently throttled for a full day.
+async function syncLegendsFromRiftcodex(db) {
+  const { lastLegendSyncAt } = getLegendSyncPrefs()
+  if (lastLegendSyncAt && Date.now() - new Date(lastLegendSyncAt).getTime() < LEGEND_SYNC_THROTTLE_MS) {
+    return
+  }
+
+  const names = await fetchLegendsFromRiftcodex()
+  if (!names) return
+
+  insertLegendNames(db, names)
+  updateLegendSyncPrefs({ lastLegendSyncAt: new Date().toISOString() })
 }
 
 // One-time cleanup migration. Earlier builds inserted one sample deck

@@ -48,7 +48,7 @@ Record video of your games as you play them. You can start and stop recording ma
 
 ## Your data stays on your machine
 
-Statbound is local-only. The app makes no network calls on its own behalf; the only exception is the optional embedded Play tab, which loads the Rift Atlas web client, and only when you explicitly open that tab yourself. Your decks, match history, notes, and recordings are stored in a local database and local files on your own computer.
+Nothing about you or your activity ever leaves your machine: no accounts, no telemetry, no usage analytics, no crash reporting. Your decks, match history, notes, and recordings are stored in a local database and local files on your own computer. This doesn't mean Statbound makes zero network connections: the embedded Play tab loads the Rift Atlas web client when you explicitly open that tab, and the app periodically fetches public Legend/card reference data from Riftcodex to keep autocomplete current. Both are outbound-only and never transmit anything about you or your activity. What's never acceptable, under any circumstance, is anything sending data about you or your activity outward.
 
 ## Project status
 

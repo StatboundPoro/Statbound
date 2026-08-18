@@ -47,14 +47,17 @@ function importWarningMessage(summary) {
   )
 }
 
-// Settings has four sections. General holds Export/Import plus a read-only
-// display of where the database file lives; Automatic Backups holds the
-// scheduled background-backup toggle; Video Capture holds replay-recording
-// preferences (save location, quality preset, and unlinked-recording
-// cleanup — the actual recording control lives on the Play tab, see
-// PlayScreen.jsx); Danger Zone holds Reset All Data, visually separated
-// (border/background tint, red title) so it doesn't read as a routine
-// action next to them.
+// Settings has five sections. General holds Export/Import plus a read-only
+// display of where the database file lives; Data Sources is a small,
+// read-only disclosure of the app's one outbound network call (the
+// Riftcodex legend sync, see CLAUDE.md's Legends entry) — no controls,
+// just honesty about what leaves the machine and what doesn't; Automatic
+// Backups holds the scheduled background-backup toggle; Video Capture
+// holds replay-recording preferences (save location, quality preset, and
+// unlinked-recording cleanup — the actual recording control lives on the
+// Play tab, see PlayScreen.jsx); Danger Zone holds Reset All Data,
+// visually separated (border/background tint, red title) so it doesn't
+// read as a routine action next to them.
 export default function SettingsScreen() {
   const [exportStatus, setExportStatus] = useState(null) // { filePath } | { error }
   const [importError, setImportError] = useState(null)
@@ -347,6 +350,19 @@ export default function SettingsScreen() {
         )}
         {importError && <div className="settings-status error">{importError}</div>}
         {appDataFolderError && <div className="settings-status error">{appDataFolderError}</div>}
+      </div>
+
+      <div className="section-label">Data Sources</div>
+      <div className="settings-panel">
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">Legend Names</div>
+            <div className="settings-row-desc">
+              Legend names are kept up to date automatically from Riftcodex (riftcodex.com), a public
+              Riftbound card database. No information about you or your matches is ever sent.
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="section-label">Automatic Backups</div>

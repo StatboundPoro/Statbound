@@ -63,6 +63,16 @@ const DEFAULT_PLAY = {
   lastSelectedPlayDeckId: null
 }
 
+// When the legends table was last successfully synced against the live
+// Riftcodex API (see src/main/services/legendSync.js and db.js's
+// syncLegendsFromRiftcodex()) -- an installation-level fact, so it lives
+// here rather than in SQLite, same reasoning as everything else in this
+// file. null means "never" (a fresh install, or every attempt so far has
+// failed), which the throttle treats as due for a sync attempt right away.
+const DEFAULT_LEGEND_SYNC = {
+  lastLegendSyncAt: null
+}
+
 // Exported so userDataMigration.js's legacy-path repointing can read and
 // rewrite the same file directly, rather than going through the
 // default-filling get*Prefs()/update*Prefs() helpers below (which would
@@ -187,4 +197,27 @@ export function updatePlayPrefs(patch) {
   const play = { ...DEFAULT_PLAY, ...raw.play, ...patch }
   writeRaw({ ...raw, play })
   return play
+}
+
+/**
+ * Returns the current legend-sync preferences (currently just
+ * lastLegendSyncAt), filling in the default if unset.
+ */
+export function getLegendSyncPrefs() {
+  const raw = readRaw()
+  return { ...DEFAULT_LEGEND_SYNC, ...raw.legendSync }
+}
+
+/**
+ * Persists a legend-sync preference change. Called only from db.js's
+ * syncLegendsFromRiftcodex(), right after a live fetch actually succeeds --
+ * a throttled skip or a failed fetch must never update this, or a
+ * transient network failure would silently postpone the next real attempt
+ * by a full throttle window.
+ */
+export function updateLegendSyncPrefs(patch) {
+  const raw = readRaw()
+  const legendSync = { ...DEFAULT_LEGEND_SYNC, ...raw.legendSync, ...patch }
+  writeRaw({ ...raw, legendSync })
+  return legendSync
 }
