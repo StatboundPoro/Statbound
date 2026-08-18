@@ -20,8 +20,8 @@ function heatmapBackground(winRate) {
 
 const POPOVER_WIDTH = 340
 
-// Matchup Matrix — a standalone, cross-deck screen: every deck (rows) that
-// has logged at least one match, against every opponent Legend (columns)
+// Matchup Matrix — a standalone, cross-deck screen: every deck (columns)
+// that has logged at least one match, against every opponent Legend (rows)
 // actually faced across ANY deck, no deck-scoping anywhere. Structurally
 // different from Deck Detail's own Matchup Record (one deck vs. many
 // legends) — see src/main/matchupMatrix.js's getMatchupMatrix() for the
@@ -29,6 +29,11 @@ const POPOVER_WIDTH = 340
 // read" approach the rest of the app uses. Small-sample handling reuses
 // Insights' Matchup Breakdown's own 5+ games convention (getMatchupMatrix's
 // SMALL_SAMPLE_THRESHOLD) rather than introducing a second one.
+//
+// Decks run across the top (usually the shorter axis — most collections
+// have far fewer decks than opponent Legends faced) and Legends run down
+// the side, so the sticky column of row labels stays a manageable width
+// even as more Legends are faced over time.
 export default function MatchupMatrixScreen() {
   const [matrix, setMatrix] = useState(null)
   const [status, setStatus] = useState('loading')
@@ -125,18 +130,9 @@ export default function MatchupMatrixScreen() {
           <table className="matrix-table">
             <thead>
               <tr>
-                <th className="matrix-corner">Deck</th>
-                {matrix.legends.map((legend) => (
-                  <th key={legend} className="matrix-col-header">
-                    {legend}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {matrix.decks.map((deck) => (
-                <tr key={deck.id}>
-                  <th scope="row" className="matrix-row-header">
+                <th className="matrix-corner">Legend</th>
+                {matrix.decks.map((deck) => (
+                  <th key={deck.id} className="matrix-col-header">
                     <div className="matrix-deck-name">
                       <span
                         className="matrix-deck-swatch"
@@ -149,17 +145,26 @@ export default function MatchupMatrixScreen() {
                       <span className="matrix-deck-name-text">{deck.name}</span>
                     </div>
                   </th>
-                  {matrix.legends.map((legend) => {
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {matrix.legends.map((legend) => (
+                <tr key={legend}>
+                  <th scope="row" className="matrix-row-header">
+                    {legend}
+                  </th>
+                  {matrix.decks.map((deck) => {
                     const cell = matrix.cells[deck.id]?.[legend]
                     if (!cell) {
                       return (
-                        <td key={legend}>
+                        <td key={deck.id}>
                           <div className="matrix-cell matrix-cell-empty" />
                         </td>
                       )
                     }
                     return (
-                      <td key={legend}>
+                      <td key={deck.id}>
                         <button
                           type="button"
                           className="matrix-cell"

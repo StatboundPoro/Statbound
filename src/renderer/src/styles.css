@@ -2399,6 +2399,9 @@ body {
   border-bottom: 1px solid var(--border-soft);
   text-align: left;
   padding: 8px 14px !important;
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 220px;
 }
 .matrix-table tbody tr:last-child .matrix-row-header {
   border-bottom: none;
@@ -2406,6 +2409,7 @@ body {
 .matrix-deck-name {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   max-width: 200px;
 }
@@ -2418,8 +2422,8 @@ body {
 }
 /* A compact stand-in for the full deck-crest treatment (see DESIGN
    LANGUAGE's crest note) — the same diagonal two-domain split, just as a
-   small swatch rather than the full clip-path crest, since a matrix row
-   is far too short to fit the real thing. */
+   small swatch rather than the full clip-path crest, since a matrix
+   column header is far too short to fit the real thing. */
 .matrix-deck-swatch {
   width: 16px;
   height: 16px;
