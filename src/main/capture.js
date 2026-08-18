@@ -397,16 +397,6 @@ export function getActiveCaptureFilePath() {
   return session ? session.finalPath : null
 }
 
-/**
- * Whether a recording is currently in progress — read by
- * services/playTabHealth.js to decide whether a stuck/unresponsive Play tab
- * can be auto-reloaded outright or must prompt first, since an unattended
- * reload mid-recording would cut the video off.
- */
-export function isRecordingActive() {
-  return session !== null
-}
-
 function cleanupTempFiles(current) {
   try {
     if (fs.existsSync(current.tempVideoPath)) fs.rmSync(current.tempVideoPath)

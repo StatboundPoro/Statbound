@@ -23,7 +23,7 @@ const LOBBY_CONFIRM_THRESHOLD = 2
 // Deliberately excludes the `?v=` cache-busting query string, which can
 // change on a routine deploy independent of any real UI change and would
 // silently break an exact-match selector.
-export const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
+const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 
 // Checks both presence AND actual rendered visibility (not just DOM
 // membership) — during an active match this element may either be removed
@@ -168,17 +168,6 @@ let mainWindow = null
 // the *only* signal that ends a session, for both Bo1 and Bo3 alike.
 let state = 'IDLE'
 let activeGameInstanceId = null
-
-/**
- * Whether a match session is currently being tracked (TRACKING or
- * RECORDING) — read by services/playTabHealth.js to decide whether a
- * stuck/unresponsive Play tab can be reloaded automatically (IDLE: nothing
- * to lose) or must prompt the user first (a session in progress would be
- * silently cut short by an unattended reload).
- */
-export function isSessionActive() {
-  return state !== 'IDLE'
-}
 
 // The most recently observed join_game's gameInstanceId while `state` is
 // still TRACKING (autoStartRecording is off) — tracked purely so a manual

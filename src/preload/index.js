@@ -77,14 +77,18 @@ contextBridge.exposeInMainWorld('api', {
     // persisted value back, not just to fire a one-way UI sync event.
     getSelectedDeck: () => ipcRenderer.invoke('play:get-selected-deck'),
     setSelectedDeck: (deckId) => ipcRenderer.invoke('play:set-selected-deck', deckId),
-    // Back/Forward/Return-to-Lobby controls for the Play tab's header (see
-    // src/main/playView.js). getNavState() is a one-time fetch for initial
-    // button state on mount; onNavStateChanged pushes updates whenever the
-    // embed actually navigates, same shape as capture.onAutoStart/onAutoStop
-    // below.
+    // Back/Forward/Reload/Return-to-Lobby controls for the Play tab's
+    // header (see src/main/playView.js). getNavState() is a one-time fetch
+    // for initial button state on mount; onNavStateChanged pushes updates
+    // whenever the embed actually navigates, same shape as
+    // capture.onAutoStart/onAutoStop below. reload() is a plain refresh of
+    // whatever's currently showing, distinct from returnToLobby() below
+    // (which always navigates back to the base URL) — always enabled, no
+    // conditions, same direct trust level as goBack/goForward.
     getNavState: () => ipcRenderer.invoke('play:get-nav-state'),
     goBack: () => ipcRenderer.send('play:go-back'),
     goForward: () => ipcRenderer.send('play:go-forward'),
+    reload: () => ipcRenderer.send('play:reload'),
     returnToLobby: () => ipcRenderer.send('play:return-to-lobby'),
     onNavStateChanged: (callback) => {
       const handler = (_event, state) => callback(state)
@@ -141,25 +145,6 @@ contextBridge.exposeInMainWorld('api', {
       const handler = () => callback()
       ipcRenderer.on('replays:pending-queue-changed', handler)
       return () => ipcRenderer.removeListener('replays:pending-queue-changed', handler)
-    }
-  },
-  // Play tab health check (see src/main/services/playTabHealth.js) — the
-  // context-aware recovery prompt shown when a recording/match session is
-  // active and the embed has read as stuck ("Unknown") past the threshold.
-  // The idle-reload path is handled entirely in main with no renderer
-  // involvement, so there's nothing here for that case.
-  playTabHealth: {
-    confirmReload: () => ipcRenderer.send('play-tab-health:confirm-reload'),
-    dismissPrompt: () => ipcRenderer.send('play-tab-health:dismiss-prompt'),
-    onShowPrompt: (callback) => {
-      const handler = () => callback()
-      ipcRenderer.on('play-tab-health:show-prompt', handler)
-      return () => ipcRenderer.removeListener('play-tab-health:show-prompt', handler)
-    },
-    onHidePrompt: (callback) => {
-      const handler = () => callback()
-      ipcRenderer.on('play-tab-health:hide-prompt', handler)
-      return () => ipcRenderer.removeListener('play-tab-health:hide-prompt', handler)
     }
   },
   // The Pending Recordings popover's overlay surface — see

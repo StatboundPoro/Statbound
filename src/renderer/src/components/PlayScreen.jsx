@@ -66,10 +66,7 @@ export default function PlayScreen({
   onStart,
   onStop,
   embedHidden,
-  onLogMatch,
-  healthPromptVisible,
-  onConfirmHealthReload,
-  onDismissHealthPrompt
+  onLogMatch
 }) {
   const containerRef = useRef(null)
   // Loaded/persisted straight through the existing Video Capture
@@ -222,6 +219,14 @@ export default function PlayScreen({
             </button>
             <button
               className="btn"
+              onClick={() => window.api.play.reload()}
+              title="Reload the current page"
+              aria-label="Reload"
+            >
+              Reload
+            </button>
+            <button
+              className="btn"
               onClick={() => window.api.play.returnToLobby()}
               title="Return to the Rift Atlas lobby"
             >
@@ -274,19 +279,6 @@ export default function PlayScreen({
           </button>
         </div>
       </div>
-      {healthPromptVisible && (
-        <div className="play-health-banner" role="alert">
-          <span>Play tab isn't responding. Reload it?</span>
-          <div className="play-health-banner-actions">
-            <button className="btn" onClick={onConfirmHealthReload}>
-              Reload
-            </button>
-            <button className="btn" onClick={onDismissHealthPrompt}>
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
       <div className="play-embed" ref={containerRef} />
     </div>
   )

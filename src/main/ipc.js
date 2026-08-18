@@ -10,12 +10,12 @@ import {
   hidePlayView,
   playGoBack,
   playGoForward,
+  playReload,
   playReturnToLobby,
   setPlayBounds,
   showPlayView
 } from './playView.js'
 import { handleManualStart } from './autoCapture.js'
-import { confirmHealthReload, dismissHealthPrompt } from './services/playTabHealth.js'
 import {
   collapsePendingPanel,
   expandPendingPanel,
@@ -117,12 +117,13 @@ export function registerIpcHandlers() {
   ipcMain.on('play:show', () => showPlayView())
   ipcMain.on('play:hide', () => hidePlayView())
   ipcMain.on('play:set-bounds', (_event, rect) => setPlayBounds(rect))
-  // Back/Forward/Return-to-Lobby controls for the Play tab's header — see
-  // playView.js for the navigationHistory-based implementation and the
+  // Back/Forward/Reload/Return-to-Lobby controls for the Play tab's header —
+  // see playView.js for the navigationHistory-based implementation and the
   // window-open interception these controls exist alongside.
   ipcMain.handle('play:get-nav-state', () => getPlayNavState())
   ipcMain.on('play:go-back', () => playGoBack())
   ipcMain.on('play:go-forward', () => playGoForward())
+  ipcMain.on('play:reload', () => playReload())
   ipcMain.on('play:return-to-lobby', () => playReturnToLobby())
   // Fired once a manually-started recording has actually begun, so
   // autoCapture.js's state machine can associate it with a match session
@@ -142,10 +143,4 @@ export function registerIpcHandlers() {
   ipcMain.on('pending-panel:log-match', (_event, replay) => relayLogMatch(replay))
   ipcMain.on('pending-panel:mouse-enter', () => relayMouseEnter())
   ipcMain.on('pending-panel:changed', () => relayChanged())
-  // Play tab health check (see services/playTabHealth.js) — the prompt
-  // shown when a recording/session is active and the embed has read
-  // "Unknown" past the threshold. The idle-reload path needs no renderer
-  // round trip at all, so it has no channel here.
-  ipcMain.on('play-tab-health:confirm-reload', () => confirmHealthReload())
-  ipcMain.on('play-tab-health:dismiss-prompt', () => dismissHealthPrompt())
 }

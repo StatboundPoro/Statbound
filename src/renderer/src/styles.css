@@ -467,24 +467,6 @@ body {
   color: var(--fury);
   font-size: 13px;
 }
-.play-health-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-  padding: 10px 14px;
-  background: rgba(214, 72, 63, 0.1);
-  border: 1px solid var(--fury);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 13px;
-}
-.play-health-banner-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
 
 .replay-video {
   width: 100%;

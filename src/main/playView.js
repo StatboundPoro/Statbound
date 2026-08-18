@@ -1,7 +1,6 @@
 import { WebContentsView } from 'electron'
 import { attachAutoCapture } from './autoCapture.js'
 import { bringPendingPanelToFront } from './pendingPanelView.js'
-import { startPlayTabHealthMonitoring } from './services/playTabHealth.js'
 
 const PLAY_URL = 'https://play.riftatlas.com'
 
@@ -82,21 +81,6 @@ function ensurePlayView() {
   // hidePlayView/showPlayView below), never destroyed and recreated. See
   // autoCapture.js for exactly what this does and does not read.
   attachAutoCapture(playView.webContents)
-
-  // Multi-signal health monitoring, separate from and additional to
-  // attachAutoCapture's lobby-logo stop trigger above — see
-  // services/playTabHealth.js for the confirmed in-game/login/lobby/unknown
-  // classification and the context-aware recovery behavior (auto-reload
-  // when idle, confirm first when a recording/session is active).
-  // `reloadPlayView` is passed as a callback rather than that module
-  // importing playReturnToLobby directly, since this function is defined
-  // later in this same file and importing this file back into
-  // playTabHealth.js would create a circular import.
-  startPlayTabHealthMonitoring({
-    webContents: playView.webContents,
-    win: mainWindow,
-    reloadPlayView: () => playReturnToLobby()
-  })
 
   playView.webContents.loadURL(PLAY_URL)
 
@@ -199,6 +183,17 @@ export function playGoForward() {
   if (!playView) return
   const nav = playView.webContents.navigationHistory
   if (nav.canGoForward()) nav.goForward()
+}
+
+// A plain refresh of whatever page is currently showing — distinct from
+// playReturnToLobby() below, which always navigates back to the base URL
+// regardless of where the user is. Always available, no conditions: the
+// user decides if the embed looks stuck and reloads it themselves, the same
+// direct trust level as Back/Forward rather than any kind of guarded or
+// confirmed action.
+export function playReload() {
+  if (!playView) return
+  playView.webContents.reload()
 }
 
 // A guaranteed escape hatch back to a known-good state, regardless of how
