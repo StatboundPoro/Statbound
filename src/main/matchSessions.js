@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto'
+
 // In-memory tracking of Rift Atlas match sessions detected via
 // autoCapture.js's WebSocket listener — kept independent of whether any
 // recording ever ends up associated with a given session, so a session
@@ -94,6 +96,35 @@ export function completeSession(gameInstanceId, matchResult = null) {
     startedAt: info.startedAt,
     endedAt: new Date().toISOString(),
     matchResult: matchResult ?? null
+  }
+  unrecordedSessions.push(entry)
+  return entry
+}
+
+/**
+ * Adds a "Log Recent Match" queue entry recovered from a crashed
+ * recording's sidecar JSON (see capture.js's recoverOrphanedRecordings()),
+ * reusing this same unrecorded-sessions queue rather than a separate
+ * mechanism — the end result is identical to any other no-recording
+ * session: a match known to have happened with no video to show for it.
+ * Marked `recovered: true` so listPendingReplays() can carry that through
+ * to the UI (a "Recovered after a crash" badge, and `endedAt` treated as
+ * an estimate rather than a real completion signal, since there was none
+ * — the app never reached its normal lobby-detection trigger). The
+ * sidecar's own `gameInstanceId` may be null (see capture.js's
+ * writeSidecar() for why), but this queue's id/discard mechanism needs a
+ * real unique key regardless of whether a live session ever existed for
+ * it, so a synthetic one is generated whenever the sidecar didn't have
+ * one.
+ */
+export function addRecoveredSession({ gameInstanceId, deckId, startedAt, endedAt }) {
+  const entry = {
+    gameInstanceId: gameInstanceId ?? `recovered-${randomUUID()}`,
+    deckId: deckId ?? null,
+    startedAt,
+    endedAt,
+    matchResult: null,
+    recovered: true
   }
   unrecordedSessions.push(entry)
   return entry

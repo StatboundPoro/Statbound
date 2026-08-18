@@ -6,7 +6,7 @@ import ffmpegBinaryPath from 'ffmpeg-static'
 import { getPlayPrefs, getVideoCapturePrefs } from './preferences.js'
 import { getPlayWebContents } from './playView.js'
 import { getGameInstanceIdForNewRecording } from './autoCapture.js'
-import { getSessionDeckId, getSessionStartedAt, markSessionRecording } from './matchSessions.js'
+import { getSessionDeckId, getSessionStartedAt, markSessionRecording, addRecoveredSession } from './matchSessions.js'
 import { consumeStashedResult } from './matchResultCapture.js'
 
 // The frame-grab loop's target rate — see captureLoopTick() below for why
@@ -301,6 +301,139 @@ export function cleanupLegacyTempDir() {
 }
 
 /**
+ * Attempts to salvage one orphaned temp video via a single ffmpeg remux
+ * (`-c copy`, no re-encode) into a throwaway `.repaired.mp4` file alongside
+ * it, then finalizes that repaired copy into place through the exact same
+ * finalizeVideoIntoPlace() path a clean recording finish uses. Returns
+ * false (never throws) for anything short of a genuinely playable
+ * non-empty output — mp4's index data is frequently only written once
+ * encoding finishes normally, so a file cut short by a crash is often, but
+ * not always, unrecoverable this way. This is the single attempt: no
+ * retry, no fallback re-encode.
+ */
+async function attemptRemux(brokenVideoPath, finalPath) {
+  const repairedPath = brokenVideoPath.replace(/\.video\.mp4$/, '.repaired.mp4')
+  removeIfExists(repairedPath)
+
+  const ffmpeg = spawn(resolveFfmpegPath(), ['-y', '-i', brokenVideoPath, '-c', 'copy', repairedPath])
+  let stderr = ''
+  ffmpeg.stderr.on('data', (chunk) => {
+    stderr += chunk.toString()
+  })
+  const exitCode = await new Promise((resolve) => ffmpeg.on('close', resolve))
+
+  const usable = exitCode === 0 && fs.existsSync(repairedPath) && fs.statSync(repairedPath).size > 0
+  if (!usable) {
+    if (exitCode !== 0) console.error('[capture] crash-recovery remux exited with code', exitCode, stderr)
+    removeIfExists(repairedPath)
+    return false
+  }
+
+  finalizeVideoIntoPlace(repairedPath, finalPath)
+  return true
+}
+
+/**
+ * Reads an orphaned recording's sidecar JSON (if any survived — see
+ * writeSidecar(), which writes it straight into the real Video Capture
+ * directory, not the temp folder, so it's untouched by the video itself
+ * being lost) and, when one exists, feeds its deckId/gameInstanceId/
+ * startedAt into matchSessions.js's existing non-recorded-session queue —
+ * the same "Log Recent Match" entry type already used for a session that
+ * finished with no recording ever tied to it. Marked recovered so the
+ * queue can show it was pieced together after a crash rather than a
+ * normal session. There's no real "match ended" signal for a crashed
+ * session (the lobby-detection trigger never fired), so the broken temp
+ * file's own last-modified time stands in as a best-effort endedAt
+ * estimate. If no sidecar exists at all, there's nothing recoverable
+ * beyond the video itself, so this is a silent no-op.
+ */
+function surfaceUnrecoverableSidecar(sidecarPath, estimatedEndedAt) {
+  if (!fs.existsSync(sidecarPath)) return
+  try {
+    const raw = fs.readFileSync(sidecarPath, 'utf-8')
+    const data = JSON.parse(raw)
+    addRecoveredSession({
+      gameInstanceId: data.gameInstanceId ?? null,
+      deckId: data.deckId ?? null,
+      startedAt: data.startedAt ?? estimatedEndedAt ?? new Date().toISOString(),
+      endedAt: estimatedEndedAt ?? data.startedAt ?? new Date().toISOString()
+    })
+    fs.rmSync(sidecarPath)
+  } catch (err) {
+    console.error('[capture] failed to surface orphaned recording sidecar', sidecarPath, err)
+  }
+}
+
+async function recoverOneOrphanedVideo(directory, tempDir, fileName) {
+  const base = fileName.slice(0, -'.video.mp4'.length)
+  const tempVideoPath = path.join(tempDir, fileName)
+  const finalPath = path.join(directory, `${base}.mp4`)
+  const sidecarPath = path.join(directory, `${base}.json`)
+
+  console.warn('[capture] found orphaned recording from a previous session, attempting crash recovery:', tempVideoPath)
+
+  let repaired = false
+  try {
+    repaired = await attemptRemux(tempVideoPath, finalPath)
+  } catch (err) {
+    console.error('[capture] crash-recovery repair attempt failed for', tempVideoPath, err)
+  }
+
+  if (repaired) {
+    console.info('[capture] crash recovery succeeded, recording restored:', finalPath)
+    removeIfExists(tempVideoPath)
+    return
+  }
+
+  console.warn('[capture] crash recovery could not salvage the video, discarding broken file:', tempVideoPath)
+  let brokenFileMtime = null
+  try {
+    brokenFileMtime = fs.statSync(tempVideoPath).mtime.toISOString()
+  } catch {
+    // File may already be gone somehow — estimatedEndedAt below just falls
+    // back to the sidecar's own startedAt in that case.
+  }
+  removeIfExists(tempVideoPath)
+  surfaceUnrecoverableSidecar(sidecarPath, brokenFileMtime)
+}
+
+/**
+ * Startup crash recovery: scans .statbound-tmp for any video left behind
+ * by a recording that never reached stopRecording()'s normal finish — the
+ * only way a file ends up there is the app being force-killed or crashing
+ * mid-recording, since a clean stop always moves it out via
+ * finalizeVideoIntoPlace(). Must be called before a window exists or
+ * autoCapture.js can detect any new session (see index.js's startup
+ * sequence) — that ordering is what makes every file found here
+ * unambiguous: this session hasn't started a recording yet, so anything
+ * present can only be leftover from a previous run that never finished
+ * cleanly. Every orphaned file gets exactly one best-effort repair attempt
+ * (see attemptRemux()); on failure its sidecar (if any) still surfaces
+ * into the "Log Recent Match" queue (see surfaceUnrecoverableSidecar()).
+ * Wrapped so a failure anywhere in this scan never blocks app startup —
+ * this is a best-effort safety net, not a critical path.
+ */
+export async function recoverOrphanedRecordings() {
+  try {
+    const { directory } = getVideoCapturePrefs()
+    if (!directory) return
+    const tempDir = path.join(directory, '.statbound-tmp')
+    if (!fs.existsSync(tempDir)) return
+
+    const orphanedVideos = fs
+      .readdirSync(tempDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.video.mp4'))
+
+    for (const entry of orphanedVideos) {
+      await recoverOneOrphanedVideo(directory, tempDir, entry.name)
+    }
+  } catch (err) {
+    console.error('[capture] crash recovery scan failed:', err)
+  }
+}
+
+/**
  * Starts a new recording session: resolves this session's file paths,
  * captures one frame from the Play tab to learn its pixel dimensions (fixed
  * for the rest of the session, see updateLastGoodFrame above), spawns ffmpeg to
@@ -397,11 +530,31 @@ export function getActiveCaptureFilePath() {
   return session ? session.finalPath : null
 }
 
-function cleanupTempFiles(current) {
+function removeIfExists(filePath) {
   try {
-    if (fs.existsSync(current.tempVideoPath)) fs.rmSync(current.tempVideoPath)
+    if (fs.existsSync(filePath)) fs.rmSync(filePath)
   } catch (err) {
-    console.error('[capture] failed to clean up temp file', current.tempVideoPath, err)
+    console.error('[capture] failed to remove file', filePath, err)
+  }
+}
+
+/**
+ * Moves a finished temp video into its real resting place in the Video
+ * Capture directory, then cleans up the temp file regardless of outcome.
+ * Shared by stopRecording() below (a normal clean finish) and
+ * recoverOrphanedRecordings() further down (a crash-repaired file), so a
+ * successfully recovered recording is finalized through the exact same
+ * path as a normal one — not a second copy of this logic — and ends up
+ * genuinely indistinguishable from one afterward.
+ */
+function finalizeVideoIntoPlace(tempVideoPath, finalPath) {
+  try {
+    if (!fs.existsSync(tempVideoPath)) {
+      throw new Error('No video output to finalize.')
+    }
+    fs.renameSync(tempVideoPath, finalPath)
+  } finally {
+    removeIfExists(tempVideoPath)
   }
 }
 
@@ -438,14 +591,7 @@ export async function stopRecording() {
     console.error('[capture] ffmpeg video encode exited with code', exitCode, current.getStderr())
   }
 
-  try {
-    if (!fs.existsSync(current.tempVideoPath)) {
-      throw new Error('Recording produced no video output.')
-    }
-    fs.renameSync(current.tempVideoPath, current.finalPath)
-  } finally {
-    cleanupTempFiles(current)
-  }
+  finalizeVideoIntoPlace(current.tempVideoPath, current.finalPath)
 
   if (current.gameInstanceId) {
     const matchResult = consumeStashedResult(current.gameInstanceId)

@@ -253,6 +253,18 @@ body {
 .pending-recording-status.has-recording::before {
   background: var(--calm);
 }
+.pending-recording-recovered-badge {
+  display: inline-block;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(218, 138, 59, 0.5);
+  color: var(--body);
+  margin-bottom: 8px;
+}
 .pending-recording-actions {
   display: flex;
   gap: 8px;

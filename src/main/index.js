@@ -9,7 +9,7 @@ import { initPendingPanelView } from './pendingPanelView.js'
 import { initAutoBackup } from './autoBackup.js'
 import { initAutoCapture } from './autoCapture.js'
 import { initReplayCleanup } from './replayCleanup.js'
-import { cleanupLegacyTempDir } from './capture.js'
+import { cleanupLegacyTempDir, recoverOrphanedRecordings } from './capture.js'
 import { initEventLoopWatchdog } from './services/eventLoopWatchdog.js'
 // Imported (not just called) before app.whenReady() below — its module
 // body registers the statbound-replay:// scheme as privileged, which
@@ -62,7 +62,7 @@ function createMainWindow() {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // No File/Edit/View/Window/Help bar — this app has no menu-driven
   // actions (no keyboard-shortcut-only features, nothing that needs a
   // native menu), so Electron's default application menu would only add
@@ -89,6 +89,10 @@ app.whenReady().then(() => {
   initAutoBackup()
   initReplayCleanup()
   cleanupLegacyTempDir()
+  // Must run before createMainWindow()/initAutoCapture() below — see
+  // recoverOrphanedRecordings()'s own comment for why that ordering is
+  // what makes every file it finds unambiguous.
+  await recoverOrphanedRecordings()
   registerReplayProtocol()
   initEventLoopWatchdog()
 

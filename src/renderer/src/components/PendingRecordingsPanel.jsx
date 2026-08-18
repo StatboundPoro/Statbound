@@ -5,7 +5,9 @@ import { formatDuration, formatSessionTime } from '../lib/stats.js'
 // recording attached (see src/main/replays.js's listPendingReplays() for
 // the two item shapes this merges: hasRecording: true for a linkable
 // video file, hasRecording: false for a bare session detected via
-// WebSocket with no recording ever tied to it). No positioning or
+// WebSocket with no recording ever tied to it, or one pieced together
+// after a crash from a sidecar whose video couldn't be salvaged — see
+// item.recovered below). No positioning or
 // confirm-dialog logic of its own: it's rendered inside a dedicated
 // standalone view (see PendingPanelWindow.jsx) whose own bounds already
 // place it correctly, and "Discard" just asks the parent to own the
@@ -31,6 +33,11 @@ export default function PendingRecordingsPanel({ replays, fading, onMouseEnter, 
               <div className={`pending-recording-status ${item.hasRecording ? 'has-recording' : 'no-recording'}`}>
                 {item.hasRecording ? 'Recording available' : 'No recording'}
               </div>
+              {item.recovered && (
+                <div className="pending-recording-recovered-badge">
+                  Recovered after a crash, estimated time
+                </div>
+              )}
               <div className="pending-recording-actions">
                 <button className="btn" onClick={() => onLogMatch(item)}>
                   Log Match

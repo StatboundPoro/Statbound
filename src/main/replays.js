@@ -128,7 +128,13 @@ export function listUnlinkedReplays() {
  *  - In-memory items (`hasRecording: false`): sessions that finished with
  *    no recording ever tied to them (see matchSessions.js), gone on
  *    restart if never logged or discarded — there's nothing on disk to
- *    persist them with.
+ *    persist them with. A `recovered: true` item is this same shape,
+ *    pieced together at startup from a crashed recording's sidecar JSON
+ *    after its video couldn't be salvaged (see capture.js's
+ *    recoverOrphanedRecordings() and matchSessions.js's
+ *    addRecoveredSession()) — its `endedAt` is a best-effort estimate (the
+ *    broken temp file's own last-modified time), not a real completion
+ *    signal, since the lobby-detection trigger never fired for it.
  *
  * Every item carries a stable `id` for UI list keys (`filePath` for a
  * recording, `session:<gameInstanceId>` for an in-memory one, since the
@@ -167,7 +173,8 @@ export function listPendingReplays() {
     gameInstanceId: session.gameInstanceId,
     startedAt: session.startedAt,
     endedAt: session.endedAt,
-    matchResult: session.matchResult ?? null
+    matchResult: session.matchResult ?? null,
+    recovered: session.recovered ?? false
   }))
 
   return [...fileItems, ...sessionItems].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
