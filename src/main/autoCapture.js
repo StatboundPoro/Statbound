@@ -48,11 +48,14 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 // auto-fill" entry) — confirmed via real testing to be wrong: neither
 // object ever reflected a chosen battlefield, staying byte-for-byte
 // identical from join to match end even after a real pick. Moved to DOM
-// instead, mirroring the already-confirmed-working opponent Legend
-// selector's exact `data-zone-owner`/`data-drop-zone` pattern for both
-// sides — **not yet confirmed against real markup** the way Legend/score
-// were; if this doesn't populate, inspect a real battlefield element's
-// `data-drop-zone` value in devtools and correct the selector below.
+// instead — confirmed via real inspected markup that each player's
+// battlefield is its own board slot, `[data-battlefield-surface-slot="own"
+// |"opponent"]` ("own", not "self" — unlike the Legend/score selectors
+// above), each containing exactly one `[data-battlefield-marker]` wrapping
+// the battlefield card's own art `<img>`, whose `alt` is the real
+// battlefield name (e.g. "Zaun Warrens") — the same "read a card image's
+// alt text" pattern the Legend selector already uses, just scoped by which
+// board slot rather than by `data-zone-owner`.
 //
 // Opponent score's node has no aria-pressed/data-* marking which of its
 // nine children (values 0-8) is active — only a differing `class` string
@@ -91,12 +94,12 @@ const SESSION_STATE_CHECK_SCRIPT = `
   } catch (err) {}
 
   try {
-    const img = document.querySelector('section[data-zone-owner="self"] [data-drop-zone="battlefield"] img');
+    const img = document.querySelector('[data-battlefield-surface-slot="own"] [data-battlefield-marker] img');
     result.selfBattlefield = (img && img.alt) || null;
   } catch (err) {}
 
   try {
-    const img = document.querySelector('section[data-zone-owner="opponent"] [data-drop-zone="battlefield"] img');
+    const img = document.querySelector('[data-battlefield-surface-slot="opponent"] [data-battlefield-marker] img');
     result.opponentBattlefield = (img && img.alt) || null;
   } catch (err) {}
 
