@@ -51,12 +51,14 @@ function emptyCapture(selfPlayerId) {
     boundarySnapshots: {},
     domOpponentLegend: null,
     domScore: { self: null, opponent: null },
-    // Diagnostic-only, not part of the result: guards the one-time shape
-    // dumps below so a long match doesn't spam the console with the same
-    // structure on every message — see the "battlefields not filling"
-    // debugging note in CLAUDE.md's Decision Log.
-    loggedSelfPlayerShape: false,
-    loggedPublicPlayersShape: false
+    // Diagnostic-only, not part of the result: last-logged JSON for the
+    // shape dumps below, so a long match logs only when selfPlayer/
+    // publicPlayers actually change (e.g. the moment a battlefield gets
+    // selected) rather than spamming the same structure on every message
+    // — see the "battlefields not filling" debugging note in CLAUDE.md's
+    // Decision Log.
+    lastLoggedSelfPlayerJson: null,
+    lastLoggedPublicPlayersJson: null
   }
 }
 
@@ -134,16 +136,22 @@ export function ingestWebSocketMessage(message) {
     }
 
     try {
-      // One-time diagnostic dump — battlefield pre-fill was reported not
-      // working for either side in a real match while Legend/name/score
-      // (fed by completely different fields/sources) worked fine, which
-      // means either `selfPlayer` isn't shaped the way this was built
-      // against, or `.selectedBattlefield` isn't the real field name. This
-      // makes the real shape visible in the main process console the next
-      // time someone reproduces it, instead of guessing again.
-      if (doc.selfPlayer && !capture.loggedSelfPlayerShape) {
-        capture.loggedSelfPlayerShape = true
-        console.info('[match result capture] doc.selfPlayer (first seen this session):', JSON.stringify(doc.selfPlayer))
+      // Change-gated diagnostic dump — battlefield pre-fill was reported
+      // not working for either side in a real match while Legend/name/
+      // score (fed by completely different fields/sources) worked fine,
+      // which means either `selfPlayer` isn't shaped the way this was
+      // built against, or `.selectedBattlefield` isn't the real field
+      // name. A FIRST-SEEN-only dump missed it (that snapshot was from
+      // right at join, before battlefield selection happens) — this logs
+      // on every actual change instead, so the moment a battlefield gets
+      // picked shows up as a new line with whatever field it actually
+      // adds.
+      if (doc.selfPlayer) {
+        const json = JSON.stringify(doc.selfPlayer)
+        if (json !== capture.lastLoggedSelfPlayerJson) {
+          capture.lastLoggedSelfPlayerJson = json
+          console.info('[match result capture] doc.selfPlayer changed:', json)
+        }
       }
     } catch {
       // ignore
@@ -157,11 +165,14 @@ export function ingestWebSocketMessage(message) {
     }
 
     try {
-      // Same one-time diagnostic dump as doc.selfPlayer above, for the
+      // Same change-gated diagnostic dump as doc.selfPlayer above, for the
       // opponent side.
-      if (Array.isArray(doc.publicPlayers) && doc.publicPlayers.length > 0 && !capture.loggedPublicPlayersShape) {
-        capture.loggedPublicPlayersShape = true
-        console.info('[match result capture] doc.publicPlayers (first seen this session):', JSON.stringify(doc.publicPlayers))
+      if (Array.isArray(doc.publicPlayers) && doc.publicPlayers.length > 0) {
+        const json = JSON.stringify(doc.publicPlayers)
+        if (json !== capture.lastLoggedPublicPlayersJson) {
+          capture.lastLoggedPublicPlayersJson = json
+          console.info('[match result capture] doc.publicPlayers changed:', json)
+        }
       }
     } catch {
       // ignore
