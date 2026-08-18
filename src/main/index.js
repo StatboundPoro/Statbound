@@ -16,6 +16,10 @@ import { initUpdateCheck, checkForUpdateIfDue } from './services/updateCheck.js'
 // body registers the statbound-replay:// scheme as privileged, which
 // Electron only honors when done before the app is ready.
 import { registerReplayProtocol } from './replayProtocol.js'
+// Same reasoning as registerReplayProtocol above -- its module body
+// registers the statbound-legend-art:// scheme as privileged before the
+// app is ready.
+import { registerLegendArtProtocol } from './legendArtProtocol.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -95,6 +99,7 @@ app.whenReady().then(async () => {
   // what makes every file it finds unambiguous.
   await recoverOrphanedRecordings()
   registerReplayProtocol()
+  registerLegendArtProtocol()
   initEventLoopWatchdog()
 
   const win = createMainWindow()

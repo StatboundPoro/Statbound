@@ -37,14 +37,17 @@ contextBridge.exposeInMainWorld('api', {
   },
   legendArt: {
     // Resolves a deck's own Legend name to a cached, cropped portrait
-    // avatar as a data: URL, or null if unavailable for any reason (no
-    // network, no Riftcodex match, download/crop failure) -- the renderer
-    // (see DeckAvatar.jsx) treats null as "render the existing crest
-    // instead," never as an error. Main does the fetch/crop/disk-cache
-    // work entirely itself (src/main/legendArtCache.js); a data: URL is
-    // handed back directly since these are small, already-cropped images,
-    // unlike the video files replays.getByMatch serves through their own
-    // scoped statbound-replay:// protocol instead.
+    // avatar as a statbound-legend-art:// URL, or null if unavailable for
+    // any reason (no network, no Riftcodex match, download/crop failure)
+    // -- the renderer (see DeckAvatar.jsx) treats null as "render the
+    // existing crest instead," never as an error. Main does the
+    // fetch/crop/disk-cache work entirely itself
+    // (src/main/legendArtCache.js), serving the result through its own
+    // scoped protocol (src/main/legendArtProtocol.js) rather than a data:
+    // URL -- the app's CSP has no data: allowance, so a data: URL <img>
+    // renders as a broken image; bypassCSP: true on this privileged scheme
+    // is what actually works, the same mechanism replays.getByMatch's
+    // statbound-replay:// protocol already relies on for video.
     getUrl: (legendName) => ipcRenderer.invoke('legend-art:get-url', legendName)
   },
   insights: {

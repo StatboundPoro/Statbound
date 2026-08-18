@@ -4,7 +4,8 @@ import { createDeck, deleteDeck, getDeckById, listDecks, updateDeck } from './de
 import { createMatch, deleteMatch, getMatchById, listMatches, updateMatch } from './matches.js'
 import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } from './deckNotes.js'
 import { listLegends } from './legends.js'
-import { getLegendArtDataUrl } from './legendArtCache.js'
+import { getLegendArtCachePath } from './legendArtCache.js'
+import { legendArtFileUrl } from './legendArtProtocol.js'
 import { getInsights } from './insights.js'
 import { getMatchupMatrix } from './matchupMatrix.js'
 import {
@@ -77,9 +78,13 @@ export function registerIpcHandlers() {
   ipcMain.handle('deck-notes:update', (_event, id, patch) => updateDeckNote(id, patch))
   ipcMain.handle('deck-notes:delete', (_event, id) => deleteDeckNote(id))
   ipcMain.handle('legends:list', () => listLegends())
-  // Returns a data: URL for the deck's Legend's cached, cropped portrait
-  // avatar, or null if unavailable for any reason -- see legendArtCache.js.
-  ipcMain.handle('legend-art:get-url', (_event, legendName) => getLegendArtDataUrl(legendName))
+  // Returns a statbound-legend-art:// URL for the deck's Legend's cached,
+  // cropped portrait avatar, or null if unavailable for any reason -- see
+  // legendArtCache.js and legendArtProtocol.js.
+  ipcMain.handle('legend-art:get-url', async (_event, legendName) => {
+    const filePath = await getLegendArtCachePath(legendName)
+    return filePath ? legendArtFileUrl(filePath) : null
+  })
   ipcMain.handle('insights:get', (_event, params) => getInsights(params ?? {}))
   ipcMain.handle('matchup-matrix:get', () => getMatchupMatrix())
   ipcMain.handle('settings:export', () => exportBackup())

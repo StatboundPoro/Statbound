@@ -8,8 +8,9 @@ import { LEGEND_ART_CROP_OVERRIDES } from './data/legendArtCropOverrides.js'
 
 // Two-stage crop applied ONCE, at cache time, on a real downloaded image via
 // sharp -- never per-render. The renderer only ever displays an
-// already-cropped square PNG, handed to it as a data: URL by
-// getLegendArtDataUrl() below; there's no compound CSS cropping anywhere.
+// already-cropped square PNG, served through the statbound-legend-art://
+// protocol (see legendArtProtocol.js) once getLegendArtCachePath() below
+// confirms it's on disk; there's no compound CSS cropping anywhere.
 //
 // Stage 1 (fixed template, same for every card): crop to the top ~58% of
 // the source image's height, inset ~4% from the left/right edges. This
@@ -108,8 +109,7 @@ async function resolveAndCache(legendName) {
       await downloadCropAndCache(legendName, imageUrl)
     }
 
-    const buffer = fs.readFileSync(filePath)
-    return `data:image/png;base64,${buffer.toString('base64')}`
+    return filePath
   } catch (err) {
     // Network failure, a Legend that can't be matched against Riftcodex, a
     // malformed image, a crop failure -- all fall back to null here, which
@@ -122,17 +122,14 @@ async function resolveAndCache(legendName) {
 }
 
 /**
- * Returns a data: URL for a deck's Legend's cached, cropped portrait avatar,
- * or null if none is available for any reason. Reads straight off disk on a
- * cache hit -- including across app restarts, since the cache lives under
- * userData -- and only reaches the network on a genuine miss. Served as a
- * data: URL over plain IPC rather than a second scoped custom protocol (the
- * pattern replays:get-by-match uses for video, see replayProtocol.js):
- * these are small, already-cropped, cached PNGs, not something that needs
- * HTTP range-request streaming, so a data: URL is the simpler safe option
- * here -- it never exposes a raw file:// path to the renderer either way.
+ * Returns the absolute on-disk path to a deck's Legend's cached, cropped
+ * portrait avatar (ipc.js turns this into a statbound-legend-art:// URL via
+ * legendArtProtocol.js's legendArtFileUrl()), or null if none is available
+ * for any reason. Resolves instantly on a cache hit -- including across app
+ * restarts, since the cache lives under userData -- and only reaches the
+ * network on a genuine miss.
  */
-export function getLegendArtDataUrl(legendName) {
+export function getLegendArtCachePath(legendName) {
   if (!legendName) return Promise.resolve(null)
 
   const key = normalizeLegendName(legendName)
