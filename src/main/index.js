@@ -2,7 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { app, BrowserWindow, Menu } from 'electron'
 import { getDb, migrateLegacyDbFilename } from './db.js'
-import { migrateLegacyUserData } from './userDataMigration.js'
+import { migrateLegacyUserData, migrateLegacyPreferencePaths } from './userDataMigration.js'
 import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
 import { initPendingPanelView } from './pendingPanelView.js'
@@ -71,6 +71,11 @@ app.whenReady().then(() => {
   // Must run before getDb() below — see userDataMigration.js for why and
   // what it does.
   migrateLegacyUserData()
+  // Must run after migrateLegacyUserData() above (preferences.json has to
+  // already be copied into the new folder) — fixes up stale RiftTrack-era
+  // absolute paths left inside it. See userDataMigration.js for the two
+  // cases this handles.
+  migrateLegacyPreferencePaths()
   // Also must run before getDb() below — see db.js's migrateLegacyDbFilename()
   // for why (renaming after the database is opened risks orphaning WAL/SHM
   // sidecar files under the old name).

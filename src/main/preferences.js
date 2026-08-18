@@ -63,7 +63,12 @@ const DEFAULT_PLAY = {
   lastSelectedPlayDeckId: null
 }
 
-function readRaw() {
+// Exported so userDataMigration.js's legacy-path repointing can read and
+// rewrite the same file directly, rather than going through the
+// default-filling get*Prefs()/update*Prefs() helpers below (which would
+// resolve a *new* default into any preference that isn't set at all, not
+// just repoint one that's stale) — see migrateLegacyPreferencePaths() there.
+export function readRaw() {
   try {
     const text = fs.readFileSync(preferencesPath(), 'utf-8')
     return JSON.parse(text)
@@ -72,7 +77,7 @@ function readRaw() {
   }
 }
 
-function writeRaw(data) {
+export function writeRaw(data) {
   fs.mkdirSync(path.dirname(preferencesPath()), { recursive: true })
   fs.writeFileSync(preferencesPath(), JSON.stringify(data, null, 2))
 }
