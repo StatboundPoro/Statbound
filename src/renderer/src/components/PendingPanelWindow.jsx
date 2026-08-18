@@ -96,13 +96,25 @@ export default function PendingPanelWindow() {
     // getBoundingClientRect() report the panel's real rendered footprint
     // instead of 0.
     <div ref={rootRef} style={{ display: 'inline-block' }}>
-      <PendingRecordingsPanel
-        replays={replays}
-        fading={fading}
-        onMouseEnter={() => window.api.pendingPanel.notifyMouseEnter()}
-        onLogMatch={(replay) => window.api.pendingPanel.notifyLogMatch(replay)}
-        onRequestDiscard={setDiscardTarget}
-      />
+      {/* Hidden (not unmounted) rather than conditionally rendered while
+          the confirm dialog is up: expandPendingPanel() grows this view's
+          own bounds to the whole window so the dialog isn't clipped, but
+          this panel still sits in normal document flow at that view's
+          origin - without hiding it, it would visibly render pinned to
+          the window's top-left corner behind the dialog's backdrop rather
+          than staying out of sight. visibility (not display: none) keeps
+          this element's layout box intact so the ResizeObserver above
+          keeps reporting its real footprint, which is what lets collapse()
+          restore the popover to the right size once the dialog closes. */}
+      <div style={discardTarget ? { visibility: 'hidden' } : undefined}>
+        <PendingRecordingsPanel
+          replays={replays}
+          fading={fading}
+          onMouseEnter={() => window.api.pendingPanel.notifyMouseEnter()}
+          onLogMatch={(replay) => window.api.pendingPanel.notifyLogMatch(replay)}
+          onRequestDiscard={setDiscardTarget}
+        />
+      </div>
 
       {discardTarget && (
         <ConfirmDialog
