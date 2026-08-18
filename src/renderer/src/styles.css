@@ -274,6 +274,65 @@ body {
   font-size: 12px;
 }
 
+/* ---------- APP UPDATE ---------- */
+/* Unlike the Pending Recordings popover above, this one renders as plain
+   DOM right inside the rail's own document rather than through a second
+   overlay WebContentsView — see Sidebar.jsx's comment on why that
+   heavier mechanism isn't justified for something this infrequent
+   (App.jsx's embedHidden covers the one case where it would otherwise
+   render invisibly underneath the Play tab's embed). */
+.rail-update-wrap {
+  position: relative;
+}
+.rail-badge-dot {
+  min-width: 9px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border-radius: 50%;
+}
+.update-panel {
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  margin-left: 12px;
+  width: 240px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  z-index: 40;
+}
+.update-panel-title {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+.update-panel-body {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+.update-panel-button {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-hover);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.update-panel-button:hover {
+  background: var(--border);
+}
+
 /* ---------- MAIN ---------- */
 /* width: 100% + max-width + margin: 0 auto centers the capped-width column
    inside the (now frequently much wider than 1640px, on a maximized/

@@ -41,6 +41,12 @@ export default function App() {
   // that deck. Kept separate from queuedReplay above since the two are
   // unrelated entry points into the same LogMatchModal.
   const [manualLogMatchDeckId, setManualLogMatchDeckId] = useState(undefined)
+  // Mirrors Sidebar's own update-panel open state (see its
+  // onUpdatePanelOpenChange callback) purely so the Play tab's embed can be
+  // hidden while it's open — same embedHidden reasoning as queuedReplay/
+  // manualLogMatchDeckId below, since this popover also renders as plain
+  // DOM in this window's own document.
+  const [updatePanelOpen, setUpdatePanelOpen] = useState(false)
   // Bumped (not just a boolean) every time the queue gains a new entry —
   // a recording finishing, or a non-recorded session ending — so
   // Sidebar's effect, which auto-opens the queue popover as a self-
@@ -166,6 +172,7 @@ export default function App() {
         onLogMatch={setQueuedReplay}
         onPendingChanged={refreshPendingReplays}
         logQueueSignal={logQueueSignal}
+        onUpdatePanelOpenChange={setUpdatePanelOpen}
       />
       {screen === 'play' ? (
         <PlayScreen
@@ -185,7 +192,7 @@ export default function App() {
           // screen's own manual Log Match button, while the user is still
           // on this screen, it would otherwise be stuck invisibly
           // underneath the embed with no way to click into it.
-          embedHidden={Boolean(queuedReplay) || manualLogMatchDeckId !== undefined}
+          embedHidden={Boolean(queuedReplay) || manualLogMatchDeckId !== undefined || updatePanelOpen}
         />
       ) : screen === 'matches' ? (
         <MatchHistory />

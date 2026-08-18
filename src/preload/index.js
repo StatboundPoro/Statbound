@@ -182,5 +182,22 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('pending-panel:changed', handler)
       return () => ipcRenderer.removeListener('pending-panel:changed', handler)
     }
+  },
+  // Check-only auto-update (see src/main/services/updateCheck.js) — a
+  // throttled, once-daily check against GitHub Releases with no
+  // auto-download or auto-install of any kind. getStatus() is Sidebar's
+  // one-time fetch on mount; onStatusChanged pushes an update if the
+  // startup check (already in flight before any window exists) completes
+  // afterward, same shape as capture.onAutoStart/onAutoStop above.
+  // openReleasePage() takes no argument — main always opens whatever URL
+  // it already found itself, never one passed in from the renderer.
+  updates: {
+    getStatus: () => ipcRenderer.invoke('updates:get-status'),
+    openReleasePage: () => ipcRenderer.send('updates:open-release-page'),
+    onStatusChanged: (callback) => {
+      const handler = (_event, status) => callback(status)
+      ipcRenderer.on('updates:status-changed', handler)
+      return () => ipcRenderer.removeListener('updates:status-changed', handler)
+    }
   }
 })

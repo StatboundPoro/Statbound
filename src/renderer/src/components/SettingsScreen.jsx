@@ -363,6 +363,16 @@ export default function SettingsScreen() {
             </div>
           </div>
         </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-title">App Updates</div>
+            <div className="settings-row-desc">
+              Statbound checks GitHub once a day for a newer released version. If one is found, a
+              badge appears in the sidebar linking to the release page. Nothing is ever downloaded or
+              installed automatically, and no information about you or your usage is ever sent.
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="section-label">Automatic Backups</div>

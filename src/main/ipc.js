@@ -50,6 +50,7 @@ import {
 import { startRecording, stopRecording } from './capture.js'
 import { createReplay, discardPendingReplay, getReplayByMatchId, listPendingReplays, listUnlinkedReplays } from './replays.js'
 import { replayFileUrl } from './replayProtocol.js'
+import { getUpdateStatus, openReleasePage } from './services/updateCheck.js'
 
 /**
  * Registers every ipcMain.handle() endpoint the renderer is allowed to call.
@@ -143,4 +144,11 @@ export function registerIpcHandlers() {
   ipcMain.on('pending-panel:log-match', (_event, replay) => relayLogMatch(replay))
   ipcMain.on('pending-panel:mouse-enter', () => relayMouseEnter())
   ipcMain.on('pending-panel:changed', () => relayChanged())
+  // Check-only auto-update (see services/updateCheck.js) — getStatus() is
+  // the Sidebar badge's one-time fetch on mount (it also gets pushed
+  // updates:status-changed once the startup check completes, see
+  // index.js); open-release-page is fire-and-forget since it just calls
+  // shell.openExternal() with no return value.
+  ipcMain.handle('updates:get-status', () => getUpdateStatus())
+  ipcMain.on('updates:open-release-page', () => openReleasePage())
 }

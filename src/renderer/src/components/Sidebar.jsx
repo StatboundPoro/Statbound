@@ -69,7 +69,8 @@ export default function Sidebar({
   pendingReplays,
   onLogMatch,
   onPendingChanged,
-  logQueueSignal
+  logQueueSignal,
+  onUpdatePanelOpenChange
 }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [fading, setFading] = useState(false)
@@ -82,6 +83,41 @@ export default function Sidebar({
   const fadeTimerRef = useRef(null)
   const dismissTimerRef = useRef(null)
   const pendingCount = pendingReplays.length
+
+  // Check-only auto-update (see src/main/services/updateCheck.js) — null
+  // until the one-time getStatus() fetch on mount resolves. Unlike the
+  // Pending Recordings popover above, this one renders as plain DOM right
+  // here rather than through its own dedicated overlay WebContentsView:
+  // it never auto-opens, so the one case where it could render invisibly
+  // underneath the Play tab's embed (see App.jsx's embedHidden) is handled
+  // the same way LogMatchModal already handles that for itself, rather
+  // than justifying a second overlay view for something this infrequent.
+  const [updateStatus, setUpdateStatus] = useState(null)
+  const [updatePanelOpen, setUpdatePanelOpen] = useState(false)
+  const updateTriggerRef = useRef(null)
+
+  useEffect(() => {
+    window.api.updates
+      .getStatus()
+      .then(setUpdateStatus)
+      .catch((err) => console.error('Failed to load update status:', err))
+    return window.api.updates.onStatusChanged(setUpdateStatus)
+  }, [])
+
+  useEffect(() => {
+    onUpdatePanelOpenChange?.(updatePanelOpen)
+  }, [updatePanelOpen, onUpdatePanelOpenChange])
+
+  useEffect(() => {
+    if (!updatePanelOpen) return
+    function handlePointerDown(e) {
+      if (updateTriggerRef.current && !updateTriggerRef.current.contains(e.target)) {
+        setUpdatePanelOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [updatePanelOpen])
 
   function clearAutoDismissTimers() {
     if (fadeTimerRef.current) {
@@ -264,6 +300,58 @@ export default function Sidebar({
             <div className="rail-label">Log Match</div>
           </div>
         </div>
+
+        {/* Hidden entirely unless a newer version was actually found — see
+            services/updateCheck.js. There's nothing to click before then,
+            unlike the always-present Log Match trigger above (which stays
+            visible even at zero, since a click still answers a real
+            question). */}
+        {updateStatus?.available && (
+          <div className="rail-update-wrap">
+            <div
+              ref={updateTriggerRef}
+              className={`rail-item clickable ${updatePanelOpen ? 'active' : ''}`}
+              role="button"
+              tabIndex={0}
+              title={`Update available: v${updateStatus.version}`}
+              onClick={() => setUpdatePanelOpen((open) => !open)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') setUpdatePanelOpen((open) => !open)
+              }}
+            >
+              <div className="rail-badge-wrap">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 4v11M7 10l5 5 5-5"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path d="M5 19h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                <span className="rail-badge rail-badge-dot" />
+              </div>
+              <div className="rail-label">Update</div>
+            </div>
+
+            {updatePanelOpen && (
+              <div className="update-panel">
+                <div className="update-panel-title">Update Available</div>
+                <div className="update-panel-body">
+                  Statbound {updateStatus.version} is available. You're on {updateStatus.currentVersion}.
+                </div>
+                <button
+                  type="button"
+                  className="update-panel-button"
+                  onClick={() => window.api.updates.openReleasePage()}
+                >
+                  View Release Notes
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           className={`rail-item clickable ${active === 'settings' ? 'active' : ''}`}

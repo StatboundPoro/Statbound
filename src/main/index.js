@@ -11,6 +11,7 @@ import { initAutoCapture } from './autoCapture.js'
 import { initReplayCleanup } from './replayCleanup.js'
 import { cleanupLegacyTempDir, recoverOrphanedRecordings } from './capture.js'
 import { initEventLoopWatchdog } from './services/eventLoopWatchdog.js'
+import { initUpdateCheck, checkForUpdateIfDue } from './services/updateCheck.js'
 // Imported (not just called) before app.whenReady() below — its module
 // body registers the statbound-replay:// scheme as privileged, which
 // Electron only honors when done before the app is ready.
@@ -100,6 +101,12 @@ app.whenReady().then(async () => {
   initPlayView(win)
   initPendingPanelView(win)
   initAutoCapture(win)
+  initUpdateCheck(win)
+  // Fire-and-forget, same non-blocking pattern as the Legend registry sync
+  // in db.js -- a slow or failed GitHub check can never delay startup.
+  // Called once here (not from the activate handler below), since it's an
+  // app-launch-scoped check, not something that needs repeating per window.
+  checkForUpdateIfDue().catch((err) => console.error('Unexpected error checking for updates:', err))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -107,6 +114,7 @@ app.whenReady().then(async () => {
       initPlayView(nextWin)
       initPendingPanelView(nextWin)
       initAutoCapture(nextWin)
+      initUpdateCheck(nextWin)
     }
   })
 })

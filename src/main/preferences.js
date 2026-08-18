@@ -73,6 +73,15 @@ const DEFAULT_LEGEND_SYNC = {
   lastLegendSyncAt: null
 }
 
+// When the app last checked GitHub Releases for a newer published version
+// (see src/main/services/updateCheck.js) -- an installation-level fact, same
+// "outside SQLite" reasoning as everything else in this file. null means
+// "never" (a fresh install, or every attempt so far has failed), which the
+// throttle treats as due for a check attempt right away.
+const DEFAULT_UPDATE_CHECK = {
+  lastUpdateCheckAt: null
+}
+
 // Exported so userDataMigration.js's legacy-path repointing can read and
 // rewrite the same file directly, rather than going through the
 // default-filling get*Prefs()/update*Prefs() helpers below (which would
@@ -220,4 +229,28 @@ export function updateLegendSyncPrefs(patch) {
   const legendSync = { ...DEFAULT_LEGEND_SYNC, ...raw.legendSync, ...patch }
   writeRaw({ ...raw, legendSync })
   return legendSync
+}
+
+/**
+ * Returns the current update-check preferences (currently just
+ * lastUpdateCheckAt), filling in the default if unset.
+ */
+export function getUpdateCheckPrefs() {
+  const raw = readRaw()
+  return { ...DEFAULT_UPDATE_CHECK, ...raw.updateCheck }
+}
+
+/**
+ * Persists an update-check preference change. Called only from
+ * updateCheck.js's checkForUpdateIfDue(), right after a GitHub Releases
+ * fetch actually succeeds -- a throttled skip or a failed fetch must never
+ * update this, matching getLegendSyncPrefs()/updateLegendSyncPrefs()'s
+ * identical reasoning above (a transient failure should be retried on the
+ * very next launch, not silently postponed a full day).
+ */
+export function updateUpdateCheckPrefs(patch) {
+  const raw = readRaw()
+  const updateCheck = { ...DEFAULT_UPDATE_CHECK, ...raw.updateCheck, ...patch }
+  writeRaw({ ...raw, updateCheck })
+  return updateCheck
 }
