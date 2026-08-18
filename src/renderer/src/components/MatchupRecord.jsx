@@ -27,8 +27,10 @@ function sortRecords(records, sortKey) {
 // recomputing anything from the individual games. "Deck Used" is the same
 // for every row here since Deck Detail is already scoped to one deck, but
 // the column is kept for parity with how this data is described elsewhere
-// and in case this component is ever reused unscoped.
-function MatchupMatchesTable({ matches, deckName, onSelectMatch }) {
+// and in case this component is ever reused unscoped. Exported so the
+// Matchup Matrix screen's per-cell drill-down popover can reuse the exact
+// same rendering rather than duplicating this table a second time.
+export function MatchupMatchesTable({ matches, deckName, onSelectMatch }) {
   if (matches.length === 0) {
     return <div className="matchup-games-empty">No matches recorded for this matchup.</div>
   }

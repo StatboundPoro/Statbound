@@ -9,11 +9,12 @@ import AppMark from '../lib/appMark.jsx'
 const AUTO_DISMISS_DELAY_MS = 4000
 const FADE_DURATION_MS = 1200
 
-// Play, Decks, Matches, and Insights all have real screens, so they're
-// clickable and their `key` doubles as the `screen` value App.jsx switches
-// on. Settings stays in its own `rail-bottom` slot (gear icon, pinned below
-// the main nav list) rather than joining NAV_ITEMS, since that's a
-// deliberate, distinct part of the rail's layout, not an oversight.
+// Play, Decks, Matches, Insights, and Matrix all have real screens, so
+// they're clickable and their `key` doubles as the `screen` value App.jsx
+// switches on. Settings stays in its own `rail-bottom` slot (gear icon,
+// pinned below the main nav list) rather than joining NAV_ITEMS, since
+// that's a deliberate, distinct part of the rail's layout, not an
+// oversight.
 const NAV_ITEMS = [
   {
     key: 'play',
@@ -58,6 +59,17 @@ const NAV_ITEMS = [
       <svg viewBox="0 0 24 24" fill="none">
         <path d="M4 12 Q4 4 12 4 Q20 4 20 12 Q20 20 12 20" stroke="currentColor" strokeWidth="1.6" />
         <path d="M12 8v4l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
+    key: 'matchup-matrix',
+    label: 'Matrix',
+    navigable: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="18" height="18" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="currentColor" strokeWidth="1.6" />
       </svg>
     )
   }

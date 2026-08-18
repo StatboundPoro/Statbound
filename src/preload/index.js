@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('api', {
   insights: {
     get: (params) => ipcRenderer.invoke('insights:get', params)
   },
+  matchupMatrix: {
+    get: () => ipcRenderer.invoke('matchup-matrix:get')
+  },
   settings: {
     export: () => ipcRenderer.invoke('settings:export'),
     pickImportFile: () => ipcRenderer.invoke('settings:pick-import-file'),

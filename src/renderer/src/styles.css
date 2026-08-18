@@ -2339,6 +2339,189 @@ body {
   margin-bottom: 12px;
 }
 
+/* ---------- MATCHUP MATRIX ---------- */
+/* The scroll container itself, not .main, owns the scroll here so sticky
+   header/column positioning has a bounded ancestor to pin against — .main
+   scrolling the whole page wouldn't keep the matrix's own headers in view
+   the same way. border-collapse: separate (not collapse) keeps sticky
+   cells' backgrounds painting correctly over the cells scrolling beneath
+   them. */
+.matrix-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 28px;
+}
+.matrix-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+}
+.matrix-table th,
+.matrix-table td {
+  padding: 0;
+}
+.matrix-corner,
+.matrix-col-header {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  text-align: left;
+  white-space: nowrap;
+  padding: 10px 14px !important;
+  z-index: 2;
+}
+.matrix-col-header {
+  text-align: center;
+}
+/* The top-left cell is sticky on both axes at once, so it needs a higher
+   z-index than either a plain column header (sticky top only) or a plain
+   row header (sticky left only) to stay above both as they pass beneath
+   it while scrolling diagonally. */
+.matrix-corner {
+  left: 0;
+  z-index: 3;
+  border-right: 1px solid var(--border);
+}
+.matrix-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  padding: 8px 14px !important;
+}
+.matrix-table tbody tr:last-child .matrix-row-header {
+  border-bottom: none;
+}
+.matrix-deck-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 200px;
+}
+.matrix-deck-name-text {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A compact stand-in for the full deck-crest treatment (see DESIGN
+   LANGUAGE's crest note) — the same diagonal two-domain split, just as a
+   small swatch rather than the full clip-path crest, since a matrix row
+   is far too short to fit the real thing. */
+.matrix-deck-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.matrix-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 84px;
+  height: 44px;
+  border: none;
+  border-bottom: 1px solid var(--border-soft);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.matrix-cell:hover {
+  outline: 1.5px solid var(--text-faint);
+  outline-offset: -1.5px;
+}
+.matrix-table tbody tr:last-child .matrix-cell,
+.matrix-table tbody tr:last-child .matrix-cell-empty {
+  border-bottom: none;
+}
+/* A genuinely empty cell (no matches for this deck/legend pair at all) is
+   plain and unclickable — visually blank rather than colored, so it reads
+   distinctly from a real 0% result, which is still a heatmap-colored,
+   clickable cell like any other. */
+.matrix-cell-empty {
+  width: 100%;
+  min-width: 84px;
+  height: 44px;
+  border-bottom: 1px solid var(--border-soft);
+}
+/* Same small-sample de-emphasis Insights' Matchup Breakdown table already
+   uses (see .insights-badge) — just compact enough to sit inside a dense
+   heatmap cell instead of a full text badge; the popover this opens shows
+   the full "Small sample" badge where there's room. */
+.matrix-cell-badge {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  border: 1px solid var(--border);
+}
+
+.matrix-popover {
+  position: fixed;
+  z-index: 30;
+  width: 340px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  padding: 14px;
+}
+.matrix-popover-header {
+  margin-bottom: 8px;
+}
+.matrix-popover-deck {
+  font-size: 14px;
+  font-weight: 600;
+}
+.matrix-popover-legend {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.matrix-popover-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.matrix-popover-rate {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 18px;
+  font-weight: 600;
+}
+.matrix-popover-rate.pos {
+  color: var(--calm);
+}
+.matrix-popover-rate.neg {
+  color: var(--fury);
+}
+.matrix-popover-record {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.matrix-popover-matches {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
 /* ---------- MATCH DETAIL MODAL ---------- */
 .recent-row {
   cursor: pointer;

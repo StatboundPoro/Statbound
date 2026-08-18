@@ -6,6 +6,7 @@ import MatchHistory from './components/MatchHistory.jsx'
 import PlayScreen from './components/PlayScreen.jsx'
 import SettingsScreen from './components/SettingsScreen.jsx'
 import InsightsScreen from './components/InsightsScreen.jsx'
+import MatchupMatrixScreen from './components/MatchupMatrixScreen.jsx'
 import LogMatchModal from './components/LogMatchModal.jsx'
 import WelcomeTour from './components/WelcomeTour.jsx'
 import { useScreenRecording } from './lib/recording.js'
@@ -198,6 +199,8 @@ export default function App() {
         <MatchHistory />
       ) : screen === 'insights' ? (
         <InsightsScreen initialDeckId={insightsDeckId} />
+      ) : screen === 'matchup-matrix' ? (
+        <MatchupMatrixScreen />
       ) : screen === 'settings' ? (
         <SettingsScreen />
       ) : selectedDeckId ? (

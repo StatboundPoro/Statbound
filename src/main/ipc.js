@@ -5,6 +5,7 @@ import { createMatch, deleteMatch, getMatchById, listMatches, updateMatch } from
 import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } from './deckNotes.js'
 import { listLegends } from './legends.js'
 import { getInsights } from './insights.js'
+import { getMatchupMatrix } from './matchupMatrix.js'
 import {
   getPlayNavState,
   hidePlayView,
@@ -76,6 +77,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('deck-notes:delete', (_event, id) => deleteDeckNote(id))
   ipcMain.handle('legends:list', () => listLegends())
   ipcMain.handle('insights:get', (_event, params) => getInsights(params ?? {}))
+  ipcMain.handle('matchup-matrix:get', () => getMatchupMatrix())
   ipcMain.handle('settings:export', () => exportBackup())
   ipcMain.handle('settings:pick-import-file', () => pickImportFile())
   ipcMain.handle('settings:import', (_event, filePath) => importBackup(filePath))
