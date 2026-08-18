@@ -329,9 +329,18 @@ function buildBo3Result(c, result) {
 
 /**
  * Builds the Bo1 portion of a finalized result — a single game, no
- * boundary/delta bookkeeping needed since there's only ever one. Uses
- * `snapshot.gameOutcome.winnerPlayerIds` directly (never winsByPlayerId,
- * which is a Bo3-only field per the Decision Log).
+ * boundary/delta bookkeeping needed since there's only ever one. Prefers
+ * `snapshot.gameOutcome.winnerPlayerIds` when available, but real testing
+ * showed it essentially never arrives for a Bo1 that ends by a player
+ * simply returning to the lobby rather than some formal end-of-game
+ * message — unlike Bo3, which gets its per-game winner from
+ * `winsByPlayerId` (a field that reliably updates as soon as any game
+ * concludes, including the deciding one), Bo1 has no equivalent
+ * WebSocket-sourced fallback at all. So `won` falls back to comparing
+ * both players' final in-game score (Source B/DOM, already captured for
+ * the `inGameScore` field below) — whichever side is ahead when the
+ * lobby-detection trigger fires is the winner; a tie or missing score
+ * leaves `won` at null rather than guessing.
  */
 function buildBo1Result(c, result) {
   const game = {
@@ -346,6 +355,18 @@ function buildBo1Result(c, result) {
   try {
     if (Array.isArray(c.bo1Outcome.winnerPlayerIds) && c.selfPlayerId && c.bo1Outcome.winnerPlayerIds.length > 0) {
       game.won = c.bo1Outcome.winnerPlayerIds.includes(c.selfPlayerId)
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (game.won === null) {
+      const self = c.domScore.self
+      const opponent = c.domScore.opponent
+      if (self !== null && self !== undefined && opponent !== null && opponent !== undefined && self !== opponent) {
+        game.won = self > opponent
+      }
     }
   } catch {
     // ignore
