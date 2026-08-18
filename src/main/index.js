@@ -10,6 +10,7 @@ import { initAutoBackup } from './autoBackup.js'
 import { initAutoCapture } from './autoCapture.js'
 import { initReplayCleanup } from './replayCleanup.js'
 import { cleanupLegacyTempDir } from './capture.js'
+import { initEventLoopWatchdog } from './services/eventLoopWatchdog.js'
 // Imported (not just called) before app.whenReady() below — its module
 // body registers the statbound-replay:// scheme as privileged, which
 // Electron only honors when done before the app is ready.
@@ -89,6 +90,7 @@ app.whenReady().then(() => {
   initReplayCleanup()
   cleanupLegacyTempDir()
   registerReplayProtocol()
+  initEventLoopWatchdog()
 
   const win = createMainWindow()
   initPlayView(win)
