@@ -48,10 +48,13 @@ function importWarningMessage(summary) {
 }
 
 // Settings has five sections. General holds Export/Import plus a read-only
-// display of where the database file lives; Data Sources is a small,
-// read-only disclosure of the app's one outbound network call (the
-// Riftcodex legend sync, see CLAUDE.md's Legends entry) — no controls,
-// just honesty about what leaves the machine and what doesn't; Automatic
+// display of where the database file lives; Data Sources discloses the
+// app's two outbound network calls (the Riftcodex legend sync and the
+// GitHub release check, see CLAUDE.md's Legends and Check-Only Auto-Update
+// entries) — the Legend Names row stays a plain disclosure with no
+// control, since that sync isn't something a user would ever need to
+// trigger by hand, but App Updates gets a manual "Check for Updates"
+// button next to its own disclosure text, for exactly that case; Automatic
 // Backups holds the scheduled background-backup toggle; Video Capture
 // holds replay-recording preferences (save location, quality preset, and
 // unlinked-recording cleanup — the actual recording control lives on the
@@ -88,6 +91,9 @@ export default function SettingsScreen() {
   // to click this, and replaying it here is a deliberate look-back, not
   // an un-completion of first-run state.
   const [tourOpen, setTourOpen] = useState(false)
+
+  const [checkingForUpdate, setCheckingForUpdate] = useState(false)
+  const [updateCheckStatus, setUpdateCheckStatus] = useState(null) // { message } | { error }
 
   useEffect(() => {
     window.api.settings
@@ -211,6 +217,26 @@ export default function SettingsScreen() {
     } catch (err) {
       console.error('Export failed:', err)
       setExportStatus({ error: 'Could not export a backup. Check the main process console.' })
+    }
+  }
+
+  async function handleCheckForUpdates() {
+    setCheckingForUpdate(true)
+    setUpdateCheckStatus(null)
+    try {
+      const result = await window.api.updates.checkNow()
+      if (!result.ok) {
+        setUpdateCheckStatus({ error: 'Could not check for updates. Check your connection and try again.' })
+      } else if (result.status.available) {
+        setUpdateCheckStatus({ message: `Statbound ${result.status.version} is available.` })
+      } else {
+        setUpdateCheckStatus({ message: `You're on the latest version (${result.status.currentVersion}).` })
+      }
+    } catch (err) {
+      console.error('Manual update check failed:', err)
+      setUpdateCheckStatus({ error: 'Could not check for updates. Check your connection and try again.' })
+    } finally {
+      setCheckingForUpdate(false)
     }
   }
 
@@ -372,7 +398,17 @@ export default function SettingsScreen() {
               installed automatically, and no information about you or your usage is ever sent.
             </div>
           </div>
+          <div className="settings-row-actions">
+            <button className="btn" onClick={handleCheckForUpdates} disabled={checkingForUpdate}>
+              {checkingForUpdate ? 'Checking...' : 'Check for Updates'}
+            </button>
+          </div>
         </div>
+        {updateCheckStatus && (
+          <div className={`settings-status ${updateCheckStatus.error ? 'error' : ''}`}>
+            {updateCheckStatus.error ?? updateCheckStatus.message}
+          </div>
+        )}
       </div>
 
       <div className="section-label">Automatic Backups</div>

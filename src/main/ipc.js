@@ -50,7 +50,7 @@ import {
 import { startRecording, stopRecording } from './capture.js'
 import { createReplay, discardPendingReplay, getReplayByMatchId, listPendingReplays, listUnlinkedReplays } from './replays.js'
 import { replayFileUrl } from './replayProtocol.js'
-import { getUpdateStatus, openReleasePage } from './services/updateCheck.js'
+import { checkForUpdateNow, getUpdateStatus, openReleasePage } from './services/updateCheck.js'
 
 /**
  * Registers every ipcMain.handle() endpoint the renderer is allowed to call.
@@ -148,7 +148,10 @@ export function registerIpcHandlers() {
   // the Sidebar badge's one-time fetch on mount (it also gets pushed
   // updates:status-changed once the startup check completes, see
   // index.js); open-release-page is fire-and-forget since it just calls
-  // shell.openExternal() with no return value.
+  // shell.openExternal() with no return value; check-now is Settings'
+  // manual "Check for Updates" button, which bypasses the 24h throttle
+  // and needs the outcome back to show inline feedback.
   ipcMain.handle('updates:get-status', () => getUpdateStatus())
   ipcMain.on('updates:open-release-page', () => openReleasePage())
+  ipcMain.handle('updates:check-now', () => checkForUpdateNow())
 }

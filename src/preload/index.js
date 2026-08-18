@@ -191,9 +191,14 @@ contextBridge.exposeInMainWorld('api', {
   // afterward, same shape as capture.onAutoStart/onAutoStop above.
   // openReleasePage() takes no argument — main always opens whatever URL
   // it already found itself, never one passed in from the renderer.
+  // checkNow() is Settings' manual "Check for Updates" button — bypasses
+  // the 24h throttle and returns its outcome directly (unlike the passive
+  // getStatus()/onStatusChanged() pair) so the button can show immediate
+  // inline feedback.
   updates: {
     getStatus: () => ipcRenderer.invoke('updates:get-status'),
     openReleasePage: () => ipcRenderer.send('updates:open-release-page'),
+    checkNow: () => ipcRenderer.invoke('updates:check-now'),
     onStatusChanged: (callback) => {
       const handler = (_event, status) => callback(status)
       ipcRenderer.on('updates:status-changed', handler)

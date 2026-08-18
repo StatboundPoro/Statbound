@@ -69,18 +69,50 @@ async function fetchLatestRelease() {
 }
 
 /**
+ * Does the actual fetch + version compare + state update, shared by both
+ * checkForUpdateIfDue() (the throttled startup check) and
+ * checkForUpdateNow() (an explicit user-triggered check that bypasses the
+ * throttle) below -- the only difference between the two is whether the
+ * 24h gate is consulted first. Throws on a network failure or a release
+ * response missing tag_name/html_url, deliberately not swallowed here, so
+ * checkForUpdateIfDue()'s try/catch can log-and-ignore it while
+ * checkForUpdateNow() can report a real failure back to the Settings
+ * button that triggered it. lastUpdateCheckAt only advances once a usable
+ * version/url is actually parsed out, matching services/legendSync.js's
+ * "only update the throttle timestamp on real success" contract -- a
+ * malformed response is retried on the very next attempt (automatic or
+ * manual) rather than being silently throttled for a full day. Always
+ * resolves updateStatus one way or the other (found or not found), so a
+ * later check correctly clears a previously-found update if the user
+ * updates by some other means before the next automatic check would have
+ * noticed. Pushes updates:status-changed to the renderer either way, so
+ * the Settings screen and Sidebar badge both immediately reflect whatever
+ * this check found.
+ */
+async function performCheck() {
+  const release = await fetchLatestRelease()
+  const tag = typeof release?.tag_name === 'string' ? release.tag_name : null
+  const version = tag ? tag.replace(/^v/, '') : null
+  const url = typeof release?.html_url === 'string' ? release.html_url : null
+  if (!version || !url) {
+    throw new Error('GitHub release response missing tag_name/html_url')
+  }
+
+  updateUpdateCheckPrefs({ lastUpdateCheckAt: new Date().toISOString() })
+  updateStatus = isNewerVersion(version, app.getVersion())
+    ? { available: true, version, url }
+    : { available: false, version: null, url: null }
+  mainWindow?.webContents.send('updates:status-changed', getUpdateStatus())
+}
+
+/**
  * Throttled, best-effort check against GitHub Releases, called once at
  * startup (see index.js). Skips the network call entirely if the last
  * check was under 24h ago, per preferences.json's lastUpdateCheckAt.
  * Wrapped entirely in try/catch -- a network failure, rate limit, missing
  * release, or malformed response all resolve to "no update found this
  * session" rather than throwing or blocking startup, the same contract
- * services/legendSync.js's fetch already follows. lastUpdateCheckAt is
- * only updated after a fetch actually succeeds, so a transient failure
- * gets retried on the very next launch rather than silently postponing the
- * next real attempt by a full day. If a genuinely newer version is found,
- * pushes updates:status-changed to the renderer so the Sidebar badge can
- * appear immediately rather than waiting for some unrelated refetch.
+ * services/legendSync.js's fetch already follows.
  */
 export async function checkForUpdateIfDue() {
   try {
@@ -92,20 +124,30 @@ export async function checkForUpdateIfDue() {
       return
     }
 
-    const release = await fetchLatestRelease()
-    const tag = typeof release?.tag_name === 'string' ? release.tag_name : null
-    const version = tag ? tag.replace(/^v/, '') : null
-    const url = typeof release?.html_url === 'string' ? release.html_url : null
-    if (!version || !url) return
-
-    updateUpdateCheckPrefs({ lastUpdateCheckAt: new Date().toISOString() })
-
-    if (isNewerVersion(version, app.getVersion())) {
-      updateStatus = { available: true, version, url }
-      mainWindow?.webContents.send('updates:status-changed', getUpdateStatus())
-    }
+    await performCheck()
   } catch (err) {
     console.error('GitHub release check failed:', err)
+  }
+}
+
+/**
+ * Explicit, user-triggered check from Settings' "Check for Updates"
+ * button -- always hits the network regardless of the 24h throttle (an
+ * explicit click is exactly the case that throttle isn't meant to block),
+ * but still advances lastUpdateCheckAt on success so the next automatic
+ * startup check doesn't immediately re-fire right after. Unlike
+ * checkForUpdateIfDue(), this returns its outcome directly rather than
+ * only logging it, since a manual check needs inline feedback ("You're up
+ * to date" / "Update found" / a failure message) rather than relying on
+ * the passive badge alone.
+ */
+export async function checkForUpdateNow() {
+  try {
+    await performCheck()
+    return { ok: true, status: getUpdateStatus() }
+  } catch (err) {
+    console.error('Manual GitHub release check failed:', err)
+    return { ok: false, status: getUpdateStatus() }
   }
 }
 
