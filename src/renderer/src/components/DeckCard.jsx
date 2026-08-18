@@ -1,5 +1,4 @@
-import { domainColor } from '../lib/domains.jsx'
-import { domainIcon } from '../lib/domainIcons.js'
+import DeckAvatar from './DeckAvatar.jsx'
 import { computeRecord, computeStreak, computeWinRate, formatRelativeTime } from '../lib/stats.js'
 
 export default function DeckCard({ deck, matches, onClick, onDeleteClick }) {
@@ -26,28 +25,16 @@ export default function DeckCard({ deck, matches, onClick, onDeleteClick }) {
           : undefined
       }
     >
-      <div className="deck-crest">
-        <div className="half a" style={{ background: domainColor(deck.domain_1) }} />
-        <div className="half b" style={{ background: domainColor(deck.domain_2) }} />
-        <div className="glyphs">
-          <div className="glyph">
-            {domainIcon(deck.domain_1) && <img src={domainIcon(deck.domain_1)} alt="" />}
-          </div>
-          {deck.domain_2 && (
-            <div className="glyph">
-              {domainIcon(deck.domain_2) && <img src={domainIcon(deck.domain_2)} alt="" />}
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="deck-body">
         <div className="deck-body-top">
-          <div>
-            <div className="deck-name">{deck.name}</div>
-            <div className="deck-domains">
-              {[deck.domain_1, deck.domain_2].filter(Boolean).join(' · ')}
-              {deck.legend_name ? ` · ${deck.legend_name}` : ''}
+          <div className="deck-card-heading-row">
+            <DeckAvatar deck={deck} size="md" showGlyphs />
+            <div>
+              <div className="deck-name">{deck.name}</div>
+              <div className="deck-domains">
+                {[deck.domain_1, deck.domain_2].filter(Boolean).join(' · ')}
+                {deck.legend_name ? ` · ${deck.legend_name}` : ''}
+              </div>
             </div>
           </div>
           {onDeleteClick && (

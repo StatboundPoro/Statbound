@@ -35,6 +35,18 @@ contextBridge.exposeInMainWorld('api', {
   legends: {
     list: () => ipcRenderer.invoke('legends:list')
   },
+  legendArt: {
+    // Resolves a deck's own Legend name to a cached, cropped portrait
+    // avatar as a data: URL, or null if unavailable for any reason (no
+    // network, no Riftcodex match, download/crop failure) -- the renderer
+    // (see DeckAvatar.jsx) treats null as "render the existing crest
+    // instead," never as an error. Main does the fetch/crop/disk-cache
+    // work entirely itself (src/main/legendArtCache.js); a data: URL is
+    // handed back directly since these are small, already-cropped images,
+    // unlike the video files replays.getByMatch serves through their own
+    // scoped statbound-replay:// protocol instead.
+    getUrl: (legendName) => ipcRenderer.invoke('legend-art:get-url', legendName)
+  },
   insights: {
     get: (params) => ipcRenderer.invoke('insights:get', params)
   },

@@ -11,7 +11,10 @@
 // classification.type === 'Legend' client-side. The exact 'Legend' string
 // was confirmed via GET /index/card-types, which enumerates
 // ["Battlefield","Gear","Legend","Rune","Spell","Unit"].
-const RIFTCODEX_BASE = 'https://api.riftcodex.com'
+// Exported so legendArt.js can hit the same API base for its own,
+// separate paginated fetch (Legend card art rather than just names) --
+// see that file for why it can't just reuse this module's own fetch loop.
+export const RIFTCODEX_BASE = 'https://api.riftcodex.com'
 const LEGEND_CARD_TYPE = 'Legend'
 const PAGE_SIZE = 100
 // Defensive cap, not a real expectation -- Riftcodex's own `pages` field

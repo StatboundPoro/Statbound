@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { domainColor } from '../lib/domains.jsx'
 import { domainIcon } from '../lib/domainIcons.js'
 import { computeRecord, computeStreak, computeWinRate } from '../lib/stats.js'
 import { serializeDecklist } from '../lib/parseDecklist.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
+import DeckAvatar from './DeckAvatar.jsx'
 import DeckNotes from './DeckNotes.jsx'
 import ImportDeckModal from './ImportDeckModal.jsx'
 import LogMatchModal from './LogMatchModal.jsx'
@@ -179,10 +179,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
       </div>
 
       <div className="deck-detail-header">
-        <div className="deck-detail-crest">
-          <div className="half a" style={{ background: domainColor(deck.domain_1) }} />
-          <div className="half b" style={{ background: domainColor(deck.domain_2) }} />
-        </div>
+        <DeckAvatar deck={deck} size="lg" />
 
         <div className="deck-detail-heading">
           <h1>{deck.name}</h1>

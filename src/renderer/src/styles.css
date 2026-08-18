@@ -635,29 +635,60 @@ body {
   border-color: #3a3f47;
 }
 
-.deck-crest {
-  height: 64px;
+/* Deck "avatar" -- a rounded-square Legend-art portrait (see
+   DeckAvatar.jsx), replacing the old full-width diagonal crest band on
+   DeckCard and the plain-color crest square on Deck Detail's header. Falls
+   back to the same diagonal two-Domain-color crest technique
+   (.deck-avatar-crest, sized to fill whichever variant it's rendered in)
+   whenever art isn't available -- see DeckAvatar.jsx and CLAUDE.md's Design
+   Language entry. .import-preview-crest/.match-detail-crest below are a
+   deliberately separate, untouched crest treatment -- this feature only
+   replaces the crest on DeckCard and Deck Detail. */
+.deck-avatar {
   position: relative;
-  display: flex;
   overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
 }
-.deck-crest .half {
+.deck-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.deck-avatar-md {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+}
+.deck-avatar-lg {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+}
+.deck-avatar-crest .half {
   flex: 1;
 }
-.deck-crest .half.a {
+.deck-avatar-crest .half.a {
   clip-path: polygon(0 0, 100% 0, 78% 100%, 0% 100%);
 }
-.deck-crest .half.b {
+.deck-avatar-crest .half.b {
   clip-path: polygon(85% 0, 100% 0, 100% 100%, 62% 100%);
   margin-left: -18%;
 }
-.deck-crest .glyphs {
+.deck-avatar-crest .glyphs {
   position: absolute;
-  right: 14px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
+}
+.deck-card-heading-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
 }
 .glyph {
   width: 26px;
@@ -1146,26 +1177,6 @@ body {
   padding-bottom: 24px;
   border-bottom: 1px solid var(--border-soft);
 }
-.deck-detail-crest {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: 12px;
-  overflow: hidden;
-  display: flex;
-  flex-shrink: 0;
-}
-.deck-detail-crest .half {
-  flex: 1;
-}
-.deck-detail-crest .half.a {
-  clip-path: polygon(0 0, 100% 0, 78% 100%, 0% 100%);
-}
-.deck-detail-crest .half.b {
-  clip-path: polygon(85% 0, 100% 0, 100% 100%, 62% 100%);
-  margin-left: -18%;
-}
-
 .deck-detail-heading h1 {
   font-family: 'Big Shoulders Display', sans-serif;
   font-weight: 800;
