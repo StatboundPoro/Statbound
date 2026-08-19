@@ -1,29 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 
-const SECTION_LABELS = {
-  mainDeck: 'Main Deck',
-  battlefields: 'Battlefields',
-  runes: 'Runes',
-  sideboard: 'Sideboard'
-}
-const SECTION_ORDER = ['mainDeck', 'battlefields', 'runes', 'sideboard']
-
-// Groups already-DESC-ordered rows (see deckChangelog.js's
-// listDeckChangelogByDeck) by calendar date, preserving the order dates are
-// first encountered -- which is already most-recent-first, since the rows
-// themselves arrive that way. Multiple edits made on the same calendar day
-// land under one shared date heading, by design (see CLAUDE.md's Deck
-// Changelog entry).
-function groupByDate(entries) {
+// Buckets the already-ordered flat rows listDeckChangelogByDeck() returns
+// (version_number DESC, added before removed within a version, diff order
+// within each -- see deckChangelog.js) by version_id, preserving that
+// order. Since rows for one version are always contiguous in the source
+// list, this is a single pass with no re-sorting needed -- the first
+// version encountered is already the most recent.
+function groupByVersion(entries) {
   const groups = []
-  const byDate = new Map()
+  const byVersion = new Map()
 
   for (const entry of entries) {
-    const dateKey = new Date(entry.created_at).toLocaleDateString()
-    let group = byDate.get(dateKey)
+    let group = byVersion.get(entry.version_id)
     if (!group) {
-      group = { dateKey, entries: [] }
-      byDate.set(dateKey, group)
+      group = {
+        versionId: entry.version_id,
+        versionNumber: entry.version_number,
+        createdAt: entry.created_at,
+        entries: []
+      }
+      byVersion.set(entry.version_id, group)
       groups.push(group)
     }
     group.entries.push(entry)
@@ -32,26 +28,15 @@ function groupByDate(entries) {
   return groups
 }
 
-// Sub-groups one date's entries by section, in a fixed display order,
-// dropping any section with nothing changed that day.
-function groupBySection(entries) {
-  const bySection = new Map(SECTION_ORDER.map((section) => [section, []]))
-  for (const entry of entries) {
-    bySection.get(entry.section)?.push(entry)
-  }
-  return SECTION_ORDER.map((section) => [section, bySection.get(section)]).filter(([, list]) => list.length > 0)
+function formatVersionNumber(versionNumber) {
+  return `v${String(versionNumber).padStart(2, '0')}`
 }
 
 function ChangeLine({ entry }) {
-  if (entry.change_type === 'added') {
-    return <div className="changelog-line changelog-line-added">+ {entry.card_name}</div>
-  }
-  if (entry.change_type === 'removed') {
-    return <div className="changelog-line changelog-line-removed">- {entry.card_name}</div>
-  }
+  const isAdded = entry.change_type === 'added'
   return (
-    <div className="changelog-line changelog-line-changed">
-      {entry.card_name}: {entry.old_count} &rarr; {entry.new_count}
+    <div className={`changelog-line ${isAdded ? 'changelog-line-added' : 'changelog-line-removed'}`}>
+      {isAdded ? '+' : '-'} {entry.count}x {entry.card_name}
     </div>
   )
 }
@@ -63,6 +48,11 @@ function ChangeLine({ entry }) {
 // outside click, or Escape -- the same convention the Matchup Matrix's
 // drill-down popover and LegendAutocomplete's suggestion dropdown already
 // establish elsewhere in the app.
+//
+// Entries group by edit (a "version"), not by calendar date -- a deck's
+// edits are numbered sequentially starting at v01, most recent first, and
+// each version's header shows both its date and its version number so
+// neither is lost.
 export default function DeckChangelogPanel({ deckId, onClose }) {
   const [entries, setEntries] = useState([])
   const [status, setStatus] = useState('loading')
@@ -106,7 +96,7 @@ export default function DeckChangelogPanel({ deckId, onClose }) {
     }
   }, [onClose])
 
-  const dateGroups = groupByDate(entries)
+  const versionGroups = groupByVersion(entries)
 
   return (
     <div className="changelog-backdrop">
@@ -121,20 +111,18 @@ export default function DeckChangelogPanel({ deckId, onClose }) {
         <div className="changelog-panel-body">
           {status === 'loading' && <p className="changelog-empty">Loading…</p>}
           {status === 'error' && <p className="changelog-empty">Could not load this deck's changelog.</p>}
-          {status === 'ready' && dateGroups.length === 0 && (
+          {status === 'ready' && versionGroups.length === 0 && (
             <p className="changelog-empty">No changes tracked yet — edits made from now on will appear here.</p>
           )}
           {status === 'ready' &&
-            dateGroups.map((group) => (
-              <div key={group.dateKey} className="changelog-date-group">
-                <div className="changelog-date-heading">{group.dateKey}</div>
-                {groupBySection(group.entries).map(([section, sectionEntries]) => (
-                  <div key={section} className="changelog-section">
-                    <div className="changelog-section-title">{SECTION_LABELS[section]}</div>
-                    {sectionEntries.map((entry) => (
-                      <ChangeLine key={entry.id} entry={entry} />
-                    ))}
-                  </div>
+            versionGroups.map((group) => (
+              <div key={group.versionId} className="changelog-version-group">
+                <div className="changelog-version-header">
+                  <span className="changelog-version-date">{new Date(group.createdAt).toLocaleDateString()}</span>
+                  <span className="changelog-version-number">{formatVersionNumber(group.versionNumber)}</span>
+                </div>
+                {group.entries.map((entry) => (
+                  <ChangeLine key={entry.id} entry={entry} />
                 ))}
               </div>
             ))}

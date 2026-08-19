@@ -21,10 +21,17 @@ const TRACKED_SECTIONS = [
  * deck_changelog rows are inserted from. A pure function with no database
  * access, so it's testable against plain objects directly.
  *
- * - A card present in `oldDecklist` but not `newDecklist` -> 'removed'.
- * - A card present in `newDecklist` but not `oldDecklist` -> 'added'.
- * - A card present in both with a different count -> 'countChanged' (one
- *   entry per card, not a separate remove+add).
+ * There is no 'countChanged' concept -- every change is either 'added' or
+ * 'removed', with `count` holding only the delta amount, never the full
+ * before/after counts:
+ * - A card present in `newDecklist` but not `oldDecklist` -> 'added',
+ *   count = the full new count.
+ * - A card present in `oldDecklist` but not `newDecklist` -> 'removed',
+ *   count = the full old count.
+ * - A card present in both with a higher new count -> 'added', count =
+ *   just the increase (2 -> 3 records count: 1, not 3).
+ * - A card present in both with a lower new count -> 'removed', count =
+ *   just the decrease (3 -> 1 records count: 2, not 1).
  * - A card with no change at all -> no entry.
  */
 export function diffDecklists(oldDecklist, newDecklist) {
@@ -40,17 +47,13 @@ export function diffDecklists(oldDecklist, newDecklist) {
       const newCount = newCards.has(cardName) ? newCards.get(cardName) : null
 
       if (oldCount === null) {
-        changes.push({ section, change_type: 'added', card_name: cardName, old_count: null, new_count: newCount })
+        changes.push({ section, change_type: 'added', card_name: cardName, count: newCount })
       } else if (newCount === null) {
-        changes.push({ section, change_type: 'removed', card_name: cardName, old_count: oldCount, new_count: null })
-      } else if (oldCount !== newCount) {
-        changes.push({
-          section,
-          change_type: 'countChanged',
-          card_name: cardName,
-          old_count: oldCount,
-          new_count: newCount
-        })
+        changes.push({ section, change_type: 'removed', card_name: cardName, count: oldCount })
+      } else if (newCount > oldCount) {
+        changes.push({ section, change_type: 'added', card_name: cardName, count: newCount - oldCount })
+      } else if (newCount < oldCount) {
+        changes.push({ section, change_type: 'removed', card_name: cardName, count: oldCount - newCount })
       }
     }
   }
@@ -59,40 +62,64 @@ export function diffDecklists(oldDecklist, newDecklist) {
 }
 
 /**
- * Inserts one deck_changelog row per entry in `changes` (the shape
- * diffDecklists() returns), all sharing one `createdAt` timestamp so they
- * group together as a single edit when displayed. Meant to be called from
- * inside the same db.transaction() that performs the deck's own UPDATE --
- * see decks.js's updateDeck(). A no-op if `changes` is empty.
+ * Records one edit's worth of changes as a new deck_changelog_versions row
+ * (numbered sequentially per deck, starting at 1) plus one deck_changelog
+ * row per entry in `changes` (the shape diffDecklists() returns), all
+ * referencing that new version. Meant to be called from inside the same
+ * db.transaction() that performs the deck's own UPDATE -- see decks.js's
+ * updateDeck(). A no-op if `changes` is empty -- an edit that changed
+ * nothing about the tracked sections doesn't consume a version number.
  */
-export function insertDeckChangelogEntries(db, deckId, changes, createdAt) {
+export function recordDeckChangelogVersion(db, deckId, changes, createdAt) {
   if (changes.length === 0) return
 
-  const insert = db.prepare(
-    `INSERT INTO deck_changelog (id, deck_id, created_at, section, change_type, card_name, old_count, new_count)
-     VALUES (@id, @deck_id, @created_at, @section, @change_type, @card_name, @old_count, @new_count)`
-  )
+  const { count: existingVersions } = db
+    .prepare('SELECT COUNT(*) AS count FROM deck_changelog_versions WHERE deck_id = ?')
+    .get(deckId)
+  const versionId = randomUUID()
 
+  db.prepare(
+    `INSERT INTO deck_changelog_versions (id, deck_id, version_number, created_at)
+     VALUES (@id, @deck_id, @version_number, @created_at)`
+  ).run({ id: versionId, deck_id: deckId, version_number: existingVersions + 1, created_at: createdAt })
+
+  const insertEntry = db.prepare(
+    `INSERT INTO deck_changelog (id, changelog_version_id, section, change_type, card_name, count)
+     VALUES (@id, @changelog_version_id, @section, @change_type, @card_name, @count)`
+  )
   for (const change of changes) {
-    insert.run({
-      id: randomUUID(),
-      deck_id: deckId,
-      created_at: createdAt,
-      ...change
-    })
+    insertEntry.run({ id: randomUUID(), changelog_version_id: versionId, ...change })
   }
 }
 
 /**
- * Returns a deck's full changelog history, most recent edit first. Entries
- * from the same edit share one created_at and come back adjacent to each
- * other (insertion order within a timestamp follows TRACKED_SECTIONS'
- * order), which is what lets the renderer group them into one date/edit
- * block without needing a separate "batch id" column.
+ * Returns a deck's full changelog history as a flat list of entries, each
+ * carrying its parent version's version_id/version_number/created_at
+ * alongside its own section/change_type/card_name/count. Ordered by
+ * version_number DESC (most recent edit first), then added entries before
+ * removed within a version, then by original diff order within each --
+ * exactly the grouping/ordering DeckChangelogPanel.jsx needs, so the
+ * renderer only has to bucket by version_id, never re-sort.
  */
 export function listDeckChangelogByDeck(deckId) {
   const db = getDb()
   return db
-    .prepare('SELECT * FROM deck_changelog WHERE deck_id = ? ORDER BY created_at DESC, rowid ASC')
+    .prepare(
+      `SELECT
+         deck_changelog.id,
+         deck_changelog.section,
+         deck_changelog.change_type,
+         deck_changelog.card_name,
+         deck_changelog.count,
+         deck_changelog_versions.id AS version_id,
+         deck_changelog_versions.version_number,
+         deck_changelog_versions.created_at
+       FROM deck_changelog
+       JOIN deck_changelog_versions ON deck_changelog_versions.id = deck_changelog.changelog_version_id
+       WHERE deck_changelog_versions.deck_id = ?
+       ORDER BY deck_changelog_versions.version_number DESC,
+                CASE deck_changelog.change_type WHEN 'added' THEN 0 ELSE 1 END,
+                deck_changelog.rowid ASC`
+    )
     .all(deckId)
 }

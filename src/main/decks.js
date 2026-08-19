@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { getDb } from './db.js'
-import { diffDecklists, insertDeckChangelogEntries } from './deckChangelog.js'
+import { diffDecklists, recordDeckChangelogVersion } from './deckChangelog.js'
 
 /**
  * Returns all decks, most recently updated first. The decklist column is
@@ -65,8 +65,9 @@ export function createDeck({ name, domain_1, domain_2, legend_name, decklist } =
  *
  * Before writing, the outgoing decklist is diffed against the new one
  * (see deckChangelog.js's diffDecklists()) and any detected changes are
- * recorded to deck_changelog in the same transaction as the UPDATE, so the
- * two can never disagree — an edit either fully lands (deck + changelog
+ * recorded as a new deck_changelog_versions row (plus its deck_changelog
+ * entries) in the same transaction as the UPDATE, so the two can never
+ * disagree — an edit either fully lands (deck + new version + changelog
  * rows) or fully doesn't. Never runs on initial import (createDeck above
  * has no prior decklist to diff against), only on a genuine edit of an
  * existing deck.
@@ -101,7 +102,7 @@ export function updateDeck(id, { name, domain_1, domain_2, legend_name, decklist
       decklist: JSON.stringify(newDecklist),
       updated_at: now
     })
-    insertDeckChangelogEntries(db, id, changes, now)
+    recordDeckChangelogVersion(db, id, changes, now)
   })
   applyUpdate()
 

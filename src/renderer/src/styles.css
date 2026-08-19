@@ -26,7 +26,6 @@
      styling at a glance. See styles.css's DECK CHANGELOG PANEL section. */
   --changelog-added: #5fb88f;
   --changelog-removed: #c76b8a;
-  --changelog-changed: #8a93a6;
 }
 
 * {
@@ -1331,34 +1330,30 @@ body {
   font-size: 13px;
   line-height: 1.5;
 }
-.changelog-date-group {
+.changelog-version-group {
   margin-bottom: 22px;
 }
-.changelog-date-group:last-child {
+.changelog-version-group:last-child {
   margin-bottom: 0;
 }
-.changelog-date-heading {
-  font-family: 'Big Shoulders Display', sans-serif;
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+.changelog-version-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+.changelog-version-date {
+  font-size: 12px;
   color: var(--text-dim);
-  margin-bottom: 10px;
 }
-.changelog-section {
-  margin-bottom: 12px;
-}
-.changelog-section:last-child {
-  margin-bottom: 0;
-}
-.changelog-section-title {
-  font-size: 11.5px;
+.changelog-version-number {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--text-faint);
-  text-transform: uppercase;
   letter-spacing: 0.02em;
-  margin-bottom: 4px;
+  color: var(--text-faint);
 }
 .changelog-line {
   font-family: 'IBM Plex Mono', monospace;
@@ -1370,9 +1365,6 @@ body {
 }
 .changelog-line-removed {
   color: var(--changelog-removed);
-}
-.changelog-line-changed {
-  color: var(--changelog-changed);
 }
 
 /* ---------- LOG MATCH FORM ---------- */

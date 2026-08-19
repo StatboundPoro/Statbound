@@ -80,26 +80,40 @@ const SCHEMA = `
     sync_status TEXT NOT NULL DEFAULT 'local_only'
   );
 
-  -- Per-edit decklist diff, not a full snapshot history: one row per
-  -- card that changed on a given deck edit (see decks.js's updateDeck(),
-  -- which diffs the outgoing decklist against the new one across all four
-  -- tracked sections and inserts one row per detected change, all sharing
-  -- one created_at so they group together). Never written on initial
-  -- import -- there's no prior state to diff against then. No sync_status:
-  -- this is derived/computed history, not primary user-authored content,
-  -- the same reasoning legends' own missing sync_status column follows
-  -- (see CLAUDE.md's sync_status convention notes) -- a re-diff of the
-  -- same two decklists would always reproduce identical rows, so there's
-  -- nothing here a sync conflict could meaningfully apply to.
-  CREATE TABLE IF NOT EXISTS deck_changelog (
+  -- One row per deck edit that actually changed something, numbered
+  -- sequentially per deck starting at 1 (see deckChangelog.js's
+  -- recordDeckChangelogVersion(), called from decks.js's updateDeck()).
+  -- deck_changelog (below) hangs its per-card entries off this table
+  -- instead of storing its own created_at, so an edit's date and its
+  -- version number can never drift apart -- they're the same row.
+  CREATE TABLE IF NOT EXISTS deck_changelog_versions (
     id TEXT PRIMARY KEY,
     deck_id TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
-    created_at TEXT NOT NULL,
+    version_number INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  -- Per-edit decklist diff, not a full snapshot history: one row per card
+  -- that changed on a given deck edit, grouped under that edit's
+  -- deck_changelog_versions row. Never written on initial import -- there's
+  -- no prior state to diff against then. change_type is only
+  -- 'added'/'removed' -- a quantity change collapses into whichever one
+  -- matches the direction of the delta, with count holding just the
+  -- delta amount (e.g. 2 -> 3 records as one 'added' row with count 1),
+  -- never a separate "count changed" concept -- see deckChangelog.js's
+  -- diffDecklists(). No sync_status: this is derived/computed history, not
+  -- primary user-authored content, the same reasoning legends' own missing
+  -- sync_status column follows (see CLAUDE.md's sync_status convention
+  -- notes) -- a re-diff of the same two decklists would always reproduce
+  -- identical rows, so there's nothing here a sync conflict could
+  -- meaningfully apply to.
+  CREATE TABLE IF NOT EXISTS deck_changelog (
+    id TEXT PRIMARY KEY,
+    changelog_version_id TEXT NOT NULL REFERENCES deck_changelog_versions(id) ON DELETE CASCADE,
     section TEXT NOT NULL CHECK (section IN ('mainDeck', 'battlefields', 'runes', 'sideboard')),
-    change_type TEXT NOT NULL CHECK (change_type IN ('added', 'removed', 'countChanged')),
+    change_type TEXT NOT NULL CHECK (change_type IN ('added', 'removed')),
     card_name TEXT NOT NULL,
-    old_count INTEGER,
-    new_count INTEGER
+    count INTEGER NOT NULL
   );
 
   -- Reference data (real Riftbound Legend names, kept current via a
@@ -120,7 +134,8 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_replays_match_id ON replays(match_id);
   CREATE INDEX IF NOT EXISTS idx_deck_notes_deck_id ON deck_notes(deck_id);
   CREATE INDEX IF NOT EXISTS idx_legends_name ON legends(name);
-  CREATE INDEX IF NOT EXISTS idx_deck_changelog_deck_id ON deck_changelog(deck_id);
+  CREATE INDEX IF NOT EXISTS idx_deck_changelog_versions_deck_id ON deck_changelog_versions(deck_id);
+  CREATE INDEX IF NOT EXISTS idx_deck_changelog_version_id ON deck_changelog(changelog_version_id);
 `
 
 /**
@@ -174,11 +189,42 @@ export function migrateLegacyDbFilename() {
   }
 }
 
+// One-time schema fixup for the Deck Changelog feature's very first
+// design (date-grouped, with a 'countChanged' change_type and its own
+// created_at column) before it was revised, in the same development pass,
+// into the version-numbered, added/removed-only shape SCHEMA now defines.
+// That original shape never shipped in any real release -- this only
+// matters for a dev/test database that happened to run the in-between
+// code and picked up the old table shape. `CREATE TABLE IF NOT EXISTS`
+// would otherwise silently leave an old-shape table in place and every
+// later insert/read against the new column names would fail. Per the
+// revision's own explicit decision not to carry old date-grouped entries
+// forward (the same "no retroactive backfill" rule this feature already
+// applies to its very first edit ever), the fix is to drop the old table
+// outright rather than migrate its rows -- there is no
+// deck_changelog_versions table for old rows to attach to anyway. Must run
+// before SCHEMA's CREATE TABLE IF NOT EXISTS deck_changelog, so it's
+// called first in openDatabase() below.
+function migrateLegacyDeckChangelogSchema(instance) {
+  const table = instance
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'deck_changelog'")
+    .get()
+  if (!table) return
+
+  const columns = instance.prepare('PRAGMA table_info(deck_changelog)').all()
+  const isOldShape = columns.some((col) => col.name === 'created_at')
+  if (!isOldShape) return
+
+  instance.exec('DROP TABLE deck_changelog')
+  console.log('Dropped pre-version-numbering deck_changelog table (no real release ever shipped with that shape).')
+}
+
 function openDatabase(dbPath) {
   const instance = new Database(dbPath)
   instance.pragma('journal_mode = WAL')
   instance.pragma('foreign_keys = ON')
 
+  migrateLegacyDeckChangelogSchema(instance)
   instance.exec(SCHEMA)
 
   return instance
