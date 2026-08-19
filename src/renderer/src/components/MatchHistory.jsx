@@ -18,8 +18,8 @@ const PAGE_SIZE = 50
 
 // Match History — the rail-nav screen for every logged match across every
 // deck, one row per match, most-recent first (matches:list's natural
-// order). Unlike Deck Detail's Recent Matches or Matchup Record, this view
-// is never scoped to a single deck. Filters are a pure client-side narrow
+// order). Unlike Deck Detail's Recent Matches, this view is never scoped
+// to a single deck. Filters are a pure client-side narrow
 // of that same list; there's no separate filtered query. Clicking a row
 // reuses the existing MatchDetailModal as-is — it already fetches its own
 // match and deck by id, so it works unscoped with no changes needed.

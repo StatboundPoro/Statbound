@@ -71,14 +71,30 @@ export function computeRecord(matches) {
   return { wins, losses }
 }
 
-// Groups a deck's matches by opponent legend and computes the same win
-// rate/record/streak stats used everywhere else in the app, once per
-// legend, for the Matchup Record section. `matches` must already be
-// sorted most-recent-first (matches:list's natural order, preserved by a
-// plain .filter()) so each group's streak comes out correct without a
-// second sort pass. Matches with no opponent_legend recorded still get
-// grouped, under "Unknown Legend", rather than silently dropped.
-export function computeMatchupRecords(matches) {
+// A win rate only means something once there's enough of a sample behind
+// it, otherwise a single 1-0 record would out-rank a real 40-15 one just
+// because 100% > 73%. Shared by findBestDeck below and, via
+// computeMatchupBreakdown, by the Insights screen's own Matchup Breakdown
+// small-sample badge.
+const SMALL_SAMPLE_THRESHOLD = 5
+
+// Groups a list of matches by opponent legend into the shared matchup
+// breakdown Insights' Matchup Breakdown table (MatchupBreakdownTable.jsx)
+// renders from — the sole place this data is shown now that Deck Detail's
+// own embedded Matchup Record section has been removed in favor of its
+// "View Insights" deep link (see DeckDetail.jsx and App.jsx's
+// handleViewDeckInsights). `matches` must already be sorted most-recent-
+// first (matches:list's natural order) so each group's streak comes out
+// correct with no second sort pass. Matches with no opponent_legend
+// recorded still get grouped, under "Unknown Legend", rather than
+// silently dropped. A group can include matches with no decided result
+// (an incomplete Bo3) alongside decided ones — record/winRate/streak/
+// smallSample are all derived from the decided subset only (via
+// computeRecord/computeWinRate/computeStreak, which already filter to
+// 'win'/'loss'), but `matches` itself keeps every match for that legend so
+// an expanded row's match history is complete, not silently missing an
+// undecided one.
+export function computeMatchupBreakdown(matches) {
   const groups = new Map()
   for (const match of matches) {
     const legend = match.opponent_legend?.trim() || 'Unknown Legend'
@@ -86,24 +102,20 @@ export function computeMatchupRecords(matches) {
     groups.get(legend).push(match)
   }
 
-  return Array.from(groups.entries()).map(([legend, legendMatches]) => ({
-    legend,
-    matches: legendMatches,
-    record: computeRecord(legendMatches),
-    winRate: computeWinRate(legendMatches),
-    streak: computeStreak(legendMatches),
-    gamesPlayed: legendMatches.length
-  }))
+  return Array.from(groups.entries()).map(([legend, legendMatches]) => {
+    const record = computeRecord(legendMatches)
+    const gamesPlayed = record.wins + record.losses
+    return {
+      legend,
+      matches: legendMatches,
+      record,
+      winRate: computeWinRate(legendMatches),
+      streak: computeStreak(legendMatches),
+      gamesPlayed,
+      smallSample: gamesPlayed < SMALL_SAMPLE_THRESHOLD
+    }
+  })
 }
-
-// Same reasoning as Insights' Best/Worst Matchup (see insights.js's
-// SMALL_SAMPLE_THRESHOLD) — a deck's win rate only means something once
-// there's enough of a sample behind it, otherwise a single 1-0 record
-// would out-rank a real 40-15 one just because 100% > 73%. Duplicated
-// here (not imported) since insights.js is main-process code and this is
-// a renderer-only helper; keep the two in sync if the threshold ever
-// changes.
-const SMALL_SAMPLE_THRESHOLD = 5
 
 // Picks the deck with the best win rate among decks with at least
 // SMALL_SAMPLE_THRESHOLD decided matches. Returns null if no deck clears

@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
-import { computeStreak } from '../lib/stats.js'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { computeMatchupBreakdown, computeStreak } from '../lib/stats.js'
+import MatchupBreakdownTable from './MatchupBreakdownTable.jsx'
 
 const DEFAULT_SORT = 'winRateDesc'
 
 const SORT_OPTIONS = [
-  { key: 'winRateDesc', label: 'High → Low' },
-  { key: 'winRateAsc', label: 'Low → High' },
+  { key: 'winRateDesc', label: 'WR% High → Low' },
+  { key: 'winRateAsc', label: 'WR% Low → High' },
   { key: 'alpha', label: 'A–Z' }
 ]
+
+// Shared by both Battlefield Win Rate and Matchup Breakdown: everything
+// SORT_OPTIONS has, plus a "Most Games" option, so a battlefield/legend
+// faced often (even at a mediocre win rate) can be surfaced ahead of one
+// faced only once or twice with a headline-grabbing 100%/0% record.
+const SORT_OPTIONS_WITH_GAMES = [...SORT_OPTIONS, { key: 'gamesDesc', label: 'Most Games' }]
 
 function formatRate(rate) {
   return rate === null ? '-' : `${rate}%`
@@ -18,28 +25,61 @@ function rateClass(rate) {
   return rate >= 50 ? 'pos' : 'neg'
 }
 
-// Shared by Battlefield Win Rate and Matchup Breakdown — both tables get
-// the same three sort options (win rate desc/asc, or alphabetical by
-// whichever field `nameKey` points at), so the sort logic itself lives in
-// one place rather than being duplicated per table. Every row in both
-// arrays always has a real (non-null) winRate, since getInsights() only
-// ever creates a row once at least one decided match/game exists for it.
+// Battlefield Win Rate's own sort — win rate desc/asc, alphabetical by
+// battlefield name, or most games played (`total`, descending). Every row
+// here always has a real (non-null) winRate and a real `total`, since
+// getInsights() only ever creates a battlefield row once at least one
+// decided game exists for it — no null-handling needed here the way
+// sortMatchupRows below needs for its own win-rate sorts.
 function sortRows(rows, sortKey, nameKey) {
   const sorted = [...rows]
   if (sortKey === 'winRateAsc') {
     sorted.sort((a, b) => a.winRate - b.winRate)
   } else if (sortKey === 'alpha') {
     sorted.sort((a, b) => a[nameKey].localeCompare(b[nameKey]))
+  } else if (sortKey === 'gamesDesc') {
+    sorted.sort((a, b) => b.total - a.total)
   } else {
     sorted.sort((a, b) => b.winRate - a.winRate)
   }
   return sorted
 }
 
-function SortControl({ value, onChange }) {
+// Matchup Breakdown's own counterpart to sortRows above — can't reuse it
+// as-is because, unlike a battlefield row, a matchup row from
+// computeMatchupBreakdown() can have a null winRate (a legend faced only
+// in still-undecided matches, e.g. an incomplete Bo3, kept in the table
+// via Unknown Legend bucketing's "don't silently drop it" principle rather
+// than excluded outright). A null-winRate row always sinks to the end
+// under either win-rate sort direction, the same "no known value always
+// sinks to the end regardless of direction" convention Deck Detail's own
+// Grid view cost sort already uses for a still-resolving card's cost — but
+// stays in its natural position under the alphabetical sort, since that
+// one doesn't care about winRate at all. `gamesDesc` (Most Games) needs no
+// such null-handling — gamesPlayed is always a real number, never null.
+function sortMatchupRows(rows, sortKey) {
+  const sorted = [...rows]
+  if (sortKey === 'alpha') {
+    sorted.sort((a, b) => a.legend.localeCompare(b.legend))
+    return sorted
+  }
+  if (sortKey === 'gamesDesc') {
+    sorted.sort((a, b) => b.gamesPlayed - a.gamesPlayed)
+    return sorted
+  }
+  sorted.sort((a, b) => {
+    if (a.winRate === null && b.winRate === null) return 0
+    if (a.winRate === null) return 1
+    if (b.winRate === null) return -1
+    return sortKey === 'winRateAsc' ? a.winRate - b.winRate : b.winRate - a.winRate
+  })
+  return sorted
+}
+
+function SortControl({ value, onChange, options = SORT_OPTIONS }) {
   return (
     <div className="segmented">
-      {SORT_OPTIONS.map((opt) => (
+      {options.map((opt) => (
         <button
           key={opt.key}
           type="button"
@@ -54,14 +94,23 @@ function SortControl({ value, onChange }) {
 }
 
 // Insights — the rail-nav screen for aggregate stats across every deck (or
-// one, via the filter dropdown). Everything here is computed on read by
-// insights:get/getInsights() in src/main/insights.js; this component just
-// renders whatever shape that returns, sorts the two tables client-side
-// (see sortRows above — getInsights() itself has no opinion on display
-// order), and figures out which single matchup (if any) counts as
-// "best"/"worst" for the highlight treatment and the summary cards above
-// the table — see the bestRow/worstRow useMemo below for why that's a
-// renderer-side decision rather than something the backend bakes in.
+// one, via the filter dropdown), and the sole place in the app the Matchup
+// Breakdown table (record/streak/expandable per-match history per opponent
+// legend) is shown — Deck Detail's own former embedded copy of this table
+// was removed in favor of its "View Insights" deep link, which lands here
+// pre-scoped to that deck (see the initialDeckId comment below). Overall
+// win rate, trend, seat advantage, and battlefield win rate are computed
+// on read by insights:get/getInsights() in src/main/insights.js; this
+// component renders whatever shape that returns and sorts Battlefield Win
+// Rate client-side (see sortRows above — getInsights() itself has no
+// opinion on display order). Matchup Breakdown is different: it's computed
+// entirely client-side from the raw matches list via computeMatchupBreakdown()
+// in lib/stats.js (see insights.js's own doc comment for why), sorted via
+// sortMatchupRows above, and figures out which single matchup (if any)
+// counts as "best"/"worst" for the highlight treatment and the summary
+// cards above the table — see the bestRow/worstRow useMemo below for why
+// that's a renderer-side decision rather than something the backend bakes
+// in.
 //
 // `initialDeckId` is optional and only ever set by Deck Detail's "View
 // Insights" button (App.jsx's handleViewDeckInsights) as a one-time deep
@@ -69,7 +118,13 @@ function SortControl({ value, onChange }) {
 // 'insights', so a plain useState initializer is enough to pick it up on
 // every fresh visit; no prop-sync effect is needed. Reaching this screen
 // via the Sidebar nav item instead always passes no prop, landing on "All
-// Decks" as before.
+// Decks" as before. It's also the trigger for the one-time auto-scroll
+// down to Matchup Breakdown below (see the scroll effect near the bottom
+// of this component) — that section is exactly what Deck Detail's own
+// former Matchup Record section used to show inline, and it now sits
+// several sections down the page, so a deck-scoped deep link jumps
+// straight to it instead of leaving the user to scroll past Overview/Seat
+// Advantage/Battlefield Win Rate/Best-Worst first.
 export default function InsightsScreen({ initialDeckId = null }) {
   const [decks, setDecks] = useState([])
   const [matches, setMatches] = useState([])
@@ -78,6 +133,8 @@ export default function InsightsScreen({ initialDeckId = null }) {
   const [status, setStatus] = useState('loading')
   const [battlefieldSort, setBattlefieldSort] = useState(DEFAULT_SORT)
   const [matchupSort, setMatchupSort] = useState(DEFAULT_SORT)
+  const matchupSectionRef = useRef(null)
+  const hasAutoScrolled = useRef(false)
 
   useEffect(() => {
     window.api.decks
@@ -86,17 +143,35 @@ export default function InsightsScreen({ initialDeckId = null }) {
       .catch((err) => console.error('Failed to load decks:', err))
   }, [])
 
-  // Fetched separately from insights:get, purely to compute the Current
-  // Streak box the same way Deck Detail already does — via computeStreak()
+  // Fetched separately from insights:get: partly to compute the Current
+  // Streak box the same way Deck Detail already does (via computeStreak()
   // in stats.js, reusing that logic rather than re-deriving a streak from
-  // getInsights()'s aggregated numbers (which don't preserve per-match
-  // order/detail anyway).
-  useEffect(() => {
-    window.api.matches
+  // getInsights()'s aggregated numbers, which don't preserve per-match
+  // order/detail anyway), and partly because the Matchup Breakdown table
+  // below is now computed entirely client-side from this same raw list
+  // (computeMatchupBreakdown() in stats.js) rather than from insights:get
+  // — see insights.js's own doc comment for why that moved out of main.
+  // Exposed as a function (not just fired once) so a match edited/deleted
+  // from inside the Matchup Breakdown table's expanded rows can refetch
+  // both this and the aggregate insights below, rather than leaving either
+  // showing stale data.
+  function refetchMatches() {
+    return window.api.matches
       .list()
       .then(setMatches)
       .catch((err) => console.error('Failed to load matches:', err))
+  }
+
+  useEffect(() => {
+    refetchMatches()
   }, [])
+
+  function refetchInsights() {
+    return window.api.insights
+      .get({ deckId: deckId === 'all' ? null : deckId })
+      .then(setInsights)
+      .catch((err) => console.error('Failed to load insights:', err))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -118,6 +193,11 @@ export default function InsightsScreen({ initialDeckId = null }) {
     }
   }, [deckId])
 
+  function handleMatchupTableChanged() {
+    refetchMatches()
+    refetchInsights()
+  }
+
   // A sort order chosen for the previous deck's dataset isn't necessarily
   // meaningful for a newly-filtered one, so both tables snap back to the
   // default whenever the deck filter changes rather than persisting a
@@ -128,42 +208,52 @@ export default function InsightsScreen({ initialDeckId = null }) {
   }, [deckId])
 
   const sortedDecks = useMemo(() => [...decks].sort((a, b) => a.name.localeCompare(b.name)), [decks])
+  const decksById = useMemo(() => new Map(decks.map((deck) => [deck.id, deck])), [decks])
+  const resolveDeckName = (match) => decksById.get(match.deck_id)?.name ?? 'Unknown Deck'
 
   // matches:list() already returns played_at DESC (matches.js's natural
-  // order), and computeStreak() requires most-recent-first input — so a
-  // plain .filter() here (no re-sort) keeps that ordering intact, the same
-  // way DeckDetail.jsx already relies on it.
+  // order), and computeStreak()/computeMatchupBreakdown() both require
+  // most-recent-first input — so a plain .filter() here (no re-sort) keeps
+  // that ordering intact, the same way DeckDetail.jsx already relies on it.
   const scopedMatches = useMemo(
     () => (deckId === 'all' ? matches : matches.filter((m) => m.deck_id === deckId)),
     [matches, deckId]
   )
   const streak = useMemo(() => computeStreak(scopedMatches), [scopedMatches])
+  const matchupRows = useMemo(() => computeMatchupBreakdown(scopedMatches), [scopedMatches])
 
-  // Highlighting (both the inline table row and the summary cards below)
+  // Highlighting (both the summary cards and the table's highlighted row)
   // only makes sense among matchups with enough games to mean something —
   // a 1-0 record shouldn't out-rank a real 14-6 one just because 100% >
-  // 70%. If every matchup is small-sample, there's nothing eligible to
-  // highlight at all. bestRow/worstRow are the single source of truth for
-  // both the summary cards and the table's highlighted row, so the two
-  // can never disagree.
+  // 70%. If every matchup is small-sample (or has no decided matches at
+  // all yet), there's nothing eligible to highlight. bestRow/worstRow are
+  // the single source of truth for both the summary cards and the table's
+  // highlighted row, so the two can never disagree.
   const { bestRow, worstRow } = useMemo(() => {
-    if (!insights) return {}
-    const eligible = insights.matchupStats.filter((row) => !row.smallSample)
+    const eligible = matchupRows.filter((row) => !row.smallSample)
     if (eligible.length === 0) return {}
     const sorted = [...eligible].sort((a, b) => b.winRate - a.winRate)
     return { bestRow: sorted[0], worstRow: sorted[sorted.length - 1] }
-  }, [insights])
+  }, [matchupRows])
 
   const sortedBattlefields = useMemo(
     () => (insights ? sortRows(insights.battlefieldStats, battlefieldSort, 'battlefield') : []),
     [insights, battlefieldSort]
   )
-  const sortedMatchups = useMemo(
-    () => (insights ? sortRows(insights.matchupStats, matchupSort, 'opponentLegend') : []),
-    [insights, matchupSort]
-  )
+  const sortedMatchupRows = useMemo(() => sortMatchupRows(matchupRows, matchupSort), [matchupRows, matchupSort])
 
   const selectedDeckName = deckId === 'all' ? null : decks.find((deck) => deck.id === deckId)?.name
+
+  // Fires once, only for a deck-scoped deep link (see the initialDeckId
+  // comment above this component), the first time this screen actually has
+  // real data to show — a status still stuck on 'loading'/'error', or a
+  // hasData-less placeholder state, has nothing to scroll to yet.
+  useEffect(() => {
+    if (!initialDeckId || hasAutoScrolled.current) return
+    if (status !== 'ready' || !insights || insights.totalDecidedMatches === 0) return
+    hasAutoScrolled.current = true
+    matchupSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [initialDeckId, status, insights])
 
   if (status === 'loading') {
     return (
@@ -266,7 +356,7 @@ export default function InsightsScreen({ initialDeckId = null }) {
           ) : (
             <>
               <div className="insights-table-controls">
-                <SortControl value={battlefieldSort} onChange={setBattlefieldSort} />
+                <SortControl value={battlefieldSort} onChange={setBattlefieldSort} options={SORT_OPTIONS_WITH_GAMES} />
               </div>
               <div className="insights-table">
                 <div className="insights-table-header">
@@ -292,61 +382,41 @@ export default function InsightsScreen({ initialDeckId = null }) {
             <div className="insights-bestworst-row">
               <div className="insights-bestworst-card insights-bestworst-best">
                 <div className="label">Best Matchup</div>
-                <div className="insights-bestworst-legend">{bestRow.opponentLegend}</div>
-                <div className={`insights-bestworst-rate ${rateClass(bestRow.winRate)}`}>
-                  {formatRate(bestRow.winRate)}
+                <div className="insights-bestworst-legend">{bestRow.legend}</div>
+                <div className={`insights-bestworst-rate ${rateClass(Math.round(bestRow.winRate * 100))}`}>
+                  {formatRate(Math.round(bestRow.winRate * 100))}
                 </div>
-                <div className="stat-cell-sub">({bestRow.total} games)</div>
+                <div className="stat-cell-sub">({bestRow.gamesPlayed} games)</div>
               </div>
               <div className="insights-bestworst-card insights-bestworst-worst">
                 <div className="label">Worst Matchup</div>
-                <div className="insights-bestworst-legend">{worstRow.opponentLegend}</div>
-                <div className={`insights-bestworst-rate ${rateClass(worstRow.winRate)}`}>
-                  {formatRate(worstRow.winRate)}
+                <div className="insights-bestworst-legend">{worstRow.legend}</div>
+                <div className={`insights-bestworst-rate ${rateClass(Math.round(worstRow.winRate * 100))}`}>
+                  {formatRate(Math.round(worstRow.winRate * 100))}
                 </div>
-                <div className="stat-cell-sub">({worstRow.total} games)</div>
+                <div className="stat-cell-sub">({worstRow.gamesPlayed} games)</div>
               </div>
             </div>
           )}
 
-          <div className="section-label">Matchup Breakdown</div>
-          {insights.matchupStats.length === 0 ? (
+          <div className="section-label" ref={matchupSectionRef}>
+            Matchup Breakdown
+          </div>
+          {matchupRows.length === 0 ? (
             <div className="placeholder-panel">No opponent legend data recorded yet.</div>
           ) : (
             <>
               <div className="insights-table-controls">
-                <SortControl value={matchupSort} onChange={setMatchupSort} />
+                <SortControl value={matchupSort} onChange={setMatchupSort} options={SORT_OPTIONS_WITH_GAMES} />
               </div>
-              <div className="insights-table insights-table-matchups">
-                <div className="insights-table-header">
-                  <div>Opponent Legend</div>
-                  <div>Win Rate</div>
-                  <div>Games</div>
-                </div>
-                {sortedMatchups.map((row) => {
-                  const isBest = row.opponentLegend === bestRow?.opponentLegend
-                  const isWorst = row.opponentLegend === worstRow?.opponentLegend
-                  return (
-                    <div
-                      key={row.opponentLegend}
-                      className={`insights-table-row ${isBest ? 'insights-row-best' : ''} ${
-                        isWorst ? 'insights-row-worst' : ''
-                      }`}
-                    >
-                      <div className="insights-table-name">
-                        {row.opponentLegend}
-                        {isBest && <span className="insights-badge insights-badge-best">Best</span>}
-                        {isWorst && <span className="insights-badge insights-badge-worst">Worst</span>}
-                        {row.smallSample && <span className="insights-badge">Small sample</span>}
-                      </div>
-                      <div className={`insights-table-winrate ${rateClass(row.winRate)}`}>
-                        {formatRate(row.winRate)}
-                      </div>
-                      <div className="insights-table-games">{row.total}</div>
-                    </div>
-                  )
-                })}
-              </div>
+              <MatchupBreakdownTable
+                rows={sortedMatchupRows}
+                bestLegend={bestRow?.legend}
+                worstLegend={worstRow?.legend}
+                resolveDeckName={resolveDeckName}
+                onChanged={handleMatchupTableChanged}
+                emptyMessage="No opponent legend data recorded yet."
+              />
             </>
           )}
         </>

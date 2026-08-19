@@ -1269,8 +1269,8 @@ body {
 }
 
 /* Decklist's own section-label row -- a variant of the plain .section-label
-   used everywhere else on this page (Matchup Record, Recent Matches,
-   Notes), which stays completely untouched. Only the Decklist header needs
+   used everywhere else on this page (Recent Matches, Notes), which stays
+   completely untouched. Only the Decklist header needs
    room for the List/Grid toggle (and, in Grid, the cost sort control)
    docked to the right of the label's own trailing rule line. */
 .section-label-row {
@@ -1377,7 +1377,7 @@ body {
    .deck-detail-left and .deck-detail-notes-col simply stack top to bottom,
    Notes last, exactly as the whole page always has. At/above it, Notes
    gets its own persistent right column instead of sitting below the full
-   decklist + Matchup Record + Recent Matches. 1280px isn't an arbitrary
+   decklist + Recent Matches. 1280px isn't an arbitrary
    round number: it's roughly the narrowest .deck-detail-columns width
    where the right column can hold a comfortable minimum for Notes (520px
    -- wide enough that its scope dropdown [.notes-scope-select, min-width:
@@ -1406,7 +1406,7 @@ body {
      whatever's left of the viewport, scrolling internally past that
      point. Deliberate: without this, Notes would either get clipped or
      get stretched to match the left column's (often much taller, once
-     Matchup Record and Recent Matches are included) height like an
+     Recent Matches is included) height like an
      ordinary stretched grid item, and reaching the rest of a long Notes
      list would mean scrolling the whole page past the left column instead
      of just scrolling Notes in place. min-width: 0 keeps this column from
@@ -2236,14 +2236,11 @@ body {
   color: var(--text);
 }
 
-/* ---------- MATCHUP RECORD ---------- */
-.matchup-record {
-  margin-bottom: 28px;
-}
-.matchup-controls {
-  margin-bottom: 12px;
-}
-
+/* ---------- MATCHUP BREAKDOWN (Insights, via MatchupBreakdownTable.jsx) ----------
+   Also reused, expand/detail markup only, by the Matchup Matrix's own
+   per-cell drill-down popover (MatchupMatchesTable, exported from the same
+   file). Deck Detail no longer has an embedded copy of this table -- see
+   its "View Insights" button, which deep-links to this data instead. */
 .matchup-table {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -2370,6 +2367,47 @@ body {
 }
 .matchup-games-table tbody tr:hover {
   background: var(--panel-hover);
+}
+
+/* Pagination for one expanded row's own match list (15/page) -- a
+   smaller-scale counterpart to .match-history-pagination, sized to match
+   this compact nested table. Centered as one tight group (arrow, page
+   label, arrow) rather than .match-history-pagination's own
+   space-between layout, which was built around also showing a "Showing
+   X-Y of Z" summary this smaller control doesn't have room, or need, for. */
+.matchup-games-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 10px 0;
+}
+.matchup-games-pagination-page {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.matchup-games-page-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.matchup-games-page-arrow:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+.matchup-games-page-arrow:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* ---------- MATCH HISTORY ---------- */

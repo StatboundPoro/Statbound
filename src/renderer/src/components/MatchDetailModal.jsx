@@ -158,7 +158,8 @@ function MatchDetailView({ match, deck, replay, onWatchReplay, onEdit, onDeleteC
 
 // Click-to-view modal for a single match, wired up wherever a match row
 // already appears (Recent Matches on both Deck Library and Deck Detail,
-// and Matchup Record's expanded per-legend table). Self-contained: given
+// Insights' Matchup Breakdown expanded per-legend table, and the Matchup
+// Matrix's own per-cell drill-down popover). Self-contained: given
 // only a `matchId`, it fetches the match and its deck itself rather than
 // relying on whatever data shape each caller happens to already have —
 // the same reasoning LogMatchModal already fetches its own deck list
@@ -167,8 +168,9 @@ function MatchDetailView({ match, deck, replay, onWatchReplay, onEdit, onDeleteC
 // duplicating a second form, and "Delete Match" goes through the same
 // ConfirmDialog pattern used for deck deletion. `onChanged` is called
 // after a successful save or delete so the caller can refetch its own
-// match list — the stat strip, Matchup Record, and Recent Matches are all
-// derived from that same list, so one refetch keeps everything consistent.
+// match list — every stat/table derived from that list (a stat strip, a
+// Matchup Breakdown row, Recent Matches, the matrix's own cells) updates
+// from that same refetch, so nothing shows stale data after an edit.
 export default function MatchDetailModal({ matchId, onClose, onChanged }) {
   const [match, setMatch] = useState(null)
   const [deck, setDeck] = useState(null)

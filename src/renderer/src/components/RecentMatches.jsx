@@ -7,8 +7,8 @@ const MAX_ROWS = 5
 
 // `onChanged` bubbles up to the caller (Deck Library or Deck Detail) so it
 // can refetch matches after a row's match is edited/deleted in the detail
-// modal — everything derived from that list (stat strips, streaks,
-// Matchup Record) then updates from the same refetch, no separate wiring.
+// modal — everything derived from that list (stat strips, streaks) then
+// updates from the same refetch, no separate wiring.
 export default function RecentMatches({ matches, decksById, onChanged }) {
   const [selectedMatchId, setSelectedMatchId] = useState(null)
   const recent = matches.slice(0, MAX_ROWS)

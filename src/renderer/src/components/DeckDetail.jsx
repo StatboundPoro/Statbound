@@ -10,7 +10,6 @@ import DeckChangelogPanel from './DeckChangelogPanel.jsx'
 import DeckNotes from './DeckNotes.jsx'
 import ImportDeckModal from './ImportDeckModal.jsx'
 import LogMatchModal from './LogMatchModal.jsx'
-import MatchupRecord from './MatchupRecord.jsx'
 import RecentMatches from './RecentMatches.jsx'
 
 // Legend/Champion/Battlefields/Runes share one row of four narrow columns
@@ -50,10 +49,11 @@ const GRID_SORT_OPTIONS = [
 // import — nothing here re-parses anything. Win rate/record/streak and the
 // Recent Matches panel are computed from this deck's real matches, so they
 // render honest empty states until the first match is logged and real data
-// from then on — no separate "empty" vs. "real" code path needed. Matchup
-// Record and Notes are both fully implemented now (see MatchupRecord.jsx
-// and DeckNotes.jsx) — the two are deliberately unconnected, with no
-// cross-navigation between them.
+// from then on — no separate "empty" vs. "real" code path needed. Notes is
+// fully implemented (see DeckNotes.jsx). This page no longer has its own
+// embedded Matchup Record section — that data now lives solely on the
+// Insights screen's Matchup Breakdown table, reached via the View Insights
+// button below, which deep-links there pre-scoped to this deck.
 export default function DeckDetail({ deckId, onBack, onViewInsights }) {
   const [deck, setDeck] = useState(null)
   const [matches, setMatches] = useState([])
@@ -372,9 +372,6 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
               )
             )}
           </div>
-
-          <div className="section-label">Matchup Record</div>
-          <MatchupRecord matches={matches} deckName={deck.name} onChanged={refetchMatches} />
 
           <div className="section-label">Recent Matches</div>
           <RecentMatches matches={matches} decksById={decksById} onChanged={refetchMatches} />

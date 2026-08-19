@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import DeckAvatar from './DeckAvatar.jsx'
-import { MatchupMatchesTable } from './MatchupRecord.jsx'
+import { MatchupMatchesTable } from './MatchupBreakdownTable.jsx'
 import MatchDetailModal from './MatchDetailModal.jsx'
 
 // Same fury -> calm hex values as :root's --fury/--calm in styles.css,
@@ -23,8 +23,9 @@ const POPOVER_WIDTH = 340
 // Matchup Matrix — a standalone, cross-deck screen: every deck (columns)
 // that has logged at least one match, against every opponent Legend (rows)
 // actually faced across ANY deck, no deck-scoping anywhere. Structurally
-// different from Deck Detail's own Matchup Record (one deck vs. many
-// legends) — see src/main/matchupMatrix.js's getMatchupMatrix() for the
+// different from Insights' own Matchup Breakdown (one deck, or all decks
+// combined, vs. many legends, never side by side per deck) — see
+// src/main/matchupMatrix.js's getMatchupMatrix() for the
 // aggregation this renders, computed fresh on every fetch, same "derive on
 // read" approach the rest of the app uses. Small-sample handling reuses
 // Insights' Matchup Breakdown's own 5+ games convention (getMatchupMatrix's
@@ -194,7 +195,11 @@ export default function MatchupMatrixScreen() {
             {popover.cell.smallSample && <span className="insights-badge">Small sample</span>}
           </div>
           <div className="matrix-popover-matches">
-            <MatchupMatchesTable matches={popover.cell.matches} deckName={popover.deckName} onSelectMatch={setSelectedMatchId} />
+            <MatchupMatchesTable
+              matches={popover.cell.matches}
+              resolveDeckName={() => popover.deckName}
+              onSelectMatch={setSelectedMatchId}
+            />
           </div>
         </div>
       )}

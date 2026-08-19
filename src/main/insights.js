@@ -1,6 +1,5 @@
 import { listMatches } from './matches.js'
 
-const SMALL_SAMPLE_THRESHOLD = 5
 const RECENT_TREND_COUNT = 10
 
 function round(rate) {
@@ -26,12 +25,19 @@ function summarize(decidedItems) {
  * own result/score. Dataset size (personal match history) doesn't justify
  * a materialized stats table.
  *
- * Overall win rate, trend, and matchup breakdown are computed at MATCH
- * level, using each match's derived result exactly as
- * listMatches()/getMatchById() already compute it. Matches with a null
- * result (undecided, e.g. an incomplete Bo3) are excluded entirely — not
- * counted as a loss, and not dropped without also narrowing the
- * denominator.
+ * Overall win rate and trend are computed at MATCH level, using each
+ * match's derived result exactly as listMatches()/getMatchById() already
+ * compute it. Matches with a null result (undecided, e.g. an incomplete
+ * Bo3) are excluded entirely — not counted as a loss, and not dropped
+ * without also narrowing the denominator.
+ *
+ * Matchup Breakdown is NOT computed here — it used to be, but now lives
+ * entirely in the renderer (lib/stats.js's computeMatchupBreakdown(),
+ * rendered by MatchupBreakdownTable.jsx), since InsightsScreen.jsx already
+ * fetches the raw matches list for its own Current Streak box and the
+ * table's expandable per-match rows need that raw data anyway — computing
+ * it a second time here, aggregated, would just be a second source of
+ * truth to keep in sync.
  *
  * Seat advantage and battlefield win rate are computed at GAME level
  * instead, since seat/my_battlefield are per-game fields — a match can
@@ -63,14 +69,6 @@ export function getInsights({ deckId } = {}) {
     battlefieldGroups.get(game.my_battlefield).push(game)
   }
 
-  const matchupGroups = new Map()
-  for (const match of decidedMatches) {
-    const legend = match.opponent_legend?.trim()
-    if (!legend) continue
-    if (!matchupGroups.has(legend)) matchupGroups.set(legend, [])
-    matchupGroups.get(legend).push(match)
-  }
-
   return {
     totalDecidedMatches: overall.total,
     wins: overall.wins,
@@ -94,13 +92,6 @@ export function getInsights({ deckId } = {}) {
 
     battlefieldStats: Array.from(battlefieldGroups.entries())
       .map(([battlefield, games]) => ({ battlefield, ...summarize(games) }))
-      .sort((a, b) => b.total - a.total),
-
-    matchupStats: Array.from(matchupGroups.entries())
-      .map(([opponentLegend, legendMatches]) => {
-        const s = summarize(legendMatches)
-        return { opponentLegend, ...s, smallSample: s.total < SMALL_SAMPLE_THRESHOLD }
-      })
-      .sort((a, b) => b.winRate - a.winRate)
+      .sort((a, b) => b.total - a.total)
   }
 }
