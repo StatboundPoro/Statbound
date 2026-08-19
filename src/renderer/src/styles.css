@@ -1251,6 +1251,87 @@ body {
   font-size: 12px;
 }
 
+/* Decklist's own section-label row -- a variant of the plain .section-label
+   used everywhere else on this page (Matchup Record, Recent Matches,
+   Notes), which stays completely untouched. Only the Decklist header needs
+   room for the List/Grid toggle (and, in Grid, the cost sort control)
+   docked to the right of the label's own trailing rule line. */
+.section-label-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.section-label-row .section-label {
+  flex: 1;
+  margin-bottom: 0;
+  min-width: 0;
+}
+.decklist-view-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Grid view's card tiles -- art with a quantity badge, or a name+count
+   placeholder for a card whose art couldn't be resolved (still loading, no
+   Riftcodex match, or a network failure). Auto-fill so a section's tiles
+   wrap naturally regardless of how many cards it holds. */
+.card-art-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+.card-art-tile {
+  position: relative;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-rail);
+}
+.card-art-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.card-art-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(15, 16, 19, 0.82);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.card-art-tile-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 84px;
+  padding: 8px;
+}
+.card-art-placeholder-name {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.card-art-placeholder-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  align-self: flex-end;
+}
+
 .placeholder-panel {
   background: var(--panel);
   border: 1px dashed var(--border);

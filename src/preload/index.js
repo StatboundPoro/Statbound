@@ -55,6 +55,25 @@ contextBridge.exposeInMainWorld('api', {
     // statbound-replay:// protocol already relies on for video.
     getUrl: (legendName) => ipcRenderer.invoke('legend-art:get-url', legendName)
   },
+  cardArt: {
+    // Resolves ANY card name (Main Deck/Battlefield/Rune/Sideboard, not
+    // just Legends) to its cached, Stage-1-only-cropped art plus its
+    // Riftcodex energy cost -- backs Deck Detail's Grid view
+    // (DecklistCardArt.jsx). Returns { url: statbound-card-art://... |
+    // null, cost: number | null }; the renderer treats a null url as "show
+    // this card's plain placeholder instead," never as an error, the same
+    // per-card degrade legendArt's getUrl() already establishes for the
+    // deck avatar. Lazy: only ever called for a card the renderer is
+    // actually about to render in Grid view, never a bulk upfront fetch.
+    getUrl: (cardName) => ipcRenderer.invoke('card-art:get-url', cardName)
+  },
+  deckDetail: {
+    // Deck Detail's decklist List/Grid view toggle -- persisted via
+    // preferences.js so the last-chosen mode survives navigating away and
+    // app restarts.
+    getViewMode: () => ipcRenderer.invoke('deck-detail:get-view-mode'),
+    setViewMode: (mode) => ipcRenderer.invoke('deck-detail:set-view-mode', mode)
+  },
   insights: {
     get: (params) => ipcRenderer.invoke('insights:get', params)
   },

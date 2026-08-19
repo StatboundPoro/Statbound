@@ -7,6 +7,8 @@ import { listDeckChangelogByDeck } from './deckChangelog.js'
 import { listLegends } from './legends.js'
 import { getLegendArtCachePath } from './legendArtCache.js'
 import { legendArtFileUrl } from './legendArtProtocol.js'
+import { getCardArtCachePath } from './cardArtCache.js'
+import { cardArtFileUrl } from './cardArtProtocol.js'
 import { getInsights } from './insights.js'
 import { getMatchupMatrix } from './matchupMatrix.js'
 import {
@@ -42,12 +44,14 @@ import {
 } from './settings.js'
 import {
   getAutoBackupPrefs,
+  getDeckDetailPrefs,
   getHasSeenWelcomeTour,
   getPlayPrefs,
   getVideoCapturePrefs,
   markWelcomeTourSeen,
   resetVideoCaptureDirectory,
   updateAutoBackupPrefs,
+  updateDeckDetailPrefs,
   updatePlayPrefs,
   updateVideoCapturePrefs
 } from './preferences.js'
@@ -90,6 +94,22 @@ export function registerIpcHandlers() {
     const filePath = await getLegendArtCachePath(legendName)
     return filePath ? legendArtFileUrl(filePath) : null
   })
+  // Returns { url, cost } for one card name (any type) -- a
+  // statbound-card-art:// URL (or null) for its cached, Stage-1-only
+  // cropped art, plus its Riftcodex energy cost (or null). Backs Deck
+  // Detail's Grid view -- see cardArtCache.js. Resolution/caching is lazy
+  // and per-card: this only ever runs for a card the renderer actually
+  // asked about, never a bulk upfront fetch of a whole decklist.
+  ipcMain.handle('card-art:get-url', async (_event, cardName) => {
+    const result = await getCardArtCachePath(cardName)
+    return result ? { url: cardArtFileUrl(result.filePath), cost: result.cost } : { url: null, cost: null }
+  })
+  // Deck Detail's decklist List/Grid view toggle -- persisted so the choice
+  // survives navigating away and restarts (see preferences.js).
+  ipcMain.handle('deck-detail:get-view-mode', () => getDeckDetailPrefs().decklistViewMode)
+  ipcMain.handle('deck-detail:set-view-mode', (_event, mode) =>
+    updateDeckDetailPrefs({ decklistViewMode: mode === 'grid' ? 'grid' : 'list' }).decklistViewMode
+  )
   ipcMain.handle('insights:get', (_event, params) => getInsights(params ?? {}))
   ipcMain.handle('matchup-matrix:get', () => getMatchupMatrix())
   ipcMain.handle('settings:export', () => exportBackup())

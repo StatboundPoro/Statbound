@@ -1,0 +1,111 @@
+import { useEffect, useState } from 'react'
+
+// In-memory, this-session-only cache of resolved { url, cost } entries (or
+// null for "no art available") keyed by normalized card name -- mirrors
+// DeckAvatar.jsx's own artUrlCache exactly, and for the same reason: once
+// one deck's Grid view has resolved a card this session, a second deck
+// sharing that card (or the same deck's Grid view being reopened) reuses it
+// with no further IPC round trip. The real cache (survives restarts) lives
+// on disk in main -- see src/main/cardArtCache.js -- this is just a
+// render-cheap layer on top of it.
+const cardArtCache = new Map()
+
+function normalizeKey(name) {
+  return name.trim().toLowerCase()
+}
+
+/**
+ * Kicks off lazy resolution for every distinct card name in `cardNames`
+ * that isn't already cached this session, and returns the shared
+ * cardArtCache map so callers can read whatever's resolved so far. Callers
+ * re-render as entries stream in (each resolved card bumps a local
+ * counter), so a Grid view populates progressively rather than waiting on
+ * every card at once -- and a card that was already resolved (this deck's
+ * Grid view was opened before, or another deck already resolved the same
+ * card name) shows up immediately with no loading flash.
+ *
+ * `cardNames` should be a stable (memoized) array reference -- it's only
+ * meant to change when the set of cards actually being displayed changes
+ * (e.g. switching decks), not on every render.
+ */
+export function useCardArtResolution(cardNames) {
+  const [, setVersion] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    const toFetch = cardNames.filter((name) => !cardArtCache.has(normalizeKey(name)))
+
+    toFetch.forEach((name) => {
+      window.api.cardArt.getUrl(name).then((result) => {
+        cardArtCache.set(normalizeKey(name), result)
+        if (!cancelled) setVersion((v) => v + 1)
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [cardNames])
+
+  return cardArtCache
+}
+
+export function getCardArtEntry(cardName) {
+  return cardArtCache.get(normalizeKey(cardName))
+}
+
+/**
+ * One Grid view tile: a card's art with a quantity badge overlaid in the
+ * corner (only shown for count > 1 -- a single copy shows no badge, since
+ * badging every one of a 39-card Main Deck's mostly-single-copy cards would
+ * be noisier than useful), or a plain name+count placeholder tile if art
+ * isn't available yet (still resolving) or never resolves (no Riftcodex
+ * match, network failure). The placeholder and the not-yet-resolved state
+ * render identically on purpose -- both are non-blocking, and there's
+ * nothing meaningful to tell the user apart between "still loading" and
+ * "never found," since either way the rest of the grid keeps rendering
+ * normally around it.
+ */
+export function CardArtTile({ card }) {
+  const entry = getCardArtEntry(card.name)
+
+  if (entry?.url) {
+    return (
+      <div className="card-art-tile" title={card.name}>
+        <img src={entry.url} alt={card.name} />
+        {card.count > 1 && <span className="card-art-badge">×{card.count}</span>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="card-art-tile card-art-tile-placeholder" title={card.name}>
+      <span className="card-art-placeholder-name">{card.name}</span>
+      <span className="card-art-placeholder-count">×{card.count}</span>
+    </div>
+  )
+}
+
+/**
+ * Sorts a section's cards by Riftcodex energy cost, ascending or
+ * descending. Cards with no known cost yet (still resolving, or resolved
+ * with no numeric cost at all -- Legends, and possibly other types) always
+ * sink to the end regardless of direction, rather than clumping
+ * unpredictably at whichever end a raw numeric comparison would put a
+ * missing value. Re-run on every render as more art/cost data streams in
+ * via useCardArtResolution above, so the grid re-sorts itself as costs
+ * resolve rather than freezing at whatever was known when the sort was
+ * first chosen.
+ */
+export function sortCardsByCost(cards, direction) {
+  if (direction !== 'costAsc' && direction !== 'costDesc') return cards
+
+  const withCost = cards.map((card) => ({ card, cost: getCardArtEntry(card.name)?.cost ?? null }))
+  withCost.sort((a, b) => {
+    if (a.cost === null && b.cost === null) return 0
+    if (a.cost === null) return 1
+    if (b.cost === null) return -1
+    return direction === 'costAsc' ? a.cost - b.cost : b.cost - a.cost
+  })
+  return withCost.map((entry) => entry.card)
+}

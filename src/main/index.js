@@ -20,6 +20,10 @@ import { registerReplayProtocol } from './replayProtocol.js'
 // registers the statbound-legend-art:// scheme as privileged before the
 // app is ready.
 import { registerLegendArtProtocol } from './legendArtProtocol.js'
+// Same reasoning again -- its module body registers the
+// statbound-card-art:// scheme (Deck Detail's Grid view card art) as
+// privileged before the app is ready.
+import { registerCardArtProtocol } from './cardArtProtocol.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -113,6 +117,7 @@ app.whenReady().then(async () => {
   await recoverOrphanedRecordings()
   registerReplayProtocol()
   registerLegendArtProtocol()
+  registerCardArtProtocol()
   initEventLoopWatchdog()
 
   const win = createMainWindow()

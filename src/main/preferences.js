@@ -82,6 +82,14 @@ const DEFAULT_UPDATE_CHECK = {
   lastUpdateCheckAt: null
 }
 
+// Deck Detail's decklist List/Grid view toggle (see DeckDetail.jsx and
+// CLAUDE.md's Design Language entry) -- remembered across visits and
+// restarts, same "setting about this installation, not TCG data" reasoning
+// as everything else in this file.
+const DEFAULT_DECK_DETAIL = {
+  decklistViewMode: 'list' // 'list' | 'grid'
+}
+
 // Exported so userDataMigration.js's legacy-path repointing can read and
 // rewrite the same file directly, rather than going through the
 // default-filling get*Prefs()/update*Prefs() helpers below (which would
@@ -253,4 +261,25 @@ export function updateUpdateCheckPrefs(patch) {
   const updateCheck = { ...DEFAULT_UPDATE_CHECK, ...raw.updateCheck, ...patch }
   writeRaw({ ...raw, updateCheck })
   return updateCheck
+}
+
+/**
+ * Returns the current Deck Detail preferences (currently just
+ * decklistViewMode), filling in the default if unset.
+ */
+export function getDeckDetailPrefs() {
+  const raw = readRaw()
+  return { ...DEFAULT_DECK_DETAIL, ...raw.deckDetail }
+}
+
+/**
+ * Persists a Deck Detail preference change -- currently only called with
+ * the decklistViewMode the user last chose, from DeckDetail.jsx's own
+ * List/Grid toggle.
+ */
+export function updateDeckDetailPrefs(patch) {
+  const raw = readRaw()
+  const deckDetail = { ...DEFAULT_DECK_DETAIL, ...raw.deckDetail, ...patch }
+  writeRaw({ ...raw, deckDetail })
+  return deckDetail
 }

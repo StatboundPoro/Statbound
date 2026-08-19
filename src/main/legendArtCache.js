@@ -30,8 +30,12 @@ import { LEGEND_ART_CROP_OVERRIDES } from './data/legendArtCropOverrides.js'
 // where not perfectly centered within it. LEGEND_ART_CROP_OVERRIDES (see
 // that file) can replace this default for one specific Legend if its
 // avatar is ever noticed looking bad.
-const STAGE1_HEIGHT_FRACTION = 0.58
-const STAGE1_INSET_FRACTION = 0.04
+// Exported so cardArtCache.js (Deck Detail's Grid view card art, a separate
+// crop treatment -- see that file) can reuse this exact Stage 1 template
+// instead of duplicating the two fractions. This is the only thing the two
+// pipelines share; cardArtCache.js never applies this file's Stage 2.
+export const STAGE1_HEIGHT_FRACTION = 0.58
+export const STAGE1_INSET_FRACTION = 0.04
 // Output is capped here, downscale only (sharp's withoutEnlargement below)
 // -- never upscaled past whatever Stage 2's square crop actually measures,
 // the same "never upscale" principle capture.js's video encode follows.

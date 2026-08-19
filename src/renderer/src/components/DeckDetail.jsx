@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { domainIcon } from '../lib/domainIcons.js'
 import { computeRecord, computeStreak, computeWinRate } from '../lib/stats.js'
 import { serializeDecklist } from '../lib/parseDecklist.js'
+import { CardArtTile, sortCardsByCost, useCardArtResolution } from './DecklistCardArt.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import DeckAvatar from './DeckAvatar.jsx'
 import DeckChangelogPanel from './DeckChangelogPanel.jsx'
@@ -18,6 +19,12 @@ const SECTIONS = [
   { key: 'battlefields', title: 'Battlefields' },
   { key: 'runes', title: 'Runes' },
   { key: 'sideboard', title: 'Sideboard' }
+]
+
+const GRID_SORT_OPTIONS = [
+  { key: 'default', label: 'Deck Order' },
+  { key: 'costAsc', label: 'Cost Low → High' },
+  { key: 'costDesc', label: 'Cost High → Low' }
 ]
 
 // Deck detail page for one deck, reached by clicking a card in the Deck
@@ -39,6 +46,30 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
   const [editOpen, setEditOpen] = useState(false)
   const [logMatchOpen, setLogMatchOpen] = useState(false)
   const [changelogOpen, setChangelogOpen] = useState(false)
+  // List/Grid decklist view -- List is the default, unchanged from before
+  // this existed; the persisted choice (see preferences.js's
+  // decklistViewMode) is loaded once on mount below and may flip this to
+  // 'grid' shortly after first render, the same async-preference-load
+  // pattern the Play tab's own deck picker already uses. gridSort is
+  // deliberately NOT persisted -- it's scoped to whatever's currently
+  // showing, not a standing preference.
+  const [viewMode, setViewMode] = useState('list')
+  const [gridSort, setGridSort] = useState('default')
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.deckDetail.getViewMode().then((mode) => {
+      if (!cancelled) setViewMode(mode)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function handleViewModeChange(mode) {
+    setViewMode(mode)
+    window.api.deckDetail.setViewMode(mode)
+  }
 
   async function refetchMatches() {
     const matchesResult = await window.api.matches.list()
@@ -102,6 +133,22 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
       console.error('Failed to refresh matches:', err)
     }
   }
+
+  // Only gathered/resolved once Grid view is actually showing -- an empty
+  // array while on List (or before the deck has loaded) means
+  // useCardArtResolution below has nothing to fetch, matching the "lazy,
+  // never a bulk upfront fetch before the user has asked to see Grid"
+  // requirement. Called unconditionally, before the status early-returns
+  // below, since it's a hook -- deck may still be null here while loading.
+  const allCardNames = useMemo(() => {
+    if (viewMode !== 'grid' || !deck) return []
+    const names = new Set()
+    for (const { key } of SECTIONS) {
+      for (const card of deck.decklist?.[key] ?? []) names.add(card.name)
+    }
+    return [...names]
+  }, [viewMode, deck])
+  useCardArtResolution(allCardNames)
 
   if (status === 'loading') {
     return (
@@ -240,11 +287,49 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
         </div>
       </div>
 
-      <div className="section-label">Decklist</div>
+      <div className="section-label-row">
+        <div className="section-label">Decklist</div>
+        <div className="decklist-view-controls">
+          <div className="segmented">
+            <button
+              type="button"
+              className={`segmented-option ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => handleViewModeChange('list')}
+            >
+              List
+            </button>
+            <button
+              type="button"
+              className={`segmented-option ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => handleViewModeChange('grid')}
+            >
+              Grid
+            </button>
+          </div>
+          {viewMode === 'grid' && (
+            <div className="segmented">
+              {GRID_SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className={`segmented-option ${gridSort === opt.key ? 'active' : ''}`}
+                  onClick={() => setGridSort(opt.key)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
       <div className="decklist-grid">
-        {SECTIONS.map(({ key, title, wide }) => (
-          <DecklistSection key={key} title={title} cards={decklist[key]} wide={wide} />
-        ))}
+        {SECTIONS.map(({ key, title, wide }) =>
+          viewMode === 'grid' ? (
+            <DecklistGridSection key={key} title={title} cards={decklist[key]} wide={wide} sort={gridSort} />
+          ) : (
+            <DecklistSection key={key} title={title} cards={decklist[key]} wide={wide} />
+          )
+        )}
       </div>
 
       <div className="section-label">Matchup Record</div>
@@ -320,6 +405,34 @@ function DecklistSection({ title, cards, wide }) {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  )
+}
+
+// Grid view's counterpart to DecklistSection above -- same section
+// wrapper/title, but renders one CardArtTile per distinct card (art +
+// quantity badge, or a placeholder) instead of a text row per card, and
+// applies the section-local cost sort. `sort` is re-applied on every render
+// (sortCardsByCost reads live cost data straight from DecklistCardArt.jsx's
+// module-level cache), so the grid quietly re-sorts itself as more cards'
+// costs resolve rather than freezing at whatever was known when a sort was
+// first chosen.
+function DecklistGridSection({ title, cards, wide, sort }) {
+  const list = cards ?? []
+  const sorted = sortCardsByCost(list, sort)
+
+  return (
+    <div className={`decklist-section ${wide ? 'wide' : ''}`}>
+      <div className="decklist-section-title">{title}</div>
+      {sorted.length === 0 ? (
+        <div className="decklist-empty">-</div>
+      ) : (
+        <div className="card-art-grid">
+          {sorted.map((card, index) => (
+            <CardArtTile key={`${card.name}-${index}`} card={card} />
+          ))}
+        </div>
       )}
     </div>
   )
