@@ -5,21 +5,21 @@
     <!--
       img-src/media-src explicitly allowlist this app's own scoped custom
       protocols (statbound-legend-art://, statbound-card-art://,
-      statbound-replay://) rather than relying on
-      protocol.registerSchemesAsPrivileged()'s bypassCSP flag to exempt
+      statbound-card-art-full://, statbound-replay://) rather than relying
+      on protocol.registerSchemesAsPrivileged()'s bypassCSP flag to exempt
       them -- confirmed live (DevTools console) that bypassCSP does NOT
       exempt a resource load from *this document's own* CSP the way it was
       assumed to when the legend art feature was first built; it's some
-      narrower guarantee the Electron docs don't spell out. All three scheme
+      narrower guarantee the Electron docs don't spell out. All four scheme
       names are safe to allowlist explicitly: nothing in the renderer can
       forge an arbitrary URL on any of them that resolves outside its own
       protocol handler's userData directory (see legendArtProtocol.js's,
-      cardArtProtocol.js's, and replayProtocol.js's own path.resolve()
-      containment checks).
+      cardArtProtocol.js's, cardArtFullProtocol.js's, and
+      replayProtocol.js's own path.resolve() containment checks).
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' statbound-legend-art: statbound-card-art:; media-src 'self' statbound-replay:"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' statbound-legend-art: statbound-card-art: statbound-card-art-full:; media-src 'self' statbound-replay:"
     />
     <title>Statbound</title>
   </head>

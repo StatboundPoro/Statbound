@@ -68,7 +68,16 @@ contextBridge.exposeInMainWorld('api', {
     // getUrl() already establishes for the deck avatar. Lazy: only ever
     // called for a card the renderer is actually about to render in Grid
     // view, never a bulk upfront fetch.
-    getUrl: (cardName, cropMode) => ipcRenderer.invoke('card-art:get-url', cardName, cropMode)
+    getUrl: (cardName, cropMode) => ipcRenderer.invoke('card-art:get-url', cardName, cropMode),
+    // Resolves one card name to its cached, full-resolution, completely
+    // uncropped source image (a separate cache/protocol from getUrl()
+    // above -- see src/main/cardArtFullCache.js) -- backs the Grid view
+    // card lightbox (CardLightbox.jsx). Returns a
+    // statbound-card-art-full:// URL or null if unavailable for any
+    // reason; the renderer treats null as "show an Image unavailable
+    // state," never as an error. Lazy: only ever called the moment a card
+    // is actually clicked open, never upfront for a whole decklist.
+    getFullUrl: (cardName) => ipcRenderer.invoke('card-art:get-full-url', cardName)
   },
   deckDetail: {
     // Deck Detail's decklist List/Grid view toggle -- persisted via

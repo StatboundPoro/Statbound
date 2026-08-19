@@ -3,7 +3,7 @@ import path from 'path'
 import crypto from 'crypto'
 import sharp from 'sharp'
 import { app } from 'electron'
-import { resolveCardArt } from './services/cardArt.js'
+import { fetchWithTimeout, resolveCardArt } from './services/cardArt.js'
 import { STAGE1_HEIGHT_FRACTION, STAGE1_INSET_FRACTION } from './legendArtCache.js'
 
 // Deck Detail Grid view's card-art pipeline -- a second, separate cache/crop
@@ -120,7 +120,7 @@ async function cropCardArt(sourceBuffer, orientation, cropMode) {
 }
 
 async function downloadCropAndCache(cardName, imageUrl, orientation, cost, cropMode) {
-  const response = await fetch(imageUrl)
+  const response = await fetchWithTimeout(imageUrl)
   if (!response.ok) throw new Error(`Card art download failed: HTTP ${response.status}`)
   const sourceBuffer = Buffer.from(await response.arrayBuffer())
 

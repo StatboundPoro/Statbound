@@ -20,6 +20,27 @@ import { RIFTCODEX_BASE } from './legendSync.js'
 
 const NAME_LOOKUP_SIZE = 20
 
+// A bounded request timeout, shared by every fetch this feature makes
+// (this module's own name lookup, plus the image downloads in
+// cardArtCache.js and cardArtFullCache.js) -- a slow/hung connection
+// shouldn't be able to leave a Grid view tile or an open lightbox stuck
+// indefinitely. A timeout (or any other network failure) is never cached
+// as "this card has no art": every caller here and in both cache modules
+// only ever writes to disk on a genuine success, so a transient failure is
+// simply retried the next time that card is asked for, never permanently
+// remembered as unavailable.
+const FETCH_TIMEOUT_MS = 8000
+
+export async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 // Same definition legendArt.js's isCanonicalPrinting() uses -- duplicated
 // rather than imported since the two lookups hit different endpoints with
 // no shared card-fetching code path to hang a common helper off of.
@@ -52,7 +73,7 @@ function toRiftcodexQueryName(name) {
 
 async function fetchExactName(name) {
   const url = `${RIFTCODEX_BASE}/cards/name?exact=${encodeURIComponent(name)}&size=${NAME_LOOKUP_SIZE}`
-  const response = await fetch(url)
+  const response = await fetchWithTimeout(url)
   if (!response.ok) {
     throw new Error(`Riftcodex /cards/name request failed: HTTP ${response.status}`)
   }

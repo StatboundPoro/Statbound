@@ -9,6 +9,8 @@ import { getLegendArtCachePath } from './legendArtCache.js'
 import { legendArtFileUrl } from './legendArtProtocol.js'
 import { getCardArtCachePath } from './cardArtCache.js'
 import { cardArtFileUrl } from './cardArtProtocol.js'
+import { getCardArtFullCachePath } from './cardArtFullCache.js'
+import { cardArtFullFileUrl } from './cardArtFullProtocol.js'
 import { getInsights } from './insights.js'
 import { getMatchupMatrix } from './matchupMatrix.js'
 import {
@@ -106,6 +108,18 @@ export function registerIpcHandlers() {
   ipcMain.handle('card-art:get-url', async (_event, cardName, cropMode) => {
     const result = await getCardArtCachePath(cardName, cropMode)
     return result ? { url: cardArtFileUrl(result.filePath), cost: result.cost } : { url: null, cost: null }
+  })
+  // Returns a statbound-card-art-full:// URL for one card's cached, full-
+  // resolution, completely uncropped source image, or null if unavailable
+  // for any reason -- backs Deck Detail's Grid view card lightbox
+  // (CardLightbox.jsx). A separate cache/protocol from card-art:get-url
+  // above (see cardArtFullCache.js) -- Grid's own tiles never use this
+  // channel, and the lightbox never uses card-art:get-url. Lazy: only ever
+  // called the moment a card is actually clicked open, never upfront for a
+  // whole decklist.
+  ipcMain.handle('card-art:get-full-url', async (_event, cardName) => {
+    const filePath = await getCardArtFullCachePath(cardName)
+    return filePath ? cardArtFullFileUrl(filePath) : null
   })
   // Deck Detail's decklist List/Grid view toggle -- persisted so the choice
   // survives navigating away and restarts (see preferences.js).

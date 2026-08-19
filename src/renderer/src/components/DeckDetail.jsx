@@ -3,6 +3,7 @@ import { domainIcon } from '../lib/domainIcons.js'
 import { computeRecord, computeStreak, computeWinRate } from '../lib/stats.js'
 import { serializeDecklist } from '../lib/parseDecklist.js'
 import { CardArtTile, sortCardsByCost, useCardArtResolution } from './DecklistCardArt.jsx'
+import CardLightbox from './CardLightbox.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import DeckAvatar from './DeckAvatar.jsx'
 import DeckChangelogPanel from './DeckChangelogPanel.jsx'
@@ -72,6 +73,15 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
   // showing, not a standing preference.
   const [viewMode, setViewMode] = useState('list')
   const [gridSort, setGridSort] = useState('default')
+  // The card lightbox, Grid view only. `cards` is a snapshot of the exact
+  // sorted array whichever section's tile was clicked in -- captured once,
+  // at click time, so Next/Previous walk that same list regardless of any
+  // later re-sort or re-render, and can never spill into another section.
+  const [lightbox, setLightbox] = useState(null)
+
+  function openLightbox(sectionCards, index) {
+    setLightbox({ cards: sectionCards, index })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -347,7 +357,14 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
       <div className="decklist-grid">
         {SECTIONS.map(({ key, title, wide }) =>
           viewMode === 'grid' ? (
-            <DecklistGridSection key={key} title={title} cards={decklist[key]} wide={wide} sort={gridSort} />
+            <DecklistGridSection
+              key={key}
+              title={title}
+              cards={decklist[key]}
+              wide={wide}
+              sort={gridSort}
+              onCardOpen={openLightbox}
+            />
           ) : (
             <DecklistSection key={key} title={title} cards={decklist[key]} wide={wide} />
           )
@@ -395,6 +412,15 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
       )}
 
       {changelogOpen && <DeckChangelogPanel deckId={deck.id} onClose={() => setChangelogOpen(false)} />}
+
+      {lightbox && (
+        <CardLightbox
+          cards={lightbox.cards}
+          index={lightbox.index}
+          onClose={() => setLightbox(null)}
+          onNavigate={(index) => setLightbox((prev) => (prev ? { ...prev, index } : prev))}
+        />
+      )}
     </div>
   )
 }
@@ -439,8 +465,11 @@ function DecklistSection({ title, cards, wide }) {
 // (sortCardsByCost reads live cost data straight from DecklistCardArt.jsx's
 // module-level cache), so the grid quietly re-sorts itself as more cards'
 // costs resolve rather than freezing at whatever was known when a sort was
-// first chosen.
-function DecklistGridSection({ title, cards, wide, sort }) {
+// first chosen. Clicking a tile calls `onCardOpen(sorted, index)`, handing
+// the lightbox this exact section's exact current order -- Next/Previous
+// (see CardLightbox.jsx) can only ever walk within it, never into a
+// different section.
+function DecklistGridSection({ title, cards, wide, sort, onCardOpen }) {
   const list = cards ?? []
   const sorted = sortCardsByCost(list, sort)
 
@@ -452,7 +481,7 @@ function DecklistGridSection({ title, cards, wide, sort }) {
       ) : (
         <div className="card-art-grid">
           {sorted.map((card, index) => (
-            <CardArtTile key={`${card.name}-${index}`} card={card} />
+            <CardArtTile key={`${card.name}-${index}`} card={card} onOpen={() => onCardOpen(sorted, index)} />
           ))}
         </div>
       )}

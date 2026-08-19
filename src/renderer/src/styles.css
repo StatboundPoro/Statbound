@@ -1300,6 +1300,18 @@ body {
   border: 1px solid var(--border);
   background: var(--bg-rail);
 }
+.card-art-tile-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.card-art-tile-clickable:hover,
+.card-art-tile-clickable:focus-visible {
+  border-color: var(--text-faint);
+}
+.card-art-tile-clickable:focus-visible {
+  outline: 2px solid var(--order);
+  outline-offset: 1px;
+}
 .card-art-tile img {
   display: block;
   width: 100%;
@@ -1340,6 +1352,90 @@ body {
   font-size: 10.5px;
   color: var(--text-faint);
   align-self: flex-end;
+}
+
+/* Grid view's card lightbox (CardLightbox.jsx) -- a darker, more opaque
+   backdrop than .modal-backdrop/.changelog-backdrop since it exists purely
+   to focus attention on one enlarged card image, not to frame a form or a
+   list. Same fixed/inset/z-index shape as those two overlays otherwise. */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 11, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.lightbox-content {
+  position: relative;
+  max-width: calc(100vw - 120px);
+  max-height: calc(100vh - 80px);
+  display: flex;
+}
+.lightbox-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 240px;
+  min-height: 240px;
+}
+.lightbox-image {
+  display: block;
+  max-width: calc(100vw - 120px);
+  max-height: calc(100vh - 80px);
+  width: auto;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.lightbox-status {
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 40px 60px;
+}
+.lightbox-close {
+  position: absolute;
+  top: -40px;
+  right: -8px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  transition: color 0.15s ease;
+}
+.lightbox-close:hover {
+  color: var(--text);
+}
+.lightbox-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(21, 23, 27, 0.7);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.lightbox-nav:hover {
+  background: rgba(33, 36, 42, 0.9);
+  color: var(--text);
+}
+.lightbox-nav-prev {
+  left: 24px;
+}
+.lightbox-nav-next {
+  right: 24px;
 }
 
 .placeholder-panel {

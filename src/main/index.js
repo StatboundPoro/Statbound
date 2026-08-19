@@ -24,6 +24,11 @@ import { registerLegendArtProtocol } from './legendArtProtocol.js'
 // statbound-card-art:// scheme (Deck Detail's Grid view card art) as
 // privileged before the app is ready.
 import { registerCardArtProtocol } from './cardArtProtocol.js'
+// Same reasoning again -- its module body registers the
+// statbound-card-art-full:// scheme (Deck Detail's Grid view card
+// lightbox, a separate cache from the Grid tile art above) as privileged
+// before the app is ready.
+import { registerCardArtFullProtocol } from './cardArtFullProtocol.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -118,6 +123,7 @@ app.whenReady().then(async () => {
   registerReplayProtocol()
   registerLegendArtProtocol()
   registerCardArtProtocol()
+  registerCardArtFullProtocol()
   initEventLoopWatchdog()
 
   const win = createMainWindow()

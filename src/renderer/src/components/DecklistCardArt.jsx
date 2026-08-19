@@ -59,6 +59,42 @@ export function getCardArtEntry(cardName) {
   return cardArtCache.get(normalizeKey(cardName))
 }
 
+// In-memory, this-session-only cache of resolved full-card image URLs (or
+// `null` for "unavailable") keyed by normalized card name -- the
+// lightbox's own counterpart to cardArtCache above. Deliberately a
+// separate Map: Grid tiles and the lightbox resolve independently (see
+// src/main/cardArtCache.js vs. src/main/cardArtFullCache.js), so a card
+// whose tile art is still loading or failed can still resolve its full
+// image the moment the lightbox asks for it, and vice versa.
+const fullCardArtCache = new Map()
+
+/**
+ * Returns a card's cached full-image URL, or `undefined` if it hasn't
+ * resolved yet (kicking off that resolution as a side effect the first
+ * time it's asked for), or `null` if it resolved to "unavailable."
+ * CardLightbox.jsx is the only caller -- unlike useCardArtResolution
+ * above, this fetches one card at a time, on demand, never a batch, since
+ * the lightbox only ever shows one card at once.
+ */
+export function useFullCardArt(cardName) {
+  const key = normalizeKey(cardName)
+  const [, setVersion] = useState(0)
+
+  useEffect(() => {
+    if (fullCardArtCache.has(key)) return
+    let cancelled = false
+    window.api.cardArt.getFullUrl(cardName).then((url) => {
+      fullCardArtCache.set(key, url)
+      if (!cancelled) setVersion((v) => v + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [key, cardName])
+
+  return fullCardArtCache.has(key) ? fullCardArtCache.get(key) : undefined
+}
+
 /**
  * One Grid view tile: a card's art with a quantity badge overlaid in the
  * corner (only shown for count > 1 -- a single copy shows no badge, since
@@ -70,13 +106,37 @@ export function getCardArtEntry(cardName) {
  * nothing meaningful to tell the user apart between "still loading" and
  * "never found," since either way the rest of the grid keeps rendering
  * normally around it.
+ *
+ * `onOpen`, if provided, makes the tile clickable (opens the card
+ * lightbox) regardless of whether this tile's own thumbnail resolved --
+ * the lightbox fetches the full card independently (see useFullCardArt
+ * above), so a card stuck on its placeholder here can still open
+ * successfully.
  */
-export function CardArtTile({ card }) {
+export function CardArtTile({ card, onOpen }) {
   const entry = getCardArtEntry(card.name)
+  const clickable = typeof onOpen === 'function'
+  const interactiveProps = clickable
+    ? {
+        onClick: onOpen,
+        role: 'button',
+        tabIndex: 0,
+        onKeyDown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }
+      }
+    : {}
 
   if (entry?.url) {
     return (
-      <div className="card-art-tile" title={card.name}>
+      <div
+        className={`card-art-tile ${clickable ? 'card-art-tile-clickable' : ''}`}
+        title={card.name}
+        {...interactiveProps}
+      >
         <img src={entry.url} alt={card.name} />
         {card.count > 1 && <span className="card-art-badge">×{card.count}</span>}
       </div>
@@ -84,7 +144,11 @@ export function CardArtTile({ card }) {
   }
 
   return (
-    <div className="card-art-tile card-art-tile-placeholder" title={card.name}>
+    <div
+      className={`card-art-tile card-art-tile-placeholder ${clickable ? 'card-art-tile-clickable' : ''}`}
+      title={card.name}
+      {...interactiveProps}
+    >
       <span className="card-art-placeholder-name">{card.name}</span>
       <span className="card-art-placeholder-count">×{card.count}</span>
     </div>
