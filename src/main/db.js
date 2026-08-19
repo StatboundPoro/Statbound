@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import Database from 'better-sqlite3'
 import { FALLBACK_LEGEND_NAMES } from './data/legendsFallback.js'
-import { fetchLegendsFromRiftcodex } from './services/legendSync.js'
+import { fetchLegendsFromRiftcodex, transformLegendName } from './services/legendSync.js'
 import { getLegendSyncPrefs, updateLegendSyncPrefs } from './preferences.js'
 
 // The live database's current filename. Was rifttrack.db until the
@@ -245,6 +245,7 @@ export function getDb() {
   if (db) return db
 
   db = openDatabase(getDbPath())
+  migrateLegacyHyphenLegendNames(db)
   seedFallbackLegendsIfEmpty(db)
   // Fire-and-forget: the fallback seed above already guarantees the table
   // isn't empty, so a slow or failed live sync can never block startup or
@@ -289,6 +290,49 @@ function insertLegendNames(db, names) {
     }
   })
   insertAll(names)
+}
+
+// One-time cleanup for rows left over from this table's very first version
+// (commit 6212b29), which seeded a hand-maintained static list using
+// Riftcodex's own hyphen separator ("Ahri - Nine-Tailed Fox") rather than
+// this app's comma convention ("Ahri, Nine-Tailed Fox") that the fallback
+// list and live Riftcodex sync have both used ever since (see
+// legendsFallback.js and services/legendSync.js's transformLegendName()).
+// Because insertLegendNames() has always been additive-only -- rows are
+// never deleted, so a name dropped from a later source can't orphan
+// existing matchup data referencing it -- any install that ran before that
+// switch still has both the old hyphen-form row and the new comma-form row
+// for the same Legend, doubling every autocomplete suggestion. Runs once on
+// every startup (a cheap no-op once there's nothing left to migrate, the
+// same pattern cleanupSeededDemoDeck() below already follows): for each
+// surviving hyphen-form row, deletes it if a comma-form row for the same
+// Legend already exists, or renames it in place to the comma form if one
+// doesn't (e.g. Kennen -- see transformLegendName()'s own doc comment on
+// why the live sync can never produce a comma-form row for that one), so
+// no Legend is ever silently dropped rather than just de-duplicated.
+function migrateLegacyHyphenLegendNames(db) {
+  const rows = db.prepare('SELECT id, name FROM legends').all()
+  const namesInUse = new Set(rows.map((r) => r.name))
+
+  const deleteStmt = db.prepare('DELETE FROM legends WHERE id = ?')
+  const renameStmt = db.prepare('UPDATE legends SET name = ? WHERE id = ?')
+
+  const migrateAll = db.transaction(() => {
+    for (const row of rows) {
+      if (!row.name.includes(' - ')) continue
+      const commaName = transformLegendName(row.name)
+      if (!commaName || commaName === row.name) continue
+
+      if (namesInUse.has(commaName)) {
+        deleteStmt.run(row.id)
+      } else {
+        renameStmt.run(commaName, row.id)
+        namesInUse.add(commaName)
+      }
+      namesInUse.delete(row.name)
+    }
+  })
+  migrateAll()
 }
 
 function legendsTableIsEmpty(db) {
