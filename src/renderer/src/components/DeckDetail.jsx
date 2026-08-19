@@ -21,19 +21,21 @@ import RecentMatches from './RecentMatches.jsx'
 // rendered sections — both List and Grid view read the same array.
 //
 // `cropMode` only matters to Grid view (List never renders an image) --
-// 'none' shows the section's cards as their full, uncropped source image
-// (Legend/Champion/Runes, a deliberate product choice that the full card
-// reads better there than an art-only tile); 'auto' (the default, so
-// Battlefields/Main Deck/Sideboard don't need to spell it out) lets
-// cardArtCache.js apply its usual Stage 1 art-region crop on portrait
-// cards. See DecklistGridSection and cardArtCache.js.
+// 'none' shows a section's cards as their full, uncropped source image;
+// 'auto' would let cardArtCache.js apply its Stage 1 art-region crop on
+// portrait cards instead (still supported there, just unused below). Every
+// section is 'none' now -- an art-only Stage 1 crop on Main Deck/
+// Battlefields/Sideboard read as less recognizable than the full card, the
+// same reasoning Legend/Champion/Runes already used, so the distinction
+// was dropped in favor of one uniform treatment. See DecklistGridSection
+// and cardArtCache.js.
 const SECTIONS = [
   { key: 'legend', title: 'Legend', cropMode: 'none' },
   { key: 'champion', title: 'Champion', cropMode: 'none' },
-  { key: 'battlefields', title: 'Battlefields' },
+  { key: 'battlefields', title: 'Battlefields', cropMode: 'none' },
   { key: 'runes', title: 'Runes', cropMode: 'none' },
-  { key: 'main', title: 'Main Deck', wide: true },
-  { key: 'sideboard', title: 'Sideboard', wide: true }
+  { key: 'main', title: 'Main Deck', wide: true, cropMode: 'none' },
+  { key: 'sideboard', title: 'Sideboard', wide: true, cropMode: 'none' }
 ]
 
 const GRID_SORT_OPTIONS = [
