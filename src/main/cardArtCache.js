@@ -19,7 +19,17 @@ import { STAGE1_HEIGHT_FRACTION, STAGE1_INSET_FRACTION } from './legendArtCache.
 // number of decks sharing a staple card (or the same card appearing in one
 // deck's Main Deck and Sideboard) all reuse one cached file on disk, the
 // same principle legendArtCache.js already applies per Legend name.
-const OUTPUT_WIDTH = 220
+//
+// Bumped from an initial 220 once the decklist layout moved Battlefields/
+// Runes up alongside Legend/Champion (see DeckDetail.jsx's SECTIONS and
+// styles.css's .decklist-grid) freed up room for Grid view's tiles to
+// render bigger (.card-art-grid's minmax went from 84px to 112px) -- sized
+// with headroom over that display width for a crisp render on high-DPI
+// screens rather than the browser upscaling a smaller cached file. Only
+// affects newly-cached cards; anything already cached at 220px stays that
+// size until its cache entry is cleared (this is a disposable local
+// performance cache, not user data, so no migration is needed).
+const OUTPUT_WIDTH = 300
 
 function normalizeCardName(cardName) {
   return cardName.trim().toLowerCase()

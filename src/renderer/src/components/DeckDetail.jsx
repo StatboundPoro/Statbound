@@ -12,13 +12,20 @@ import LogMatchModal from './LogMatchModal.jsx'
 import MatchupRecord from './MatchupRecord.jsx'
 import RecentMatches from './RecentMatches.jsx'
 
+// Legend/Champion/Battlefields/Runes share one row of four narrow columns
+// (each is a small, fixed-size section — 1, 1, 3, and 12 cards — so none of
+// them need a full row to themselves); Main Deck and Sideboard each get
+// their own full-width row below, in that order. Array order drives the
+// grid's auto-placement (see .decklist-grid/.decklist-section.wide in
+// styles.css), so reordering this list is what actually reorders the
+// rendered sections — both List and Grid view read the same array.
 const SECTIONS = [
   { key: 'legend', title: 'Legend' },
   { key: 'champion', title: 'Champion' },
-  { key: 'main', title: 'Main Deck', wide: true },
   { key: 'battlefields', title: 'Battlefields' },
   { key: 'runes', title: 'Runes' },
-  { key: 'sideboard', title: 'Sideboard' }
+  { key: 'main', title: 'Main Deck', wide: true },
+  { key: 'sideboard', title: 'Sideboard', wide: true }
 ]
 
 const GRID_SORT_OPTIONS = [

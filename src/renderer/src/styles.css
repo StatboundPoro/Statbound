@@ -1198,7 +1198,13 @@ body {
 
 .decklist-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Four narrow columns so Legend/Champion/Battlefields/Runes -- each a
+     small, fixed-size section -- share one row instead of Legend/Champion
+     sitting next to an empty third cell while Battlefields/Runes get a
+     whole row of their own further down. Main Deck/Sideboard span all 4
+     below (see .decklist-section.wide), so this only affects how narrow
+     the four small sections are, not either wide section's actual width. */
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 36px;
 }
@@ -1209,7 +1215,7 @@ body {
   padding: 14px 16px;
 }
 .decklist-section.wide {
-  grid-column: span 3;
+  grid-column: span 4;
 }
 .decklist-section-title {
   font-size: 10.5px;
@@ -1277,11 +1283,15 @@ body {
 /* Grid view's card tiles -- art with a quantity badge, or a name+count
    placeholder for a card whose art couldn't be resolved (still loading, no
    Riftcodex match, or a network failure). Auto-fill so a section's tiles
-   wrap naturally regardless of how many cards it holds. */
+   wrap naturally regardless of how many cards it holds. Sized larger than
+   this feature's first pass (84px) now that moving Battlefields/Runes up
+   alongside Legend/Champion (see .decklist-grid above) frees Main Deck/
+   Sideboard's full-width rows from needing to stay as narrow -- bigger
+   tiles read as an actual card at a glance rather than a small swatch. */
 .card-art-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 10px;
 }
 .card-art-tile {
   position: relative;
@@ -1313,7 +1323,7 @@ body {
   flex-direction: column;
   justify-content: space-between;
   gap: 6px;
-  min-height: 84px;
+  min-height: 112px;
   padding: 8px;
 }
 .card-art-placeholder-name {
