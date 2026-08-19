@@ -4,6 +4,7 @@ import { computeRecord, computeStreak, computeWinRate } from '../lib/stats.js'
 import { serializeDecklist } from '../lib/parseDecklist.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import DeckAvatar from './DeckAvatar.jsx'
+import DeckChangelogPanel from './DeckChangelogPanel.jsx'
 import DeckNotes from './DeckNotes.jsx'
 import ImportDeckModal from './ImportDeckModal.jsx'
 import LogMatchModal from './LogMatchModal.jsx'
@@ -37,6 +38,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
   const [deleteError, setDeleteError] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [logMatchOpen, setLogMatchOpen] = useState(false)
+  const [changelogOpen, setChangelogOpen] = useState(false)
 
   async function refetchMatches() {
     const matchesResult = await window.api.matches.list()
@@ -163,6 +165,18 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
             </svg>
             Edit Deck
           </button>
+          <button className="btn" onClick={() => setChangelogOpen(true)}>
+            <svg viewBox="0 0 24 24" fill="none" width="13" height="13">
+              <path
+                d="M4 12a8 8 0 1 0 2.34-5.66M4 12V6m0 6h6"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Changelog
+          </button>
           <button className="btn btn-danger-outline" onClick={() => setConfirmDeleteOpen(true)}>
             <svg viewBox="0 0 24 24" fill="none" width="13" height="13">
               <path
@@ -272,6 +286,8 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
       {logMatchOpen && (
         <LogMatchModal initialDeckId={deck.id} onClose={() => setLogMatchOpen(false)} onSaved={handleMatchLogged} />
       )}
+
+      {changelogOpen && <DeckChangelogPanel deckId={deck.id} onClose={() => setChangelogOpen(false)} />}
     </div>
   )
 }

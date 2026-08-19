@@ -3,6 +3,7 @@ import { getDbPath } from './db.js'
 import { createDeck, deleteDeck, getDeckById, listDecks, updateDeck } from './decks.js'
 import { createMatch, deleteMatch, getMatchById, listMatches, updateMatch } from './matches.js'
 import { createDeckNote, deleteDeckNote, listDeckNotesByDeck, updateDeckNote } from './deckNotes.js'
+import { listDeckChangelogByDeck } from './deckChangelog.js'
 import { listLegends } from './legends.js'
 import { getLegendArtCachePath } from './legendArtCache.js'
 import { legendArtFileUrl } from './legendArtProtocol.js'
@@ -77,6 +78,10 @@ export function registerIpcHandlers() {
   ipcMain.handle('deck-notes:create', (_event, note) => createDeckNote(note))
   ipcMain.handle('deck-notes:update', (_event, id, patch) => updateDeckNote(id, patch))
   ipcMain.handle('deck-notes:delete', (_event, id) => deleteDeckNote(id))
+  // Per-edit decklist diff history, most recent edit first -- see
+  // deckChangelog.js. Rows are written as a side effect of decks:update
+  // (never decks:create), so this handler is read-only.
+  ipcMain.handle('deck-changelog:list', (_event, deckId) => listDeckChangelogByDeck(deckId))
   ipcMain.handle('legends:list', () => listLegends())
   // Returns a statbound-legend-art:// URL for the deck's Legend's cached,
   // cropped portrait avatar, or null if unavailable for any reason -- see

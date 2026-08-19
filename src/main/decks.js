@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import { getDb } from './db.js'
+import { diffDecklists, insertDeckChangelogEntries } from './deckChangelog.js'
 
 /**
  * Returns all decks, most recently updated first. The decklist column is
@@ -61,6 +62,14 @@ export function createDeck({ name, domain_1, domain_2, legend_name, decklist } =
  * revised decklist over the current one. `created_at` and `id` are left
  * untouched; everything else is replaced wholesale, same as createDeck.
  * Returns the updated deck, or null if no deck with that id exists.
+ *
+ * Before writing, the outgoing decklist is diffed against the new one
+ * (see deckChangelog.js's diffDecklists()) and any detected changes are
+ * recorded to deck_changelog in the same transaction as the UPDATE, so the
+ * two can never disagree — an edit either fully lands (deck + changelog
+ * rows) or fully doesn't. Never runs on initial import (createDeck above
+ * has no prior decklist to diff against), only on a genuine edit of an
+ * existing deck.
  */
 export function updateDeck(id, { name, domain_1, domain_2, legend_name, decklist } = {}) {
   const trimmedName = typeof name === 'string' ? name.trim() : ''
@@ -70,25 +79,32 @@ export function updateDeck(id, { name, domain_1, domain_2, legend_name, decklist
 
   const db = getDb()
   const now = new Date().toISOString()
+  const newDecklist = decklist ?? {}
 
-  const { changes } = db
-    .prepare(
+  const existing = getDeckById(id)
+  if (!existing) return null
+
+  const changes = diffDecklists(existing.decklist, newDecklist)
+
+  const applyUpdate = db.transaction(() => {
+    db.prepare(
       `UPDATE decks
        SET name = @name, domain_1 = @domain_1, domain_2 = @domain_2,
            legend_name = @legend_name, decklist = @decklist, updated_at = @updated_at
        WHERE id = @id`
-    )
-    .run({
+    ).run({
       id,
       name: trimmedName,
       domain_1: domain_1 ?? null,
       domain_2: domain_2 ?? null,
       legend_name: legend_name ?? null,
-      decklist: JSON.stringify(decklist ?? {}),
+      decklist: JSON.stringify(newDecklist),
       updated_at: now
     })
+    insertDeckChangelogEntries(db, id, changes, now)
+  })
+  applyUpdate()
 
-  if (changes === 0) return null
   return getDeckById(id)
 }
 

@@ -80,6 +80,28 @@ const SCHEMA = `
     sync_status TEXT NOT NULL DEFAULT 'local_only'
   );
 
+  -- Per-edit decklist diff, not a full snapshot history: one row per
+  -- card that changed on a given deck edit (see decks.js's updateDeck(),
+  -- which diffs the outgoing decklist against the new one across all four
+  -- tracked sections and inserts one row per detected change, all sharing
+  -- one created_at so they group together). Never written on initial
+  -- import -- there's no prior state to diff against then. No sync_status:
+  -- this is derived/computed history, not primary user-authored content,
+  -- the same reasoning legends' own missing sync_status column follows
+  -- (see CLAUDE.md's sync_status convention notes) -- a re-diff of the
+  -- same two decklists would always reproduce identical rows, so there's
+  -- nothing here a sync conflict could meaningfully apply to.
+  CREATE TABLE IF NOT EXISTS deck_changelog (
+    id TEXT PRIMARY KEY,
+    deck_id TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    section TEXT NOT NULL CHECK (section IN ('mainDeck', 'battlefields', 'runes', 'sideboard')),
+    change_type TEXT NOT NULL CHECK (change_type IN ('added', 'removed', 'countChanged')),
+    card_name TEXT NOT NULL,
+    old_count INTEGER,
+    new_count INTEGER
+  );
+
   -- Reference data (real Riftbound Legend names, kept current via a
   -- throttled sync against the Riftcodex API with a bundled offline
   -- fallback -- see services/legendSync.js and data/legendsFallback.js)
@@ -98,6 +120,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_replays_match_id ON replays(match_id);
   CREATE INDEX IF NOT EXISTS idx_deck_notes_deck_id ON deck_notes(deck_id);
   CREATE INDEX IF NOT EXISTS idx_legends_name ON legends(name);
+  CREATE INDEX IF NOT EXISTS idx_deck_changelog_deck_id ON deck_changelog(deck_id);
 `
 
 /**

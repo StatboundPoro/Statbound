@@ -32,6 +32,11 @@ contextBridge.exposeInMainWorld('api', {
     update: (id, patch) => ipcRenderer.invoke('deck-notes:update', id, patch),
     delete: (id) => ipcRenderer.invoke('deck-notes:delete', id)
   },
+  deckChangelog: {
+    // Read-only: rows are written as a side effect of decks.update() (see
+    // src/main/decks.js), never called directly from the renderer.
+    list: (deckId) => ipcRenderer.invoke('deck-changelog:list', deckId)
+  },
   legends: {
     list: () => ipcRenderer.invoke('legends:list')
   },
