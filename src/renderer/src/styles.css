@@ -636,14 +636,13 @@ body {
 }
 
 /* Deck "avatar" -- a rounded-square Legend-art portrait (see
-   DeckAvatar.jsx), replacing the old full-width diagonal crest band on
-   DeckCard and the plain-color crest square on Deck Detail's header. Falls
-   back to the same diagonal two-Domain-color crest technique
-   (.deck-avatar-crest, sized to fill whichever variant it's rendered in)
-   whenever art isn't available -- see DeckAvatar.jsx and CLAUDE.md's Design
-   Language entry. .import-preview-crest/.match-detail-crest below are a
-   deliberately separate, untouched crest treatment -- this feature only
-   replaces the crest on DeckCard and Deck Detail. */
+   DeckAvatar.jsx), replacing the diagonal crest everywhere a deck's
+   identity is shown: DeckCard, Deck Detail's header, MatchDetailModal,
+   ImportDeckModal's preview, and the Matchup Matrix's column header (the
+   'xs' size). Falls back to the same diagonal two-Domain-color crest
+   technique (.deck-avatar-crest, sized to fill whichever variant it's
+   rendered in) whenever art isn't available -- see DeckAvatar.jsx and
+   CLAUDE.md's Design Language entry. */
 .deck-avatar {
   position: relative;
   overflow: hidden;
@@ -654,6 +653,11 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.deck-avatar-xs {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
 }
 .deck-avatar-md {
   width: 72px;
@@ -916,39 +920,6 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
-}
-.import-preview-crest,
-.match-detail-crest {
-  position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-shrink: 0;
-}
-.import-preview-crest .half,
-.match-detail-crest .half {
-  flex: 1;
-}
-.import-preview-crest .half.a,
-.match-detail-crest .half.a {
-  clip-path: polygon(0 0, 100% 0, 78% 100%, 0% 100%);
-}
-.import-preview-crest .half.b,
-.match-detail-crest .half.b {
-  clip-path: polygon(85% 0, 100% 0, 100% 100%, 62% 100%);
-  margin-left: -18%;
-}
-.import-preview-crest .glyphs,
-.match-detail-crest .glyphs {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 .import-preview-body {
   flex: 1;
@@ -2431,15 +2402,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* A compact stand-in for the full deck-crest treatment (see DESIGN
-   LANGUAGE's crest note) — the same diagonal two-domain split, just as a
-   small swatch rather than the full clip-path crest, since a matrix
-   column header is far too short to fit the real thing. */
+/* The same DeckAvatar used everywhere else (see the .deck-avatar comment
+   above), sized 'xs' -- a matrix column header is far too short to fit
+   anything bigger. Adds only a thin border for definition at this tiny
+   size; sizing/shape itself comes from .deck-avatar-xs. */
 .matrix-deck-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 

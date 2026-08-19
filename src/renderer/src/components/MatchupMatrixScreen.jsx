@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { domainColor } from '../lib/domains.jsx'
+import DeckAvatar from './DeckAvatar.jsx'
 import { MatchupMatchesTable } from './MatchupRecord.jsx'
 import MatchDetailModal from './MatchDetailModal.jsx'
 
@@ -134,14 +134,7 @@ export default function MatchupMatrixScreen() {
                 {matrix.decks.map((deck) => (
                   <th key={deck.id} className="matrix-col-header">
                     <div className="matrix-deck-name">
-                      <span
-                        className="matrix-deck-swatch"
-                        style={{
-                          background: `linear-gradient(135deg, ${domainColor(deck.domain_1)} 50%, ${domainColor(
-                            deck.domain_2
-                          )} 50%)`
-                        }}
-                      />
+                      <DeckAvatar deck={deck} size="xs" className="matrix-deck-swatch" />
                       <span className="matrix-deck-name-text">{deck.name}</span>
                     </div>
                   </th>

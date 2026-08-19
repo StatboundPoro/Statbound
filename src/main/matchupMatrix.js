@@ -48,7 +48,13 @@ export function getMatchupMatrix() {
   const rows = Array.from(rowDeckIds)
     .map((id) => deckById.get(id))
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map((deck) => ({ id: deck.id, name: deck.name, domain_1: deck.domain_1, domain_2: deck.domain_2 }))
+    .map((deck) => ({
+      id: deck.id,
+      name: deck.name,
+      domain_1: deck.domain_1,
+      domain_2: deck.domain_2,
+      legend_name: deck.legend_name
+    }))
 
   const legends = Array.from(columnLegends).sort((a, b) => a.localeCompare(b))
 

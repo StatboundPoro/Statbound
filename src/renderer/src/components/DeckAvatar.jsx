@@ -11,6 +11,12 @@ import { domainIcon } from '../lib/domainIcons.js'
 // on top of it.
 const artUrlCache = new Map()
 
+const SIZE_CLASSES = {
+  xs: 'deck-avatar-xs',
+  md: 'deck-avatar-md',
+  lg: 'deck-avatar-lg'
+}
+
 /**
  * Renders a deck's Legend-art portrait avatar -- a rounded-square crop of
  * its Legend's own card art, sourced from Riftcodex and cached locally (see
@@ -20,37 +26,44 @@ const artUrlCache = new Map()
  * silent, progressive-enhancement fallback, never a visible error state --
  * see CLAUDE.md's Design Language entry.
  *
- * `size` selects a CSS size/radius variant ('md' for DeckCard, 'lg' for
- * Deck Detail's header); `showGlyphs` only affects the crest fallback's own
- * small Domain-icon overlay (matches whichever crest this is replacing --
- * DeckCard's had one, Deck Detail's never did). The real art avatar never
- * shows a Domain-color ring or icon overlay of its own -- the Domain pills
- * elsewhere already convey that.
+ * `deck` may be null/undefined (e.g. MatchDetailModal renders this before
+ * its own deck fetch resolves) -- every field read below is optional-
+ * chained, degrading straight to the crest fallback's own "unknown domain"
+ * rendering rather than throwing.
+ *
+ * `size` selects a CSS size/radius variant ('xs' for the Matchup Matrix's
+ * column header, 'md' for DeckCard/Match Detail/Import Deck's preview, 'lg'
+ * for Deck Detail's header); `showGlyphs` only affects the crest fallback's
+ * own small Domain-icon overlay (matches whichever crest this is replacing
+ * at each call site). The real art avatar never shows a Domain-color ring
+ * or icon overlay of its own -- the Domain pills/text elsewhere already
+ * convey that.
  */
 export default function DeckAvatar({ deck, size = 'md', showGlyphs = false, className = '' }) {
-  const [artUrl, setArtUrl] = useState(() => artUrlCache.get(deck.legend_name) ?? null)
+  const legendName = deck?.legend_name
+  const [artUrl, setArtUrl] = useState(() => (legendName ? (artUrlCache.get(legendName) ?? null) : null))
 
   useEffect(() => {
-    if (!deck.legend_name) {
+    if (!legendName) {
       setArtUrl(null)
       return
     }
-    if (artUrlCache.has(deck.legend_name)) {
-      setArtUrl(artUrlCache.get(deck.legend_name))
+    if (artUrlCache.has(legendName)) {
+      setArtUrl(artUrlCache.get(legendName))
       return
     }
 
     let cancelled = false
-    window.api.legendArt.getUrl(deck.legend_name).then((url) => {
-      artUrlCache.set(deck.legend_name, url)
+    window.api.legendArt.getUrl(legendName).then((url) => {
+      artUrlCache.set(legendName, url)
       if (!cancelled) setArtUrl(url)
     })
     return () => {
       cancelled = true
     }
-  }, [deck.legend_name])
+  }, [legendName])
 
-  const sizeClass = size === 'lg' ? 'deck-avatar-lg' : 'deck-avatar-md'
+  const sizeClass = SIZE_CLASSES[size] ?? SIZE_CLASSES.md
 
   if (artUrl) {
     return (
@@ -62,14 +75,14 @@ export default function DeckAvatar({ deck, size = 'md', showGlyphs = false, clas
 
   return (
     <div className={`deck-avatar deck-avatar-crest ${sizeClass} ${className}`}>
-      <div className="half a" style={{ background: domainColor(deck.domain_1) }} />
-      <div className="half b" style={{ background: domainColor(deck.domain_2) }} />
+      <div className="half a" style={{ background: domainColor(deck?.domain_1) }} />
+      <div className="half b" style={{ background: domainColor(deck?.domain_2) }} />
       {showGlyphs && (
         <div className="glyphs">
           <div className="glyph">
-            {domainIcon(deck.domain_1) && <img src={domainIcon(deck.domain_1)} alt="" />}
+            {domainIcon(deck?.domain_1) && <img src={domainIcon(deck?.domain_1)} alt="" />}
           </div>
-          {deck.domain_2 && (
+          {deck?.domain_2 && (
             <div className="glyph">
               {domainIcon(deck.domain_2) && <img src={domainIcon(deck.domain_2)} alt="" />}
             </div>

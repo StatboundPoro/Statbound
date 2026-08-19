@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { domainColor } from '../lib/domains.jsx'
-import { domainIcon } from '../lib/domainIcons.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
+import DeckAvatar from './DeckAvatar.jsx'
 import LogMatchModal from './LogMatchModal.jsx'
 import ReplayPlayer from './ReplayPlayer.jsx'
 
@@ -66,20 +65,7 @@ function MatchDetailView({ match, deck, replay, onWatchReplay, onEdit, onDeleteC
       </div>
 
       <div className="match-detail-summary">
-        <div className="match-detail-crest">
-          <div className="half a" style={{ background: domainColor(deck?.domain_1) }} />
-          <div className="half b" style={{ background: domainColor(deck?.domain_2) }} />
-          <div className="glyphs">
-            <div className="glyph">
-              {domainIcon(deck?.domain_1) && <img src={domainIcon(deck?.domain_1)} alt="" />}
-            </div>
-            {deck?.domain_2 && (
-              <div className="glyph">
-                {domainIcon(deck.domain_2) && <img src={domainIcon(deck.domain_2)} alt="" />}
-              </div>
-            )}
-          </div>
-        </div>
+        <DeckAvatar deck={deck} size="md" showGlyphs />
         <div className="match-detail-summary-body">
           <div className="match-detail-deck-name">{deck?.name ?? 'Unknown deck'}</div>
           <div className="match-detail-vs">vs. {match.opponent_legend ?? 'Unknown opponent'}</div>

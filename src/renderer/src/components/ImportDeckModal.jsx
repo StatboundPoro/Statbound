@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { DecklistParseError, parseDecklist } from '../lib/parseDecklist.js'
-import { domainColor } from '../lib/domains.jsx'
-import { domainIcon } from '../lib/domainIcons.js'
+import DeckAvatar from './DeckAvatar.jsx'
 
 const PLACEHOLDER = `Legend:
 1 LeBlanc, Deceiver
@@ -120,20 +119,11 @@ export default function ImportDeckModal({
               />
             </label>
             <div className="import-preview">
-              <div className="import-preview-crest">
-                <div className="half a" style={{ background: domainColor(parsed.domain_1) }} />
-                <div className="half b" style={{ background: domainColor(parsed.domain_2) }} />
-                <div className="glyphs">
-                  <div className="glyph">
-                    {domainIcon(parsed.domain_1) && <img src={domainIcon(parsed.domain_1)} alt="" />}
-                  </div>
-                  {parsed.domain_2 && (
-                    <div className="glyph">
-                      {domainIcon(parsed.domain_2) && <img src={domainIcon(parsed.domain_2)} alt="" />}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <DeckAvatar
+                deck={{ legend_name: parsed.legend_name, domain_1: parsed.domain_1, domain_2: parsed.domain_2 }}
+                size="md"
+                showGlyphs
+              />
               <div className="import-preview-body">
                 <div className="deck-domains">
                   {[parsed.domain_1, parsed.domain_2].filter(Boolean).join(' · ')}
