@@ -1,7 +1,7 @@
 {
   "name": "statbound",
   "productName": "Statbound",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local-only desktop companion app for the Riftbound TCG",
   "main": "./out/main/index.js",
   "private": true,
