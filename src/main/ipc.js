@@ -95,13 +95,16 @@ export function registerIpcHandlers() {
     return filePath ? legendArtFileUrl(filePath) : null
   })
   // Returns { url, cost } for one card name (any type) -- a
-  // statbound-card-art:// URL (or null) for its cached, Stage-1-only
-  // cropped art, plus its Riftcodex energy cost (or null). Backs Deck
-  // Detail's Grid view -- see cardArtCache.js. Resolution/caching is lazy
-  // and per-card: this only ever runs for a card the renderer actually
-  // asked about, never a bulk upfront fetch of a whole decklist.
-  ipcMain.handle('card-art:get-url', async (_event, cardName) => {
-    const result = await getCardArtCachePath(cardName)
+  // statbound-card-art:// URL (or null) for its cached art, plus its
+  // Riftcodex energy cost (or null). `cropMode` ('auto' or 'none') is
+  // forwarded straight to cardArtCache.js -- Deck Detail's Grid view
+  // passes 'none' for Legend/Champion/Runes (shown uncropped) and 'auto'
+  // for everything else (Stage-1-cropped on portrait cards). Resolution/
+  // caching is lazy and per-card: this only ever runs for a card the
+  // renderer actually asked about, never a bulk upfront fetch of a whole
+  // decklist.
+  ipcMain.handle('card-art:get-url', async (_event, cardName, cropMode) => {
+    const result = await getCardArtCachePath(cardName, cropMode)
     return result ? { url: cardArtFileUrl(result.filePath), cost: result.cost } : { url: null, cost: null }
   })
   // Deck Detail's decklist List/Grid view toggle -- persisted so the choice

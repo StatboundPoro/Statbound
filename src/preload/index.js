@@ -57,15 +57,18 @@ contextBridge.exposeInMainWorld('api', {
   },
   cardArt: {
     // Resolves ANY card name (Main Deck/Battlefield/Rune/Sideboard, not
-    // just Legends) to its cached, Stage-1-only-cropped art plus its
-    // Riftcodex energy cost -- backs Deck Detail's Grid view
-    // (DecklistCardArt.jsx). Returns { url: statbound-card-art://... |
-    // null, cost: number | null }; the renderer treats a null url as "show
-    // this card's plain placeholder instead," never as an error, the same
-    // per-card degrade legendArt's getUrl() already establishes for the
-    // deck avatar. Lazy: only ever called for a card the renderer is
-    // actually about to render in Grid view, never a bulk upfront fetch.
-    getUrl: (cardName) => ipcRenderer.invoke('card-art:get-url', cardName)
+    // just Legends) to its cached art plus its Riftcodex energy cost --
+    // backs Deck Detail's Grid view (DecklistCardArt.jsx). `cropMode` is
+    // 'auto' (Stage-1-cropped on portrait cards, full image on landscape)
+    // or 'none' (always the full, uncropped source image -- Legend/
+    // Champion/Runes' explicit treatment, see cardArtCache.js). Returns
+    // { url: statbound-card-art://... | null, cost: number | null }; the
+    // renderer treats a null url as "show this card's plain placeholder
+    // instead," never as an error, the same per-card degrade legendArt's
+    // getUrl() already establishes for the deck avatar. Lazy: only ever
+    // called for a card the renderer is actually about to render in Grid
+    // view, never a bulk upfront fetch.
+    getUrl: (cardName, cropMode) => ipcRenderer.invoke('card-art:get-url', cardName, cropMode)
   },
   deckDetail: {
     // Deck Detail's decklist List/Grid view toggle -- persisted via

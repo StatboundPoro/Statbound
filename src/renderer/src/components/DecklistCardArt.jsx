@@ -15,29 +15,34 @@ function normalizeKey(name) {
 }
 
 /**
- * Kicks off lazy resolution for every distinct card name in `cardNames`
- * that isn't already cached this session, and returns the shared
- * cardArtCache map so callers can read whatever's resolved so far. Callers
- * re-render as entries stream in (each resolved card bumps a local
- * counter), so a Grid view populates progressively rather than waiting on
- * every card at once -- and a card that was already resolved (this deck's
- * Grid view was opened before, or another deck already resolved the same
- * card name) shows up immediately with no loading flash.
+ * Kicks off lazy resolution for every distinct card in `cardEntries` (each
+ * `{ name, cropMode }` -- 'auto' or 'none', see cardArtCache.js) that isn't
+ * already cached this session, and returns the shared cardArtCache map so
+ * callers can read whatever's resolved so far. Callers re-render as entries
+ * stream in (each resolved card bumps a local counter), so a Grid view
+ * populates progressively rather than waiting on every card at once -- and
+ * a card that was already resolved (this deck's Grid view was opened
+ * before, or another deck already resolved the same card name) shows up
+ * immediately with no loading flash. The cache itself is keyed by name
+ * alone, not name+cropMode -- safe because a given card name is only ever
+ * requested under one crop mode in practice (Legend/Champion/Rune names
+ * never collide with Main Deck/Battlefield/Sideboard names), so there's no
+ * risk of two different sections fighting over the same cache slot.
  *
- * `cardNames` should be a stable (memoized) array reference -- it's only
+ * `cardEntries` should be a stable (memoized) array reference -- it's only
  * meant to change when the set of cards actually being displayed changes
  * (e.g. switching decks), not on every render.
  */
-export function useCardArtResolution(cardNames) {
+export function useCardArtResolution(cardEntries) {
   const [, setVersion] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const toFetch = cardNames.filter((name) => !cardArtCache.has(normalizeKey(name)))
+    const toFetch = cardEntries.filter((entry) => !cardArtCache.has(normalizeKey(entry.name)))
 
-    toFetch.forEach((name) => {
-      window.api.cardArt.getUrl(name).then((result) => {
-        cardArtCache.set(normalizeKey(name), result)
+    toFetch.forEach((entry) => {
+      window.api.cardArt.getUrl(entry.name, entry.cropMode).then((result) => {
+        cardArtCache.set(normalizeKey(entry.name), result)
         if (!cancelled) setVersion((v) => v + 1)
       })
     })
@@ -45,7 +50,7 @@ export function useCardArtResolution(cardNames) {
     return () => {
       cancelled = true
     }
-  }, [cardNames])
+  }, [cardEntries])
 
   return cardArtCache
 }

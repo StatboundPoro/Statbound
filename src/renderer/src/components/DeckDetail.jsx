@@ -19,11 +19,19 @@ import RecentMatches from './RecentMatches.jsx'
 // grid's auto-placement (see .decklist-grid/.decklist-section.wide in
 // styles.css), so reordering this list is what actually reorders the
 // rendered sections — both List and Grid view read the same array.
+//
+// `cropMode` only matters to Grid view (List never renders an image) --
+// 'none' shows the section's cards as their full, uncropped source image
+// (Legend/Champion/Runes, a deliberate product choice that the full card
+// reads better there than an art-only tile); 'auto' (the default, so
+// Battlefields/Main Deck/Sideboard don't need to spell it out) lets
+// cardArtCache.js apply its usual Stage 1 art-region crop on portrait
+// cards. See DecklistGridSection and cardArtCache.js.
 const SECTIONS = [
-  { key: 'legend', title: 'Legend' },
-  { key: 'champion', title: 'Champion' },
+  { key: 'legend', title: 'Legend', cropMode: 'none' },
+  { key: 'champion', title: 'Champion', cropMode: 'none' },
   { key: 'battlefields', title: 'Battlefields' },
-  { key: 'runes', title: 'Runes' },
+  { key: 'runes', title: 'Runes', cropMode: 'none' },
   { key: 'main', title: 'Main Deck', wide: true },
   { key: 'sideboard', title: 'Sideboard', wide: true }
 ]
@@ -147,15 +155,20 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
   // never a bulk upfront fetch before the user has asked to see Grid"
   // requirement. Called unconditionally, before the status early-returns
   // below, since it's a hook -- deck may still be null here while loading.
-  const allCardNames = useMemo(() => {
+  const allCardEntries = useMemo(() => {
     if (viewMode !== 'grid' || !deck) return []
-    const names = new Set()
-    for (const { key } of SECTIONS) {
-      for (const card of deck.decklist?.[key] ?? []) names.add(card.name)
+    const seen = new Set()
+    const entries = []
+    for (const { key, cropMode } of SECTIONS) {
+      for (const card of deck.decklist?.[key] ?? []) {
+        if (seen.has(card.name)) continue
+        seen.add(card.name)
+        entries.push({ name: card.name, cropMode: cropMode ?? 'auto' })
+      }
     }
-    return [...names]
+    return entries
   }, [viewMode, deck])
-  useCardArtResolution(allCardNames)
+  useCardArtResolution(allCardEntries)
 
   if (status === 'loading') {
     return (
