@@ -362,6 +362,17 @@ body {
   overflow-y: auto;
 }
 
+/* Deck Detail's two-column layout (see the DECK DETAIL section below) needs
+   more raw width than every other screen's single centered column to give
+   its right-hand Notes panel real room without starving the decklist --
+   widened from .main's standard 1640px cap specifically for this screen,
+   eating into what would otherwise just be blank gutter on a wide/
+   maximized window, per direct user request. Same equal-specificity,
+   source-order-wins override technique .main-play already uses below. */
+.main-deck-detail {
+  max-width: 1900px;
+}
+
 .topbar {
   display: flex;
   align-items: flex-end;
@@ -1354,6 +1365,68 @@ body {
   align-self: flex-end;
 }
 
+/* Deck Detail's responsive two-column layout. The identity header (avatar
+   + name + domain pills) sits above .deck-detail-columns, full width, the
+   same as .detail-topbar -- deliberately NOT inside .deck-detail-left --
+   so that at the wide breakpoint below, the right column's natural grid
+   start (align-items: start puts both columns' tops on the same row) lands
+   exactly at the header's own bottom border, i.e. the same height as the
+   separator line under the deck avatar, with no hand-tuned offset needed
+   to line the two up.
+   Below the breakpoint, .deck-detail-columns is a plain block --
+   .deck-detail-left and .deck-detail-notes-col simply stack top to bottom,
+   Notes last, exactly as the whole page always has. At/above it, Notes
+   gets its own persistent right column instead of sitting below the full
+   decklist + Matchup Record + Recent Matches. 1280px isn't an arbitrary
+   round number: it's roughly the narrowest .deck-detail-columns width
+   where the right column can hold a comfortable minimum for Notes (520px
+   -- wide enough that its scope dropdown [.notes-scope-select, min-width:
+   200px] and "+ Add Matchup" input [.notes-add-matchup-form, min-width:
+   180px] never wrap onto their own line, and that its Battlefield Notes
+   grid -- see .note-battlefield-grid below -- has room for at least two
+   columns instead of squeezing this deck's fixed 3 Battlefields into
+   slivers) while still leaving the left column a workable ~640px+ for the
+   decklist's four-narrow-column row and Main Deck/Sideboard's card art
+   grid -- narrower than that and a two-column split would read as cramped
+   rather than genuinely useful, so it falls back to the stacked layout
+   instead. */
+.deck-detail-columns {
+  display: block;
+}
+
+@media (min-width: 1280px) {
+  .deck-detail-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 520px;
+    align-items: start;
+    gap: 32px;
+  }
+  /* Sticks near the top of .main's own scrollport (the page's real
+     scrolling ancestor -- see .main above) and caps its own height to
+     whatever's left of the viewport, scrolling internally past that
+     point. Deliberate: without this, Notes would either get clipped or
+     get stretched to match the left column's (often much taller, once
+     Matchup Record and Recent Matches are included) height like an
+     ordinary stretched grid item, and reaching the rest of a long Notes
+     list would mean scrolling the whole page past the left column instead
+     of just scrolling Notes in place. min-width: 0 keeps this column from
+     being forced wider than its 520px grid track by anything unbreakable
+     inside it (see .note-battlefield-grid/.note-entry-content below for
+     the actual overflow bug this was covering for), which would otherwise
+     push Notes visibly off the right edge of the window instead of
+     wrapping or scrolling. The 280px offset is an eyeballed constant (same
+     convention as the Matchup Matrix's own `calc(100vh - 220px)`) covering
+     .main's own top padding plus the detail topbar's and identity header's
+     combined height above the columns. */
+  .deck-detail-notes-col {
+    position: sticky;
+    top: 0;
+    max-height: calc(100vh - 280px);
+    overflow-y: auto;
+    min-width: 0;
+  }
+}
+
 /* Grid view's card lightbox (CardLightbox.jsx) -- a darker, more opaque
    backdrop than .modal-backdrop/.changelog-backdrop since it exists purely
    to focus attention on one enlarged card image, not to frame a form or a
@@ -2059,6 +2132,7 @@ body {
   font-size: 13px;
   line-height: 1.55;
   color: var(--text);
+  overflow-wrap: break-word;
 }
 .note-entry-content .note-line {
   min-height: 1.55em;
@@ -2118,9 +2192,21 @@ body {
   gap: 8px;
 }
 
+/* auto-fit/minmax, not a fixed repeat(3, 1fr) -- this deck always has
+   exactly 3 Battlefields (see the decklist import format's validation
+   rules), but forcing all 3 into one row regardless of how narrow the
+   available width is (e.g. Deck Detail's own right-hand Notes column,
+   .deck-detail-notes-col -- much narrower than the full page this grid was
+   originally designed to span) squeezed each slot down to a sliver and let
+   any real note content force the whole grid, and with it the sticky
+   column around it, wider than its column and off the right edge of the
+   window. minmax(0, 1fr) alongside min-width: 0 on each slot below is the
+   actual fix -- it lets a slot's content wrap and shrink instead of
+   forcing the track wider, while auto-fit still shows all 3 side by side
+   whenever there's genuinely room for them. */
 .note-battlefield-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 14px;
 }
 .note-battlefield-slot {
@@ -2128,6 +2214,7 @@ body {
   border: 1px solid var(--border-soft);
   border-radius: 6px;
   padding: 12px 14px;
+  min-width: 0;
 }
 .note-battlefield-header {
   display: flex;
@@ -2135,12 +2222,18 @@ body {
   justify-content: space-between;
   margin-bottom: 8px;
 }
+/* Inter, not Big Shoulders Display -- the condensed display font used for
+   deck names elsewhere reads poorly at this label's small size, especially
+   now that the Battlefield Notes grid can squeeze down to one narrow
+   column inside Deck Detail's right-hand Notes panel (see
+   .note-battlefield-grid above). Plain title case instead of uppercase for
+   the same reason -- easier to scan a real battlefield name (e.g. "Zaun
+   Warrens") at a glance than its all-caps, letter-spaced form. */
 .note-battlefield-name {
-  font-family: 'Big Shoulders Display', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.01em;
+  font-size: 13.5px;
+  color: var(--text);
 }
 
 /* ---------- MATCHUP RECORD ---------- */

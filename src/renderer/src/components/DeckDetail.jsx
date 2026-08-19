@@ -215,7 +215,7 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
   const decksById = new Map([[deck.id, deck]])
 
   return (
-    <div className="main">
+    <div className="main main-deck-detail">
       <div className="detail-topbar">
         <BackLink onBack={onBack} />
         <div className="detail-topbar-actions">
@@ -292,93 +292,99 @@ export default function DeckDetail({ deckId, onBack, onViewInsights }) {
         </div>
       </div>
 
-      <div className="stat-strip stat-strip-3">
-        <div className="stat-cell">
-          <div className="label">Win Rate</div>
-          <div className={`value ${winRate !== null ? 'pos' : ''}`}>
-            {winRate === null ? '-' : `${Math.round(winRate * 100)}%`}
-          </div>
-        </div>
-        <div className="stat-cell">
-          <div className="label">Record</div>
-          {matches.length === 0 ? (
-            <div className="value" style={{ fontSize: 14, paddingTop: 5, color: 'var(--text-faint)' }}>
-              No matches yet
+      <div className="deck-detail-columns">
+        <div className="deck-detail-left">
+          <div className="stat-strip stat-strip-3">
+            <div className="stat-cell">
+              <div className="label">Win Rate</div>
+              <div className={`value ${winRate !== null ? 'pos' : ''}`}>
+                {winRate === null ? '-' : `${Math.round(winRate * 100)}%`}
+              </div>
             </div>
-          ) : (
-            <div className="value">
-              {record.wins}-{record.losses}
+            <div className="stat-cell">
+              <div className="label">Record</div>
+              {matches.length === 0 ? (
+                <div className="value" style={{ fontSize: 14, paddingTop: 5, color: 'var(--text-faint)' }}>
+                  No matches yet
+                </div>
+              ) : (
+                <div className="value">
+                  {record.wins}-{record.losses}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div className="stat-cell">
-          <div className="label">Current Streak</div>
-          <div className={`value ${streak ? (streak.result === 'win' ? 'pos' : 'neg') : ''}`}>
-            {streak ? `${streak.result === 'win' ? 'W' : 'L'}${streak.count}` : '-'}
+            <div className="stat-cell">
+              <div className="label">Current Streak</div>
+              <div className={`value ${streak ? (streak.result === 'win' ? 'pos' : 'neg') : ''}`}>
+                {streak ? `${streak.result === 'win' ? 'W' : 'L'}${streak.count}` : '-'}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="section-label-row">
-        <div className="section-label">Decklist</div>
-        <div className="decklist-view-controls">
-          <div className="segmented">
-            <button
-              type="button"
-              className={`segmented-option ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => handleViewModeChange('list')}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              className={`segmented-option ${viewMode === 'grid' ? 'active' : ''}`}
-              onClick={() => handleViewModeChange('grid')}
-            >
-              Grid
-            </button>
-          </div>
-          {viewMode === 'grid' && (
-            <div className="segmented">
-              {GRID_SORT_OPTIONS.map((opt) => (
+          <div className="section-label-row">
+            <div className="section-label">Decklist</div>
+            <div className="decklist-view-controls">
+              <div className="segmented">
                 <button
-                  key={opt.key}
                   type="button"
-                  className={`segmented-option ${gridSort === opt.key ? 'active' : ''}`}
-                  onClick={() => setGridSort(opt.key)}
+                  className={`segmented-option ${viewMode === 'list' ? 'active' : ''}`}
+                  onClick={() => handleViewModeChange('list')}
                 >
-                  {opt.label}
+                  List
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className={`segmented-option ${viewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => handleViewModeChange('grid')}
+                >
+                  Grid
+                </button>
+              </div>
+              {viewMode === 'grid' && (
+                <div className="segmented">
+                  {GRID_SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      className={`segmented-option ${gridSort === opt.key ? 'active' : ''}`}
+                      onClick={() => setGridSort(opt.key)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
+          <div className="decklist-grid">
+            {SECTIONS.map(({ key, title, wide }) =>
+              viewMode === 'grid' ? (
+                <DecklistGridSection
+                  key={key}
+                  title={title}
+                  cards={decklist[key]}
+                  wide={wide}
+                  sort={gridSort}
+                  onCardOpen={openLightbox}
+                />
+              ) : (
+                <DecklistSection key={key} title={title} cards={decklist[key]} wide={wide} />
+              )
+            )}
+          </div>
+
+          <div className="section-label">Matchup Record</div>
+          <MatchupRecord matches={matches} deckName={deck.name} onChanged={refetchMatches} />
+
+          <div className="section-label">Recent Matches</div>
+          <RecentMatches matches={matches} decksById={decksById} onChanged={refetchMatches} />
+        </div>
+
+        <div className="deck-detail-notes-col">
+          <div className="section-label">Notes</div>
+          <DeckNotes deckId={deck.id} battlefields={(decklist.battlefields ?? []).map((b) => b.name)} />
         </div>
       </div>
-      <div className="decklist-grid">
-        {SECTIONS.map(({ key, title, wide }) =>
-          viewMode === 'grid' ? (
-            <DecklistGridSection
-              key={key}
-              title={title}
-              cards={decklist[key]}
-              wide={wide}
-              sort={gridSort}
-              onCardOpen={openLightbox}
-            />
-          ) : (
-            <DecklistSection key={key} title={title} cards={decklist[key]} wide={wide} />
-          )
-        )}
-      </div>
-
-      <div className="section-label">Matchup Record</div>
-      <MatchupRecord matches={matches} deckName={deck.name} onChanged={refetchMatches} />
-
-      <div className="section-label">Recent Matches</div>
-      <RecentMatches matches={matches} decksById={decksById} onChanged={refetchMatches} />
-
-      <div className="section-label">Notes</div>
-      <DeckNotes deckId={deck.id} battlefields={(decklist.battlefields ?? []).map((b) => b.name)} />
 
       {confirmDeleteOpen && (
         <ConfirmDialog
