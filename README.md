@@ -2,6 +2,16 @@
 
 A local desktop companion app for the Riftbound TCG: deck tracking, match history, replay logging, and matchup prep for players.
 
+## Download
+
+**[⬇ Download Statbound for Windows](https://github.com/StatboundPoro/Statbound/releases/latest)**
+
+Click the link above, then download the `.exe` file under Assets on the release page. Since the app isn't code-signed yet, Windows will show an "unknown publisher" warning, click **More info → Run anyway** to continue.
+
+## Unofficial project
+
+Statbound was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.
+
 ## Features
 
 ### Deck Library and import
