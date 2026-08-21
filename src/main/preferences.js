@@ -41,7 +41,12 @@ const DEFAULT_VIDEO_CAPTURE = {
   // Off by default — see src/main/autoCapture.js for how this gates only the
   // IDLE -> RECORDING transition; the WebSocket listener that drives
   // auto-stop keeps running regardless of this setting.
-  autoStartRecording: false
+  autoStartRecording: false,
+  // Off by default — see src/main/videoOverlayBurn.js. Burning a corner
+  // badge into a recording is a real re-encode of the whole file, not a
+  // cheap operation, so this stays opt-in rather than silently costing
+  // every user CPU time and disk churn they never asked for.
+  burnMatchOverlay: false
 }
 
 // Whether the user has ever completed or skipped the one-time welcome

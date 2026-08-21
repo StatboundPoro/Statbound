@@ -63,6 +63,7 @@ import { startRecording, stopRecording } from './capture.js'
 import { createReplay, discardPendingReplay, getReplayByMatchId, listPendingReplays, listUnlinkedReplays } from './replays.js'
 import { replayFileUrl } from './replayProtocol.js'
 import { checkForUpdateNow, getUpdateStatus, openReleasePage } from './services/updateCheck.js'
+import { burnMatchOverlayIfEnabled } from './videoOverlayBurn.js'
 
 /**
  * Registers every ipcMain.handle() endpoint the renderer is allowed to call.
@@ -161,7 +162,20 @@ export function registerIpcHandlers() {
   // discardPendingReplay() branches on its hasRecording flag to know
   // whether to delete a file or just drop an in-memory session.
   ipcMain.handle('replays:discard-pending', (_event, item) => discardPendingReplay(item))
-  ipcMain.handle('replays:create', (_event, replay) => createReplay(replay))
+  ipcMain.handle('replays:create', (_event, replay) => {
+    const created = createReplay(replay)
+    // Fire-and-forget: the replay link above has already succeeded and
+    // `created` is returned to the renderer immediately below, regardless
+    // of whether this opt-in background job ever runs or how long it
+    // takes. burnMatchOverlayIfEnabled() already wraps its own body in
+    // try/catch (a failure there must never surface to the user), so this
+    // .catch() is only a defensive backstop against something throwing
+    // before that try block is even entered.
+    burnMatchOverlayIfEnabled({ matchId: created.match_id, filePath: created.file_path }).catch((err) => {
+      console.error('[video overlay] unexpected error scheduling burn-in:', err)
+    })
+    return created
+  })
   ipcMain.handle('replays:get-by-match', (_event, matchId) => {
     const replay = getReplayByMatchId(matchId)
     return replay ? { ...replay, url: replayFileUrl(replay.file_path) } : null

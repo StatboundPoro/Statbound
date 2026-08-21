@@ -592,6 +592,28 @@ export default function SettingsScreen() {
         </div>
         <div className="settings-row">
           <div>
+            <div className="settings-row-title">Burn Match Info into Recordings</div>
+            <div className="settings-row-desc">
+              After logging a match with a linked recording, burns a small corner badge (deck, opponent
+              Legend, and result) into that video in the background. Off by default — this is a real
+              re-encode of the file, which takes real time and CPU, and never blocks or delays saving the
+              match itself.
+            </div>
+          </div>
+          <div className="settings-row-actions">
+            <label className="checkbox-pill">
+              <input
+                type="checkbox"
+                checked={videoCapture?.burnMatchOverlay ?? false}
+                disabled={!videoCapture}
+                onChange={(e) => updateVideoCapture({ burnMatchOverlay: e.target.checked })}
+              />
+              Enabled
+            </label>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div>
             <div className="settings-row-title">Automatically Delete Unlinked Recordings</div>
             <div className="settings-row-desc">
               Recordings never linked to a match are cleaned up automatically after the retention window

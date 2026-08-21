@@ -75,13 +75,21 @@ function localTimestampForFilename() {
  * to know to look under .../app.asar.unpacked/ rather than .../app.asar/
  * once actually running from a packaged build, which is ffmpeg-static's own
  * documented approach for Electron apps.
+ *
+ * Exported so videoOverlayBurn.js's background burn-in job can spawn the
+ * exact same bundled ffmpeg binary for its own re-encode, rather than
+ * duplicating this asar-unpacking logic a second time.
  */
-function resolveFfmpegPath() {
+export function resolveFfmpegPath() {
   if (!app.isPackaged) return ffmpegBinaryPath
   return ffmpegBinaryPath.replace('app.asar', 'app.asar.unpacked')
 }
 
-function qualityToBitrate(quality) {
+// Exported for videoOverlayBurn.js to reuse the same quality->bitrate
+// mapping for its own re-encode, so a burned-in recording's bitrate stays
+// consistent with the Video Capture quality preset rather than a second,
+// independently-chosen value.
+export function qualityToBitrate(quality) {
   return BITRATE_BY_QUALITY[quality] ?? DEFAULT_BITRATE
 }
 
