@@ -20,6 +20,43 @@ function hasUsableResultData(match) {
   return Boolean(match.opponent_legend) || Boolean(match.result)
 }
 
+/**
+ * The overlay's Battlefield row: "<mine> vs <theirs>", whichever single side
+ * is known if only one is, or null if neither is — always drawn from the
+ * match's LAST recorded game (matches.js's `games` array is ordered by
+ * game_number ASC), never a per-game breakdown across a Bo3's games. This
+ * mirrors resolveScoreLine()'s own "final, not per-game" simplicity below.
+ */
+function resolveBattlefieldLine(match) {
+  const lastGame = match.games[match.games.length - 1]
+  if (!lastGame) return null
+  const mine = lastGame.my_battlefield
+  const theirs = lastGame.opponent_battlefield
+  if (mine && theirs) return `${mine} vs ${theirs}`
+  return mine || theirs || null
+}
+
+/**
+ * The overlay's Score row. A Bo3 shows its final SERIES score only
+ * (`match.score`, e.g. "2-1", the same derived win-count summary
+ * deriveMatchSummary() computes for every other match view in this app) —
+ * never a per-game breakdown, a deliberate simplicity decision. A Bo1 has
+ * no series score worth a separate row (it's always "1-0" or "0-1",
+ * exactly restating the WIN/LOSS label right next to it), so this instead
+ * shows that single game's real in-game point score (0-8), read straight
+ * from its own my_score/opponent_score — genuinely new information the
+ * WIN/LOSS label alone doesn't carry.
+ */
+function resolveScoreLine(match) {
+  if (match.format === 'Bo3') return match.score || null
+
+  const lastGame = match.games[match.games.length - 1]
+  if (!lastGame) return null
+  const { my_score, opponent_score } = lastGame
+  if (my_score == null && opponent_score == null) return null
+  return `${my_score ?? '?'}-${opponent_score ?? '?'}`
+}
+
 function removeIfExists(filePath) {
   try {
     if (fs.existsSync(filePath)) fs.rmSync(filePath)
@@ -124,8 +161,8 @@ export async function burnMatchOverlayIfEnabled({ matchId, filePath }) {
       legendArtPath,
       opponentLegend: match.opponent_legend,
       result: match.result,
-      score: match.score,
-      format: match.format
+      battlefieldLine: resolveBattlefieldLine(match),
+      scoreLine: resolveScoreLine(match)
     })
 
     const tempDir = path.join(path.dirname(filePath), '.statbound-tmp')
