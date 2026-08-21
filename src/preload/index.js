@@ -10,12 +10,34 @@ import { contextBridge, ipcRenderer } from 'electron'
 // mounts and renders anything themed. 'default' (or no matching argument
 // at all) leaves <html> with no data-theme attribute, so styles.css's
 // :root defaults apply exactly as they always have.
-const initialThemeArg = process.argv.find((arg) => arg.startsWith('--initial-theme='))
-if (initialThemeArg) {
-  const themeId = initialThemeArg.slice('--initial-theme='.length)
-  if (themeId && themeId !== 'default') {
-    document.documentElement.setAttribute('data-theme', themeId)
+//
+// Wrapped defensively after a real crash found on a real desktop session:
+// a sandboxed preload script can apparently run before
+// document.documentElement exists yet (confirmed against a real launch
+// with a non-default theme selected -- the 'default' case never hit this
+// line at all before then, which is why this went unnoticed). That used
+// to throw here and abort the rest of this file before
+// contextBridge.exposeInMainWorld below ever ran, silently losing
+// window.api entirely and blanking the whole app. A missing
+// documentElement is retried once via 'readystatechange' (reliably
+// present by then); the outer try/catch is a hard backstop so nothing on
+// this purely cosmetic path can ever again take down the one thing in
+// this file that actually matters.
+try {
+  const initialThemeArg = process.argv.find((arg) => arg.startsWith('--initial-theme='))
+  if (initialThemeArg) {
+    const themeId = initialThemeArg.slice('--initial-theme='.length)
+    if (themeId && themeId !== 'default') {
+      const applyTheme = () => document.documentElement?.setAttribute('data-theme', themeId)
+      if (document.documentElement) {
+        applyTheme()
+      } else {
+        document.addEventListener('readystatechange', applyTheme, { once: true })
+      }
+    }
   }
+} catch (err) {
+  console.error('[preload] failed to apply initial theme:', err)
 }
 
 // The renderer (React/Chromium) runs with contextIsolation on and
