@@ -1,5 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+// Apply the persisted Domain-pair accent theme (see preferences.js's
+// getThemePrefs()) to <html> before any of the page's own scripts run, so
+// there's never a visible flash of the Default look before switching to a
+// saved theme. Main bakes the current theme id into this renderer
+// process's own launch arguments via webPreferences.additionalArguments
+// (see index.js's createMainWindow()) rather than an async IPC round trip
+// -- process.argv is available synchronously here, well before React ever
+// mounts and renders anything themed. 'default' (or no matching argument
+// at all) leaves <html> with no data-theme attribute, so styles.css's
+// :root defaults apply exactly as they always have.
+const initialThemeArg = process.argv.find((arg) => arg.startsWith('--initial-theme='))
+if (initialThemeArg) {
+  const themeId = initialThemeArg.slice('--initial-theme='.length)
+  if (themeId && themeId !== 'default') {
+    document.documentElement.setAttribute('data-theme', themeId)
+  }
+}
+
 // The renderer (React/Chromium) runs with contextIsolation on and
 // nodeIntegration off, so it has no access to Node.js or Electron APIs at
 // all — it can't `require('better-sqlite3')`, read files, or touch the
@@ -85,6 +103,17 @@ contextBridge.exposeInMainWorld('api', {
     // app restarts.
     getViewMode: () => ipcRenderer.invoke('deck-detail:get-view-mode'),
     setViewMode: (mode) => ipcRenderer.invoke('deck-detail:set-view-mode', mode)
+  },
+  // Settings' Appearance section -- the selected Domain-pair accent theme
+  // id (or 'default'), persisted via preferences.js. Applying it live (no
+  // restart needed) happens directly in the renderer via
+  // lib/domainThemes.js's applyDomainTheme(); these two calls only persist
+  // the choice for next launch, which this file's own top-of-file block
+  // reads back synchronously before first paint via additionalArguments,
+  // not through these async channels.
+  theme: {
+    get: () => ipcRenderer.invoke('theme:get'),
+    set: (themeId) => ipcRenderer.invoke('theme:set', themeId)
   },
   insights: {
     get: (params) => ipcRenderer.invoke('insights:get', params)

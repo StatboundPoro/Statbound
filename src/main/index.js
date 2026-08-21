@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url'
 import { app, BrowserWindow, Menu } from 'electron'
 import { getDb, migrateLegacyDbFilename } from './db.js'
 import { migrateLegacyUserData, migrateLegacyPreferencePaths } from './userDataMigration.js'
+import { getThemePrefs } from './preferences.js'
 import { registerIpcHandlers } from './ipc.js'
 import { initPlayView } from './playView.js'
 import { initPendingPanelView } from './pendingPanelView.js'
@@ -56,7 +57,14 @@ function createMainWindow() {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // Baked into this renderer process's own process.argv, read
+      // synchronously by preload/index.js before the page's first paint --
+      // see that file's own comment for why this avoids a visible flash of
+      // the Default accent before switching to a saved theme, versus an
+      // async IPC round trip that could only apply after React's first
+      // render.
+      additionalArguments: [`--initial-theme=${getThemePrefs().selectedTheme}`]
     }
   })
 

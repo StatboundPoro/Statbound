@@ -90,6 +90,22 @@ const DEFAULT_DECK_DETAIL = {
   decklistViewMode: 'list' // 'list' | 'grid'
 }
 
+// Which Domain-pair accent theme is selected in Settings' Appearance
+// section (see SettingsScreen.jsx, lib/domainThemes.js, and CLAUDE.md's
+// Domain-Pair Theming entry) -- 'default' means no override at all (the
+// app's original built-in accent), or one of the 15 generated combination
+// ids (e.g. 'fury-calm'). Same "installation setting, not TCG data"
+// reasoning as everything else in this file, so it survives Import/Reset
+// untouched. No validation against the known id list happens here on
+// purpose: an unrecognized value (a hand-edited file, a future removed
+// combination) simply matches none of styles.css's DOMAIN-PAIR ACCENT
+// THEMES rules and silently renders as Default -- there's no way for a
+// bad value here to actually break anything, so there's nothing to guard
+// against.
+const DEFAULT_THEME = {
+  selectedTheme: 'default'
+}
+
 // Exported so userDataMigration.js's legacy-path repointing can read and
 // rewrite the same file directly, rather than going through the
 // default-filling get*Prefs()/update*Prefs() helpers below (which would
@@ -282,4 +298,31 @@ export function updateDeckDetailPrefs(patch) {
   const deckDetail = { ...DEFAULT_DECK_DETAIL, ...raw.deckDetail, ...patch }
   writeRaw({ ...raw, deckDetail })
   return deckDetail
+}
+
+/**
+ * Returns the current theme preference (currently just selectedTheme),
+ * filling in the default ('default', meaning no accent override) if
+ * unset. Read synchronously at window-creation time (see index.js) so the
+ * selected theme can be baked into the renderer's initial process
+ * arguments before its first paint, avoiding a visible flash of the
+ * default accent before switching -- the same reason getPlayPrefs() below
+ * is read directly rather than through an IPC round trip.
+ */
+export function getThemePrefs() {
+  const raw = readRaw()
+  return { ...DEFAULT_THEME, ...raw.theme }
+}
+
+/**
+ * Persists a theme preference change -- currently only called with the
+ * theme id the user just picked in Settings' Appearance section, which
+ * has already applied it live in the renderer before this round trip
+ * even returns.
+ */
+export function updateThemePrefs(patch) {
+  const raw = readRaw()
+  const theme = { ...DEFAULT_THEME, ...raw.theme, ...patch }
+  writeRaw({ ...raw, theme })
+  return theme
 }

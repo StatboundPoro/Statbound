@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import WelcomeTour from './WelcomeTour.jsx'
 import { formatRelativeTime } from '../lib/stats.js'
+import { applyDomainTheme, DEFAULT_THEME_ID, DOMAIN_THEMES } from '../lib/domainThemes.js'
 
 const AUTO_BACKUP_INTERVALS = [
   { label: 'Hourly', hours: 1 },
@@ -93,6 +94,9 @@ export default function SettingsScreen() {
   const [checkingForUpdate, setCheckingForUpdate] = useState(false)
   const [updateCheckStatus, setUpdateCheckStatus] = useState(null) // { message } | { error }
 
+  const [selectedTheme, setSelectedTheme] = useState(DEFAULT_THEME_ID)
+  const [themeError, setThemeError] = useState(null)
+
   useEffect(() => {
     window.api.settings
       .getAppDataPath()
@@ -119,6 +123,13 @@ export default function SettingsScreen() {
       .getVideoCapture()
       .then(setVideoCapture)
       .catch((err) => console.error('Failed to load video capture settings:', err))
+  }, [])
+
+  useEffect(() => {
+    window.api.theme
+      .get()
+      .then((themeId) => setSelectedTheme(themeId ?? DEFAULT_THEME_ID))
+      .catch((err) => console.error('Failed to load the selected theme:', err))
   }, [])
 
   // Re-checked whenever the save location changes, not just once on mount —
@@ -210,6 +221,24 @@ export default function SettingsScreen() {
     } catch (err) {
       console.error('Failed to open app data folder:', err)
       setAppDataFolderError('Could not open the folder.')
+    }
+  }
+
+  // Applies immediately (live preview, no separate Save step) before the
+  // persist round trip even resolves -- selecting a theme should never
+  // feel like it's waiting on IPC. If persisting fails, the visual choice
+  // still stands for this session; only the "survives a restart" part is
+  // what's at risk, surfaced via themeError rather than reverting the
+  // live preview out from under the user.
+  async function handleSelectTheme(themeId) {
+    setThemeError(null)
+    setSelectedTheme(themeId)
+    applyDomainTheme(themeId)
+    try {
+      await window.api.theme.set(themeId)
+    } catch (err) {
+      console.error('Failed to save the selected theme:', err)
+      setThemeError('Applied, but could not save this choice, so it may not survive a restart.')
     }
   }
 
@@ -381,6 +410,35 @@ export default function SettingsScreen() {
         )}
         {importError && <div className="settings-status error">{importError}</div>}
         {appDataFolderError && <div className="settings-status error">{appDataFolderError}</div>}
+      </div>
+
+      <div className="section-label">Appearance</div>
+      <div className="settings-panel">
+        <div className="theme-picker-grid">
+          <button
+            type="button"
+            className={`theme-picker-option ${selectedTheme === DEFAULT_THEME_ID ? 'active' : ''}`}
+            onClick={() => handleSelectTheme(DEFAULT_THEME_ID)}
+          >
+            <div className="theme-swatch-default" />
+            <div className="theme-picker-label">Default</div>
+          </button>
+          {DOMAIN_THEMES.map((theme) => (
+            <button
+              key={theme.id}
+              type="button"
+              className={`theme-picker-option ${selectedTheme === theme.id ? 'active' : ''}`}
+              onClick={() => handleSelectTheme(theme.id)}
+            >
+              <div className="theme-swatch">
+                <div className="half a" style={{ background: theme.primaryColor }} />
+                <div className="half b" style={{ background: theme.secondaryColor }} />
+              </div>
+              <div className="theme-picker-label">{theme.label}</div>
+            </button>
+          ))}
+        </div>
+        {themeError && <div className="settings-status error">{themeError}</div>}
       </div>
 
       <div className="section-label">Version</div>

@@ -49,12 +49,14 @@ import {
   getDeckDetailPrefs,
   getHasSeenWelcomeTour,
   getPlayPrefs,
+  getThemePrefs,
   getVideoCapturePrefs,
   markWelcomeTourSeen,
   resetVideoCaptureDirectory,
   updateAutoBackupPrefs,
   updateDeckDetailPrefs,
   updatePlayPrefs,
+  updateThemePrefs,
   updateVideoCapturePrefs
 } from './preferences.js'
 import { startRecording, stopRecording } from './capture.js'
@@ -127,6 +129,11 @@ export function registerIpcHandlers() {
   ipcMain.handle('deck-detail:set-view-mode', (_event, mode) =>
     updateDeckDetailPrefs({ decklistViewMode: mode === 'grid' ? 'grid' : 'list' }).decklistViewMode
   )
+  // Settings' Appearance section (Domain-pair accent theme picker) -- see
+  // lib/domainThemes.js for the id list/generation and preferences.js's
+  // getThemePrefs() for why no validation happens on the way in.
+  ipcMain.handle('theme:get', () => getThemePrefs().selectedTheme)
+  ipcMain.handle('theme:set', (_event, themeId) => updateThemePrefs({ selectedTheme: themeId }).selectedTheme)
   ipcMain.handle('insights:get', (_event, params) => getInsights(params ?? {}))
   ipcMain.handle('matchup-matrix:get', () => getMatchupMatrix())
   ipcMain.handle('settings:export', () => exportBackup())
