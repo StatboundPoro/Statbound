@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import AppMark from '../lib/appMark.jsx'
 
 // How long an auto-shown notification (a recording just finished) stays
@@ -106,7 +107,13 @@ export default function Sidebar({
   // than justifying a second overlay view for something this infrequent.
   const [updateStatus, setUpdateStatus] = useState(null)
   const [updatePanelOpen, setUpdatePanelOpen] = useState(false)
+  // Where the portal-rendered popover below should sit, in viewport
+  // coordinates — computed from the trigger's own getBoundingClientRect()
+  // rather than a CSS offset assuming a particular dock side, since the
+  // popover no longer renders nested inside .rail (see the portal below).
+  const [updateAnchor, setUpdateAnchor] = useState(null)
   const updateTriggerRef = useRef(null)
+  const updatePanelRef = useRef(null)
 
   useEffect(() => {
     window.api.updates
@@ -120,10 +127,39 @@ export default function Sidebar({
     onUpdatePanelOpenChange?.(updatePanelOpen)
   }, [updatePanelOpen, onUpdatePanelOpenChange])
 
+  // Popover width from styles.css's .update-panel — kept in sync by hand,
+  // same tradeoff lib/appMark.jsx already makes for its own hardcoded
+  // values, since measuring it would need an extra layout pass before the
+  // anchor could be computed on open.
+  const UPDATE_PANEL_WIDTH = 240
+
+  useEffect(() => {
+    if (!updatePanelOpen) return
+    function computeAnchor() {
+      const rect = updateTriggerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setUpdateAnchor({
+        left: Math.min(rect.right + 12, window.innerWidth - UPDATE_PANEL_WIDTH - 16),
+        // Anchored by the trigger's own top edge, clamped so a very short
+        // window can't push the popover's bottom past the viewport.
+        top: Math.min(rect.top, window.innerHeight - 160)
+      })
+    }
+    computeAnchor()
+    window.addEventListener('resize', computeAnchor)
+    return () => window.removeEventListener('resize', computeAnchor)
+  }, [updatePanelOpen])
+
   useEffect(() => {
     if (!updatePanelOpen) return
     function handlePointerDown(e) {
-      if (updateTriggerRef.current && !updateTriggerRef.current.contains(e.target)) {
+      // A click inside the popover itself (e.g. "View Release Notes") must
+      // NOT count as an outside click — the popover is a portal to
+      // document.body now, so it's a sibling of the trigger in the DOM,
+      // not a descendant of it, and needs its own containment check here.
+      const inTrigger = updateTriggerRef.current?.contains(e.target)
+      const inPanel = updatePanelRef.current?.contains(e.target)
+      if (!inTrigger && !inPanel) {
         setUpdatePanelOpen(false)
       }
     }
@@ -347,21 +383,35 @@ export default function Sidebar({
               <div className="rail-label">Update</div>
             </div>
 
-            {updatePanelOpen && (
-              <div className="update-panel">
-                <div className="update-panel-title">Update Available</div>
-                <div className="update-panel-body">
-                  Statbound {updateStatus.version} is available. You're on {updateStatus.currentVersion}.
-                </div>
-                <button
-                  type="button"
-                  className="update-panel-button"
-                  onClick={() => window.api.updates.openReleasePage()}
+            {/* Rendered via a portal to document.body, not nested inside
+                .rail, since .rail is only 88px wide with a computed
+                overflow-x that clips anything positioned outside its own
+                bounds (a plain absolutely-positioned child here used to be
+                invisible as a result). Positioned in viewport coordinates
+                from the trigger's own getBoundingClientRect() (updateAnchor,
+                recomputed on resize above) instead. */}
+            {updatePanelOpen &&
+              updateAnchor &&
+              createPortal(
+                <div
+                  ref={updatePanelRef}
+                  className="update-panel"
+                  style={{ left: updateAnchor.left, top: updateAnchor.top }}
                 >
-                  View Release Notes
-                </button>
-              </div>
-            )}
+                  <div className="update-panel-title">Update Available</div>
+                  <div className="update-panel-body">
+                    Statbound {updateStatus.version} is available. You're on {updateStatus.currentVersion}.
+                  </div>
+                  <button
+                    type="button"
+                    className="update-panel-button"
+                    onClick={() => window.api.updates.openReleasePage()}
+                  >
+                    View Release Notes
+                  </button>
+                </div>,
+                document.body
+              )}
           </div>
         )}
 
