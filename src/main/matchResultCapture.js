@@ -33,17 +33,20 @@
 // separate addition on top of the same capture object and the same commit
 // timing — a stream of "played"/"mulliganed" card names accumulated across
 // the whole session, rather than a handful of static values known once.
-// PLAYED reads the match log's own `data-log-action-kind="board"` entries —
-// confirmed (via real testing) to reliably identify a played-to-board entry
-// by that attribute alone, with the card name from that same entry's
-// `data-log-card-name` attribute; an earlier pass also required the
-// entry's own rendered text to read "Played ... from hand to ...", but
-// that text comes back empty via textContent in practice (the log's
-// visible label isn't a plain text node), so the text check was dropped —
-// deduped by a monotonic "entries already consumed" high-water mark under
-// the assumption the log only ever appends (never reorders/prunes) — see
-// ingestMatchLogState's own comment for what happens if that assumption
-// ever turns out to be wrong.
+// PLAYED reads the match log's own `[data-log-action-kind]` entries (any
+// value — see autoCapture.js for why this isn't scoped to a specific
+// value like "board"), confirming a real play via that row's own "Played "
+// text (or, for a Chosen Champion's first entrance, a "Moved ... to base"
+// row with only one card reference — see autoCapture.js), with the card
+// name read from that row's own `[data-log-card-name]` element's TEXT
+// CONTENT (that attribute is a boolean marker, not the name). Deduped by a
+// per-card-name COUNT diff (a multiset), not a position-based high-water
+// mark — real testing found the log's entries don't stay at stable
+// positions across polls (grouped by turn, with an out-of-chronological-
+// order "Earlier activity" bucket observed in real markup), which broke an
+// earlier position-based approach badly enough that a single real play got
+// recorded over a dozen times — see ingestMatchLogState's own comment for
+// the full story.
 // MULLIGANED reads the mulligan screen's live selection state on the same
 // ~1s poll tick and commits whichever cards are selected the instant that
 // screen disappears. Unlike every other DOM read in this module, the
@@ -95,9 +98,10 @@ function emptyCapture(selfPlayerId) {
     // cardName, eventType }`, committed straight into finalizeResult()'s
     // returned `cardEvents` array with no further processing needed.
     cardEvents: [],
-    // How many "Played ... from hand" log entries have already been turned
-    // into a cardEvents row — see ingestMatchLogState below.
-    playedLogEntriesSeen: 0,
+    // Per-card-name play counts already turned into cardEvents rows, keyed
+    // by card name — see ingestMatchLogState below for why this is a
+    // multiset diff rather than a position-based high-water mark.
+    playedNameCounts: new Map(),
     // Whether the mulligan screen was present on the previous poll tick —
     // used only to detect the screen-just-disappeared transition that
     // commits mulliganLiveSelected. See ingestMulliganState below.
@@ -280,34 +284,48 @@ export function ingestDomState({
 
 /**
  * Feeds one poll tick's worth of match-log played-card entries —
- * `playedCardNames` is the FULL ordered list of every currently-visible
- * `data-log-action-kind="board"` entry's card name, in DOM order, not
- * just new ones (autoCapture.js's DOM script has no memory of its own
- * between ticks). Only the entries beyond `playedLogEntriesSeen` (the
- * count consumed as of the previous tick) are new, under the assumption
- * the log only ever appends — never reorders or prunes already-rendered
- * entries. If the list is ever shorter than what was already consumed
- * (the log got pruned/virtualized, an assumption this hasn't been
- * confirmed against yet — see CLAUDE.md's Decision Log), the high-water
- * mark resets to 0 and everything currently visible is treated as new
- * rather than crashing or silently freezing dedup forever; this can
- * double-count entries that were already recorded before the prune, a
- * known best-effort tradeoff, not a claim of perfect accuracy under that
- * scenario.
+ * `playedCardNames` is the FULL list of every currently-qualifying play
+ * (a "Played ..." row, or a Chosen Champion's "Moved ... to base" entry —
+ * see autoCapture.js) found in the log right now, not just new ones
+ * (autoCapture.js's DOM script has no memory of its own between ticks).
+ *
+ * Deliberately a per-card-name COUNT diff (a multiset), not a
+ * position-based high-water mark — an earlier version compared
+ * `playedCardNames.length` against how many were consumed on the previous
+ * tick and sliced off the assumed-new tail, on the assumption the log only
+ * ever appends at a stable position. Real testing found that wrong: a
+ * single real play (reported: one "Mirror Image") got recorded well over
+ * a dozen times over the course of a match with a lot of other board
+ * activity (repeated battlefield moves), which only makes sense if
+ * entries already counted were later mistaken for new ones again — i.e.
+ * the log's positions aren't as stable as assumed (real markup shows
+ * entries grouped by turn, with an "Earlier activity" bucket that isn't in
+ * simple chronological DOM order either, so a fixed "tail beyond N" slice
+ * can't be trusted). Counting occurrences per card name sidesteps the
+ * ordering question entirely: as long as a real play, once it appears in
+ * the log, never actually disappears from the currently-qualifying list
+ * (true per Part 0's confirmed finding that the log never collapses/
+ * hides), comparing each name's current count against its previously
+ * recorded count and only emitting the increase is correct regardless of
+ * how the DOM reorders entries around it.
  */
 export function ingestMatchLogState({ playedCardNames } = {}) {
   if (!capture || !Array.isArray(playedCardNames)) return
   try {
-    if (playedCardNames.length < capture.playedLogEntriesSeen) {
-      capture.playedLogEntriesSeen = 0
-    }
-    const newNames = playedCardNames.slice(capture.playedLogEntriesSeen)
-    const gameNumber = activeGameNumber(capture)
-    for (const cardName of newNames) {
+    const currentCounts = new Map()
+    for (const cardName of playedCardNames) {
       if (!cardName) continue
-      capture.cardEvents.push({ gameNumber, cardName, eventType: 'played' })
+      currentCounts.set(cardName, (currentCounts.get(cardName) ?? 0) + 1)
     }
-    capture.playedLogEntriesSeen = playedCardNames.length
+
+    const gameNumber = activeGameNumber(capture)
+    for (const [cardName, count] of currentCounts) {
+      const alreadyRecorded = capture.playedNameCounts.get(cardName) ?? 0
+      for (let i = alreadyRecorded; i < count; i++) {
+        capture.cardEvents.push({ gameNumber, cardName, eventType: 'played' })
+      }
+      if (count > alreadyRecorded) capture.playedNameCounts.set(cardName, count)
+    }
   } catch {
     // ignore — this poll's played-card read contributes nothing
   }
