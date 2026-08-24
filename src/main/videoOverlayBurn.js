@@ -20,11 +20,18 @@ function hasUsableResultData(match) {
   return Boolean(match.opponent_legend) || Boolean(match.result)
 }
 
-// "<mine> vs <theirs>" on one line if both are known, whichever single side
-// is known if only one is, or null if neither is — shared by both formats'
-// battlefield resolution below.
+// "<mine> vs" on one line, "<theirs>" on the next (a literal "\n", rendered
+// by matchOverlayImage.js's `white-space: pre-line` on .stat-value) if both
+// are known, whichever single side is known if only one is, or null if
+// neither is — shared by both formats' battlefield resolution below. The
+// line break specifically after "vs" (not before it, and not one shared
+// line) means neither battlefield name ever has to share its own line's
+// width with the other — this panel has already been resized once to fix a
+// real truncation bug on a long "<mine> vs <theirs>" single line (e.g.
+// "Forbidding Waste vs Hidden Battlefield"), and breaking the line here
+// fixes it again without needing the panel to grow any wider a second time.
 function formatBattlefieldPair(mine, theirs) {
-  if (mine && theirs) return `${mine} vs ${theirs}`
+  if (mine && theirs) return `${mine} vs\n${theirs}`
   return mine || theirs || null
 }
 
@@ -44,14 +51,13 @@ function formatBattlefieldPair(mine, theirs) {
  *   own accordion never creates a placeholder Game 3 row after a 2-0
  *   sweep, so this needs no separate "was this game played" check beyond
  *   iterating the array), labeled "Game 1:", "Game 2:", ... in play order,
- *   each pairing that single game's two battlefields onto one
- *   "<mine> vs <theirs>" line via formatBattlefieldPair() above — a
- *   deliberately different shape from Bo1's split layout, since a Bo3
- *   already has up to 3 separate labeled entries to keep visually apart;
- *   pairing each game's own two names on one line keeps that from growing
- *   to 6 separate always-on lines. A played game with no battlefield
- *   recorded on it at all produces no block — never an empty "Game N:"
- *   label with nothing shown under it.
+ *   each pairing that single game's two battlefields via
+ *   formatBattlefieldPair() above — "<mine> vs" on one line, "<theirs>" on
+ *   the next, never sharing one line's width — a deliberately different
+ *   shape from Bo1's split layout, since a Bo3 already has up to 3
+ *   separate labeled entries to keep visually apart. A played game with no
+ *   battlefield recorded on it at all produces no block — never an empty
+ *   "Game N:" label with nothing shown under it.
  */
 function resolveBattlefieldBlocks(match) {
   if (match.format === 'Bo3') {

@@ -6,26 +6,33 @@ import { app, BrowserWindow } from 'electron'
 // The badge's fixed pixel footprint. Grown from an initial 480x172 (wide,
 // short) to a 260x350 narrow/tall panel once "<mine> vs <theirs>" on one
 // line proved too narrow to fit a real long battlefield name, then widened
-// again to 380x400 once Bo3 started pairing each played game's two
-// battlefields back onto one "<mine> vs <theirs>" line (see
-// resolveBattlefieldBlocks() in videoOverlayBurn.js) — a Bo3's flagship
-// truncation example, "Forbidding Waste vs Hidden Battlefield" (39
-// characters), needs real width to sit on one line without wrapping, and
-// this width comfortably fits it with margin to spare. The extra height
-// covers a full 3-game Bo3's worth of "Game N:" blocks (each its own
-// label + pair line) plus the header, result, and Score rows, still with
-// slack even if a line wraps. Still reads as a bounded corner annotation
-// rather than covering meaningful game content on a typical ~1920x1080
-// recording (see capture.js's MAX_RECORDING_HEIGHT). videoOverlayBurn.js
-// positions this exact image at the bottom-right corner of the source
-// video via ffmpeg's own overlay expressions
+// to 380x400 once Bo3 started pairing each played game's two battlefields
+// back onto one such line — but going wider a second time to fix the same
+// class of problem traded away this panel's whole reason for being narrow
+// in the first place, for clarity/consistency with the rest of the app's
+// compact corner-annotation treatments. **380 was a dead end, not a
+// destination**: width is capped back at 260 (this panel's own prior
+// narrow value, and the ceiling it must never exceed again) permanently
+// now, with the actual fix moved to content instead — see
+// videoOverlayBurn.js's formatBattlefieldPair(), which breaks the line
+// right after "vs" rather than needing the panel itself to widen every
+// time a pair is long. `.stat-value`'s `white-space: pre-line` (below)
+// renders that literal line break. Height grew instead, to 440, to fit a
+// full 3-game Bo3 (each game now two content lines — "<mine> vs" then
+// "<theirs>" — under its own "Game N:" label, up to 3 of those plus the
+// header, result, and Score rows) with real slack even if a line still
+// wraps a second time via overflow-wrap. Still reads as a bounded corner
+// annotation rather than covering meaningful game content on a typical
+// ~1920x1080 recording (see capture.js's MAX_RECORDING_HEIGHT).
+// videoOverlayBurn.js positions this exact image at the bottom-right
+// corner of the source video via ffmpeg's own overlay expressions
 // (main_w-overlay_w-32:main_h-overlay_h-32), so this module never needs to
 // know the source video's actual resolution. The box stays this same
 // fixed size regardless of how much content actually renders (a
 // header-only badge, or fewer stat blocks) — see buildOverlayHtml's own
 // note on why content is top-anchored rather than vertically centered.
-const OVERLAY_WIDTH = 380
-const OVERLAY_HEIGHT = 400
+const OVERLAY_WIDTH = 260
+const OVERLAY_HEIGHT = 440
 
 // Real, self-hosted app fonts rather than a system-font approximation — the
 // same three families this app already ships (see main.jsx's @fontsource
@@ -67,12 +74,17 @@ function escapeHtml(value) {
  * not a blank gap — and the divider/stats block disappears entirely if
  * there's nothing to show at all, leaving just the header.
  *
- * `.stat-value` allows wrapping (`overflow-wrap: break-word`, no
- * `nowrap`/ellipsis) rather than truncating, as a defensive backstop: even
- * a battlefield pair longer than this panel's generous width wraps to a
- * second line instead of ever being cut off — see OVERLAY_WIDTH's own
- * comment for the real truncation bug this panel has already been resized
- * around once.
+ * `.stat-value` sets `white-space: pre-line` so a literal `\n` inside a
+ * value (videoOverlayBurn.js's formatBattlefieldPair() puts one right
+ * after "vs", splitting "<mine> vs" and "<theirs>" onto their own lines
+ * without needing this panel to widen for it) renders as a real line
+ * break rather than collapsing into a space the way plain text normally
+ * would. `overflow-wrap: break-word` (no `nowrap`/ellipsis) stays on top
+ * of that as a defensive backstop for either resulting line individually —
+ * even a single battlefield name longer than this panel's width wraps to
+ * a second line instead of ever being cut off. See OVERLAY_WIDTH's own
+ * comment for the real truncation bug this panel has been resized around
+ * more than once now.
  *
  * The WIN/LOSS color is the app's own established win/loss pair —
  * `--calm`/`--fury` in styles.css, the exact same values `.result-badge`,
@@ -167,6 +179,7 @@ html, body {
   font-size: 14px;
   line-height: 1.25;
   color: #ece9e2;
+  white-space: pre-line;
   overflow-wrap: break-word;
   word-break: break-word;
 }
