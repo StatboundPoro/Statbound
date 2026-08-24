@@ -110,6 +110,48 @@ function runOverlayBurn(inputPath, overlayPngPath, outputPath, bitrate) {
   })
 }
 
+// A real EPERM was captured on renameSync() here in practice: Windows had
+// the destination (the just-recorded original video) transiently locked at
+// the exact moment of the swap. Audited every place this app's OWN code
+// could plausibly still be holding that file open around this time, and
+// found nothing: replayProtocol.js's fs.createReadStream() calls (the only
+// other code in this app that ever reads a recording file) are opened
+// per-request only when a user actively watches a replay via
+// ReplayPlayer.jsx, wrapped in a Response whose Readable.toWeb() stream
+// closes/destroys the underlying file descriptor on completion, error, or
+// cancellation — not something that would ever be open against a
+// just-linked recording nobody has watched yet. This job's own ffmpeg read
+// of the same file (see runOverlayBurn() above) is already correctly
+// sequenced: finalizeOverlaidRecording() only ever runs after `await
+// runOverlayBurn(...)` resolves, which only happens once ffmpeg's child
+// process has genuinely exited (its 'close' event, not just 'exit') and
+// released its own OS-level handle on the file. So the lock is external —
+// most likely Windows Defender or another real-time antivirus scanning the
+// video the moment capture.js's own finalizeVideoIntoPlace() finished
+// writing it into place, a well-known "freshly-closed file is briefly
+// unavailable" class of Windows lock this project has already run into
+// once before (during local builds) — not a bug to fix in this app's own
+// file handling, but exactly the kind of transient condition a short retry
+// resolves.
+const RENAME_MAX_ATTEMPTS = 5
+const RENAME_RETRY_BASE_DELAY_MS = 250
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Only EPERM ("operation not permitted" — Windows' code for a file that's
+// briefly locked by another handle) and EBUSY (the same idea, surfaced
+// under a different code depending on exactly what's holding it) are worth
+// retrying — both describe a resource that's momentarily unavailable, not
+// wrong. Anything else (ENOENT, a permissions/path problem, etc.) is a real
+// error retrying can never fix, so it's rethrown immediately on the first
+// attempt rather than wasting up to RENAME_MAX_ATTEMPTS * backoff on
+// something that will never succeed.
+function isTransientLockError(err) {
+  return err.code === 'EPERM' || err.code === 'EBUSY'
+}
+
 /**
  * Verifies the freshly burned-in file is real and non-empty, then replaces
  * the original recording with it via a rename — the same verify-then-swap
@@ -120,14 +162,35 @@ function runOverlayBurn(inputPath, overlayPngPath, outputPath, bitrate) {
  * safety-snapshot step needed here — the original file is never opened,
  * moved, or modified until this exact rename, so any failure before this
  * point already leaves it completely untouched with nothing to roll back.
- * Throws (rather than returning false) on an invalid output, so the caller's
- * try/catch is the single place this whole job's failure handling lives.
+ *
+ * The rename itself is retried up to RENAME_MAX_ATTEMPTS times with a short
+ * linear backoff (250ms, 500ms, 750ms, 1000ms between attempts — a few
+ * seconds' added latency is irrelevant for a background job nothing is
+ * waiting on) whenever it fails with a transient lock error (see
+ * isTransientLockError() above) — real Windows file locks like this are
+ * often gone within a moment. Still throws (rather than returning false) if
+ * every attempt is exhausted, or immediately on any non-transient error, so
+ * the caller's try/catch remains the single place this whole job's failure
+ * handling lives, and the existing "original left untouched, clear error
+ * logged" fallback behavior is completely unchanged either way.
  */
-function finalizeOverlaidRecording(tempOutputPath, originalPath) {
+async function finalizeOverlaidRecording(tempOutputPath, originalPath) {
   if (!fs.existsSync(tempOutputPath) || fs.statSync(tempOutputPath).size === 0) {
     throw new Error('Burned-in output is missing or empty.')
   }
-  fs.renameSync(tempOutputPath, originalPath)
+
+  for (let attempt = 1; attempt <= RENAME_MAX_ATTEMPTS; attempt++) {
+    try {
+      fs.renameSync(tempOutputPath, originalPath)
+      return
+    } catch (err) {
+      if (!isTransientLockError(err) || attempt === RENAME_MAX_ATTEMPTS) throw err
+      console.warn(
+        `[video overlay] rename locked (attempt ${attempt}/${RENAME_MAX_ATTEMPTS}, ${err.code}) — retrying...`
+      )
+      await sleep(RENAME_RETRY_BASE_DELAY_MS * attempt)
+    }
+  }
 }
 
 /**
@@ -184,7 +247,7 @@ export async function burnMatchOverlayIfEnabled({ matchId, filePath }) {
     try {
       const exitCode = await runOverlayBurn(filePath, overlayPngPath, tempOutputPath, qualityToBitrate(quality))
       if (exitCode !== 0) throw new Error(`ffmpeg overlay burn exited with code ${exitCode}`)
-      finalizeOverlaidRecording(tempOutputPath, filePath)
+      await finalizeOverlaidRecording(tempOutputPath, filePath)
     } finally {
       // Runs on both success and failure — on success tempOutputPath is
       // already gone (renamed away by finalizeOverlaidRecording), so this
