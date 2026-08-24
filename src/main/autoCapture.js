@@ -75,13 +75,17 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 // ingestMatchLogState/ingestMulliganState and CLAUDE.md's Decision Log):
 //
 //  - playedCardNames: the full ordered list of every currently-visible
-//    match-log entry whose `data-log-action-kind="board"` (confirmed to
-//    reliably identify a played-to-board entry on its own — the entry's
-//    own rendered text was tried too and dropped: it comes back empty via
-//    textContent, since the log's visible label isn't a plain text node),
-//    card name from that same entry's own `data-log-card-name` attribute —
-//    deduped against already-counted entries in matchResultCapture.js
-//    itself, not here.
+//    match-log entry actually confirmed to be a play. `data-log-action-
+//    kind="board"` sits on a small decorative icon nested inside the real
+//    log row (found via `closest('li')`), not the row itself, and is NOT
+//    play-specific — it also covers "Moved [Card] to [Battlefield]"
+//    (repositioning a card already in play), so the row's own text is
+//    checked for the "Played " verb to tell the two apart. Card name comes
+//    from the row's `[data-log-card-name]` element's own TEXT CONTENT
+//    (that attribute is a boolean marker, not a name-bearing one — a
+//    wrong assumption caught by real testing, see matchResultCapture.js's
+//    own comment and CLAUDE.md's Decision Log) — deduped against
+//    already-counted entries in matchResultCapture.js itself, not here.
 //  - mulligan: whether the mulligan screen is currently showing, and if
 //    so, each candidate card's name and live selected state. Unlike every
 //    other read in this script, the mulligan screen has no confirmed
@@ -181,27 +185,31 @@ const SESSION_STATE_CHECK_SCRIPT = `
   } catch (err) {}
 
   try {
-    // data-log-action-kind="board" turns out (confirmed via real testing,
-    // its actual outerHTML captured through this same debug sample below)
-    // to sit on a small decorative icon badge (aria-hidden="true", an SVG
-    // "move" icon) NESTED INSIDE the real log row -- not on the row itself,
-    // contradicting the original assumption. The icon badge has neither a
-    // card name nor any real text of its own, so the real row has to be
-    // found by walking up from it.
+    // Confirmed via real captured markup: data-log-action-kind="board"
+    // sits on a small decorative icon badge (aria-hidden="true") nested
+    // inside the real log row (the enclosing <li>, found via closest('li')
+    // -- the icon's own <p> parent sits directly inside that <li>, closer
+    // than the outer per-turn <li data-match-log-group="turn"> ancestor,
+    // so closest('li') correctly finds the entry row and not the turn
+    // group). "board" is NOT play-specific -- it also covers "Moved
+    // [Card] to [Battlefield]" (repositioning a card already in play), so
+    // the row's own text is checked for the "Played " verb (a plain text
+    // span, unlike the icon which has none) to tell the two apart. Also
+    // confirmed: data-log-card-name="true" is a boolean marker, not a
+    // name-bearing attribute -- the real card name is that element's own
+    // TEXT CONTENT, and it appears on both the played/moved card AND (for
+    // a "Moved" entry) the destination battlefield, so it's only safe to
+    // read once "Played " has already been confirmed for this row.
     const entries = document.querySelectorAll('[data-log-action-kind="board"]');
     result.debug.boardEntryCount = entries.length;
     const samples = [];
     for (const entry of entries) {
-      const row =
-        entry.closest('li') ||
-        entry.parentElement?.parentElement?.parentElement?.parentElement ||
-        entry.parentElement;
-      const cardName =
-        row?.querySelector('[data-log-card-name]')?.getAttribute('data-log-card-name') ||
-        row?.querySelector('img[alt]')?.alt ||
-        null;
-      if (samples.length < 3 && row) {
-        samples.push((row.outerHTML || '').slice(0, 1200));
+      const row = entry.closest('li');
+      const rowText = row ? row.textContent || '' : '';
+      const isPlay = /Played\s/.test(rowText);
+      const cardName = isPlay ? row.querySelector('[data-log-card-name]')?.textContent?.trim() || null : null;
+      if (samples.length < 5 && row) {
+        samples.push({ isPlay, cardName, rowText: rowText.trim().slice(0, 160) });
       }
       if (cardName) result.playedCardNames.push(cardName);
     }
