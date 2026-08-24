@@ -28,6 +28,30 @@
 // block capture of anything else. There is only ever one active capture
 // at a time (this module has no per-session keying beyond that), matching
 // autoCapture.js's own single-session state machine.
+//
+// CARD EVENTS (ingestMatchLogState/ingestMulliganState below) are a later,
+// separate addition on top of the same capture object and the same commit
+// timing — a stream of "played"/"mulliganed" card names accumulated across
+// the whole session, rather than a handful of static values known once.
+// PLAYED reads the match log's own `data-log-action-kind="board"` entries
+// ("Played [Name] from hand to [Zone]"), deduped by a monotonic
+// "entries already consumed" high-water mark under the assumption the log
+// only ever appends (never reorders/prunes) — see ingestMatchLogState's own
+// comment for what happens if that assumption ever turns out to be wrong.
+// MULLIGANED reads the mulligan screen's live selection state on the same
+// ~1s poll tick and commits whichever cards are selected the instant that
+// screen disappears. Unlike every other DOM read in this module, the
+// mulligan screen has no confirmed data-*/aria-label selector to key off
+// of (see CLAUDE.md's Decision Log for why) — it's detected structurally
+// instead (an inline `--mul-card-w` custom property plus a "Keep Hand"/
+// "Mulligan N" button landmark), and "selected" is a majority vote across
+// three independent signals rather than a single hardcoded match, the same
+// "compare against the group's own baseline, never a hardcoded value"
+// posture this module's own opponent-score reading already established.
+// Both are flagged in CLAUDE.md as needing real-match confirmation before
+// being treated as fully reliable, the same standing as this project's
+// other DOM-dependent features that shipped without a live window to
+// verify against in this environment.
 
 // The live, in-progress capture for whatever session is currently
 // TRACKING/RECORDING — null whenever no session is active. Reset to a
@@ -59,8 +83,30 @@ function emptyCapture(selfPlayerId) {
     // ingestDomState below and the Decision Log's "match result auto-fill"
     // entry for why this moved off the WebSocket fields it originally read.
     domBattlefield: { self: null, opponent: null },
-    domScore: { self: null, opponent: null }
+    domScore: { self: null, opponent: null },
+    // Card events — see the module comment above. Accumulated across the
+    // whole session (every game of a Bo3 alike), each `{ gameNumber,
+    // cardName, eventType }`, committed straight into finalizeResult()'s
+    // returned `cardEvents` array with no further processing needed.
+    cardEvents: [],
+    // How many "Played ... from hand" log entries have already been turned
+    // into a cardEvents row — see ingestMatchLogState below.
+    playedLogEntriesSeen: 0,
+    // Whether the mulligan screen was present on the previous poll tick —
+    // used only to detect the screen-just-disappeared transition that
+    // commits mulliganLiveSelected. See ingestMulliganState below.
+    mulliganScreenActive: false,
+    mulliganLiveSelected: []
   }
+}
+
+// For card events, a Bo3's per-game bucketing reuses the same
+// currentGameNumber the WebSocket's own doc.gameNumber already tracks
+// (Bo3-only — see ingestWebSocketMessage's gameNumber branch above); Bo1
+// has no such field and is always game 1.
+function activeGameNumber(c) {
+  if (c.matchFormat === 'bo3') return c.currentGameNumber ?? 1
+  return 1
 }
 
 /**
@@ -223,6 +269,77 @@ export function ingestDomState({
     if (opponentScore !== null && opponentScore !== undefined) capture.domScore.opponent = opponentScore
   } catch {
     // ignore
+  }
+}
+
+/**
+ * Feeds one poll tick's worth of match-log "Played" entries —
+ * `playedCardNames` is the FULL ordered list of every currently-visible
+ * "Played [Name] from hand to [Zone]" entry's card name, in DOM order, not
+ * just new ones (autoCapture.js's DOM script has no memory of its own
+ * between ticks). Only the entries beyond `playedLogEntriesSeen` (the
+ * count consumed as of the previous tick) are new, under the assumption
+ * the log only ever appends — never reorders or prunes already-rendered
+ * entries. If the list is ever shorter than what was already consumed
+ * (the log got pruned/virtualized, an assumption this hasn't been
+ * confirmed against yet — see CLAUDE.md's Decision Log), the high-water
+ * mark resets to 0 and everything currently visible is treated as new
+ * rather than crashing or silently freezing dedup forever; this can
+ * double-count entries that were already recorded before the prune, a
+ * known best-effort tradeoff, not a claim of perfect accuracy under that
+ * scenario.
+ */
+export function ingestMatchLogState({ playedCardNames } = {}) {
+  if (!capture || !Array.isArray(playedCardNames)) return
+  try {
+    if (playedCardNames.length < capture.playedLogEntriesSeen) {
+      capture.playedLogEntriesSeen = 0
+    }
+    const newNames = playedCardNames.slice(capture.playedLogEntriesSeen)
+    const gameNumber = activeGameNumber(capture)
+    for (const cardName of newNames) {
+      if (!cardName) continue
+      capture.cardEvents.push({ gameNumber, cardName, eventType: 'played' })
+    }
+    capture.playedLogEntriesSeen = playedCardNames.length
+  } catch {
+    // ignore — this poll's played-card read contributes nothing
+  }
+}
+
+/**
+ * Feeds one poll tick's worth of mulligan-screen state. `onScreen` is
+ * whether the mulligan screen is currently detected at all;
+ * `selectedCardNames` is the live set of currently-selected candidate
+ * card names, meaningful only while `onScreen` is true. Continuously
+ * overwrites `mulliganLiveSelected` with the latest live reading — no
+ * accumulation while the screen is up, since a toggled-off card should
+ * stop counting as mulliganed. The moment `onScreen` goes from true to
+ * false (the screen has closed, gameplay is starting), whatever was
+ * selected on the last true reading commits as this game's mulliganed
+ * cards. A screen that never reports any selected cards (a straight Keep
+ * Hand) simply commits zero events, not an error.
+ */
+export function ingestMulliganState({ onScreen, selectedCardNames } = {}) {
+  if (!capture) return
+  try {
+    if (onScreen) {
+      capture.mulliganLiveSelected = Array.isArray(selectedCardNames) ? selectedCardNames : []
+      capture.mulliganScreenActive = true
+      return
+    }
+
+    if (capture.mulliganScreenActive) {
+      const gameNumber = activeGameNumber(capture)
+      for (const cardName of capture.mulliganLiveSelected) {
+        if (!cardName) continue
+        capture.cardEvents.push({ gameNumber, cardName, eventType: 'mulliganed' })
+      }
+      capture.mulliganScreenActive = false
+      capture.mulliganLiveSelected = []
+    }
+  } catch {
+    // ignore — a failure here just means this game's mulligan picks are lost
   }
 }
 
@@ -410,7 +527,13 @@ export function finalizeResult() {
     score: null,
     opponentLegend: c.domOpponentLegend ?? null,
     opponentName: c.opponentName ?? null,
-    games: []
+    games: [],
+    // Whatever "played"/"mulliganed" events were accumulated across the
+    // whole session — see the module comment above. Committed as-is; a
+    // mulligan screen still open when the lobby trigger fires (shouldn't
+    // happen, gameplay must start before the lobby can be reached) simply
+    // leaves that game's picks uncommitted rather than guessing.
+    cardEvents: Array.isArray(c.cardEvents) ? c.cardEvents : []
   }
 
   try {

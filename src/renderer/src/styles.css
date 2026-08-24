@@ -2803,6 +2803,13 @@ body {
 .insights-bestworst-worst {
   border-left-color: var(--fury);
 }
+/* Card Stats' Most Played / Most Mulliganed cards reuse .insights-bestworst-card
+   wholesale (same panel/label/legend treatment) but aren't a win/loss
+   concept, so they get the app's own theme accent color instead of
+   --calm/--fury. */
+.insights-cardstat-card {
+  border-left-color: var(--accent-primary);
+}
 .insights-bestworst-legend {
   font-size: 14px;
   font-weight: 600;

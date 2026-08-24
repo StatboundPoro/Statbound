@@ -129,6 +129,31 @@ const SCHEMA = `
     created_at TEXT NOT NULL
   );
 
+  -- One row per card-level event captured while a match played out --
+  -- 'played' (from the match log's own "Played X from hand to Y" entries)
+  -- or 'mulliganed' (from the mulligan screen's selected-card state at the
+  -- instant it closes, right before gameplay begins). See
+  -- matchResultCapture.js's ingestMatchLogState()/ingestMulliganState() for
+  -- the in-memory capture and CLAUDE.md's Decision Log for the confirmed
+  -- vs. defensively-built pieces of that mechanism. Rows are only ever
+  -- written as a side effect of matches:create (see matches.js's
+  -- createMatch(), which inserts a match's accumulated
+  -- autoFillResult.cardEvents in the same transaction as the match/games
+  -- themselves) -- there is no separate create channel, and matches:update
+  -- never touches this table, since match-result auto-fill (the sole
+  -- source of these events) is create-mode only. No sync_status: like
+  -- deck_changelog and legends, this is derived/captured event data, not
+  -- primary user-authored content a sync conflict could ever meaningfully
+  -- apply to.
+  CREATE TABLE IF NOT EXISTS match_card_events (
+    id TEXT PRIMARY KEY,
+    match_id TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+    game_number INTEGER NOT NULL CHECK (game_number IN (1, 2, 3)),
+    card_name TEXT NOT NULL,
+    event_type TEXT NOT NULL CHECK (event_type IN ('played', 'mulliganed')),
+    created_at TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_matches_deck_id ON matches(deck_id);
   CREATE INDEX IF NOT EXISTS idx_games_match_id ON games(match_id);
   CREATE INDEX IF NOT EXISTS idx_replays_match_id ON replays(match_id);
@@ -136,6 +161,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_legends_name ON legends(name);
   CREATE INDEX IF NOT EXISTS idx_deck_changelog_versions_deck_id ON deck_changelog_versions(deck_id);
   CREATE INDEX IF NOT EXISTS idx_deck_changelog_version_id ON deck_changelog(changelog_version_id);
+  CREATE INDEX IF NOT EXISTS idx_match_card_events_match_id ON match_card_events(match_id);
 `
 
 /**

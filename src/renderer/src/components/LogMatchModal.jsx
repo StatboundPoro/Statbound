@@ -490,7 +490,19 @@ export default function LogMatchModal({
       }
       const saved = isEdit
         ? await window.api.matches.update(match.id, payload)
-        : await window.api.matches.create({ ...payload, played_at: new Date().toISOString() })
+        : await window.api.matches.create({
+            ...payload,
+            played_at: new Date().toISOString(),
+            // Most Played / Most Mulliganed card stats (see
+            // matchResultCapture.js's ingestMatchLogState/
+            // ingestMulliganState and CLAUDE.md's Decision Log) — not a
+            // form field, never shown or editable here, just carried
+            // straight through from auto-fill into the create payload so
+            // matches.js's createMatch() can write it alongside the match
+            // itself. Create mode only, same scope as every other
+            // autoFillResult field.
+            card_events: autoFillResult?.cardEvents ?? []
+          })
 
       if (!isEdit && selectedReplayPath) {
         try {

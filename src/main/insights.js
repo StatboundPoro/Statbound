@@ -1,4 +1,5 @@
 import { listMatches } from './matches.js'
+import { getCardEventHighlights } from './matchCardEvents.js'
 
 const RECENT_TREND_COUNT = 10
 
@@ -69,6 +70,14 @@ export function getInsights({ deckId } = {}) {
     battlefieldGroups.get(game.my_battlefield).push(game)
   }
 
+  // Most Played / Most Mulliganed: unlike everything above, not derived
+  // from listMatches()'s games at all — sourced from match_card_events,
+  // a separate table populated only from match-result auto-fill's DOM
+  // capture (see matchResultCapture.js and CLAUDE.md's Decision Log). Each
+  // is null if no match in the current scope has any captured event data,
+  // never a fabricated zero-count card.
+  const { mostPlayedCard, mostMulliganedCard } = getCardEventHighlights({ deckId })
+
   return {
     totalDecidedMatches: overall.total,
     wins: overall.wins,
@@ -92,6 +101,9 @@ export function getInsights({ deckId } = {}) {
 
     battlefieldStats: Array.from(battlefieldGroups.entries())
       .map(([battlefield, games]) => ({ battlefield, ...summarize(games) }))
-      .sort((a, b) => b.total - a.total)
+      .sort((a, b) => b.total - a.total),
+
+    mostPlayedCard,
+    mostMulliganedCard
   }
 }

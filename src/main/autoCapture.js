@@ -3,6 +3,8 @@ import { completeSession, startSession } from './matchSessions.js'
 import {
   finalizeResult,
   ingestDomState,
+  ingestMatchLogState,
+  ingestMulliganState,
   ingestWebSocketMessage,
   resetCapture,
   stashResultForRecording
@@ -68,6 +70,34 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 // pattern shared by the rest — structurally, never against a hardcoded
 // color value, so a future theme change can't silently break this. If none
 // of the first 8 differ from the baseline, the score is 8 by elimination.
+// This same poll tick, as of a later pass, also reads two more sources for
+// Most Played / Most Mulliganed card stats (see matchResultCapture.js's
+// ingestMatchLogState/ingestMulliganState and CLAUDE.md's Decision Log):
+//
+//  - playedCardNames: the full ordered list of every currently-visible
+//    match-log "Played [Name] from hand to [Zone]" entry
+//    (`[data-log-action-kind="board"]`, card name from its own
+//    `data-log-card-name` attribute — both confirmed via real inspected
+//    markup) — deduped against already-counted entries in
+//    matchResultCapture.js itself, not here.
+//  - mulligan: whether the mulligan screen is currently showing, and if
+//    so, each candidate card's name and live selected state. Unlike every
+//    other read in this script, the mulligan screen has no confirmed
+//    data-*/aria-label selector at all (real inspection turned up none,
+//    unlike the Legend zone/score tracks/battlefield slots above) — it's
+//    detected structurally instead: candidate cards carry a distinctive
+//    inline `--mul-card-w` custom property (confirmed, screen-specific),
+//    cross-checked against a "Keep Hand"/"Mulligan N" button landmark so a
+//    stray element elsewhere on the page can't be mistaken for this
+//    screen. "Selected" is a majority vote across three independently
+//    confirmed signals (border color, a brightness class, a smaller scale
+//    transform) rather than trusting any single one — border color is
+//    checked against its own confirmed exact rgba values, the brightness
+//    class by name, and the transform structurally (compared against the
+//    candidate group's own baseline, the same "diff against the group,
+//    never a hardcoded value" approach this script's own opponentScore
+//    reading already uses, since a class-driven transform doesn't reliably
+//    round-trip through getComputedStyle back to literal scale() syntax).
 const SESSION_STATE_CHECK_SCRIPT = `
 (() => {
   const result = {
@@ -76,7 +106,9 @@ const SESSION_STATE_CHECK_SCRIPT = `
     selfBattlefield: null,
     opponentBattlefield: null,
     selfScore: null,
-    opponentScore: null
+    opponentScore: null,
+    playedCardNames: [],
+    mulligan: { onScreen: false, cards: [] }
   };
 
   try {
@@ -138,6 +170,65 @@ const SESSION_STATE_CHECK_SCRIPT = `
       } else {
         result.opponentScore = 8;
       }
+    }
+  } catch (err) {}
+
+  try {
+    const entries = document.querySelectorAll('[data-log-action-kind="board"]');
+    for (const entry of entries) {
+      const text = entry.textContent || '';
+      if (!/^\\s*Played\\s/i.test(text) || !/from hand to/i.test(text)) continue;
+      const cardName = entry.getAttribute('data-log-card-name');
+      if (cardName) result.playedCardNames.push(cardName);
+    }
+  } catch (err) {}
+
+  try {
+    const cardEls = Array.from(document.querySelectorAll('[style*="--mul-card-w"]'));
+    const hasMulliganLandmark = Array.from(document.querySelectorAll('button')).some((b) => {
+      const t = (b.textContent || '').trim();
+      return /^Keep Hand$/i.test(t) || /^Mulligan\\s+\\d+$/i.test(t);
+    });
+
+    if (cardEls.length > 0 && hasMulliganLandmark) {
+      result.mulligan.onScreen = true;
+
+      // Redundant signal 3 (scale transform): compared structurally
+      // against the candidate group's own majority baseline rather than a
+      // hardcoded value — see the module comment above this script.
+      const transforms = cardEls.map((el) => window.getComputedStyle(el).transform);
+      const transformCounts = new Map();
+      for (const t of transforms) transformCounts.set(t, (transformCounts.get(t) || 0) + 1);
+      let baselineTransform = null;
+      let baselineCount = -1;
+      for (const [t, count] of transformCounts) {
+        if (count > baselineCount) {
+          baselineTransform = t;
+          baselineCount = count;
+        }
+      }
+
+      result.mulligan.cards = cardEls
+        .map((el, i) => {
+          const img = el.querySelector('img');
+          const name = (img && img.alt) || null;
+
+          let votes = 0;
+          try {
+            const style = window.getComputedStyle(el);
+            const borderColor = (style.borderColor || style.borderTopColor || '').replace(/\\s/g, '');
+            if (borderColor === 'rgba(255,174,128,0.78)') votes++;
+          } catch (err) {}
+          try {
+            if (el.className && /brightness-\\[0\\.83\\]/.test(String(el.className))) votes++;
+          } catch (err) {}
+          try {
+            if (transforms[i] !== baselineTransform) votes++;
+          } catch (err) {}
+
+          return { name, selected: votes >= 2 };
+        })
+        .filter((c) => c.name);
     }
   } catch (err) {}
 
@@ -274,6 +365,13 @@ async function pollLobbyState() {
     opponentBattlefield: domState?.opponentBattlefield ?? null,
     selfScore: domState?.selfScore ?? null,
     opponentScore: domState?.opponentScore ?? null
+  })
+
+  ingestMatchLogState({ playedCardNames: domState?.playedCardNames ?? [] })
+
+  ingestMulliganState({
+    onScreen: domState?.mulligan?.onScreen ?? false,
+    selectedCardNames: (domState?.mulligan?.cards ?? []).filter((c) => c.selected).map((c) => c.name)
   })
 
   if (!domState?.inLobby) {

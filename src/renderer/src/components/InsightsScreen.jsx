@@ -99,7 +99,8 @@ function SortControl({ value, onChange, options = SORT_OPTIONS }) {
 // legend) is shown — Deck Detail's own former embedded copy of this table
 // was removed in favor of its "View Insights" deep link, which lands here
 // pre-scoped to that deck (see the initialDeckId comment below). Overall
-// win rate, trend, seat advantage, and battlefield win rate are computed
+// win rate, trend, seat advantage, battlefield win rate, and the Card
+// Stats section's Most Played/Most Mulliganed cards are all computed
 // on read by insights:get/getInsights() in src/main/insights.js; this
 // component renders whatever shape that returns and sorts Battlefield Win
 // Rate client-side (see sortRows above — getInsights() itself has no
@@ -398,6 +399,37 @@ export default function InsightsScreen({ initialDeckId = null }) {
               </div>
             </div>
           )}
+
+          <div className="section-label">Card Stats</div>
+          <div className="insights-bestworst-row">
+            <div className="insights-bestworst-card insights-cardstat-card">
+              <div className="label">Most Played</div>
+              {insights.mostPlayedCard ? (
+                <>
+                  <div className="insights-bestworst-legend">{insights.mostPlayedCard.cardName}</div>
+                  <div className="stat-cell-sub">
+                    played {insights.mostPlayedCard.count} time{insights.mostPlayedCard.count === 1 ? '' : 's'}
+                  </div>
+                </>
+              ) : (
+                <div className="insights-note">Not enough data yet.</div>
+              )}
+            </div>
+            <div className="insights-bestworst-card insights-cardstat-card">
+              <div className="label">Most Mulliganed</div>
+              {insights.mostMulliganedCard ? (
+                <>
+                  <div className="insights-bestworst-legend">{insights.mostMulliganedCard.cardName}</div>
+                  <div className="stat-cell-sub">
+                    mulliganed {insights.mostMulliganedCard.count} time
+                    {insights.mostMulliganedCard.count === 1 ? '' : 's'}
+                  </div>
+                </>
+              ) : (
+                <div className="insights-note">Not enough data yet.</div>
+              )}
+            </div>
+          </div>
 
           <div className="section-label" ref={matchupSectionRef}>
             Matchup Breakdown

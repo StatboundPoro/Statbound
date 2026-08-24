@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import { getDb } from './db.js'
+import { insertMatchCardEventsStatement, cardEventInsertParams } from './matchCardEvents.js'
 
 function parseGameRow(row) {
   return {
@@ -107,7 +108,14 @@ function gameInsertParams(matchId, game, index) {
 /**
  * Creates a match and its game rows together in one transaction. `games`
  * is an array of per-game field objects (see the `games` table shape);
- * each becomes one row.
+ * each becomes one row. `card_events` (optional — only ever populated from
+ * match-result auto-fill's autoFillResult.cardEvents in create mode, see
+ * LogMatchModal.jsx) is a flat array of `{ gameNumber, cardName, eventType
+ * }` objects, one match_card_events row each, inserted in the same
+ * transaction so a match can never save with only some of its captured
+ * card events attached. Each is validated independently
+ * (cardEventInsertParams) and silently skipped if malformed — a bad
+ * auto-fill entry must never fail the whole match save.
  */
 export function createMatch({
   deck_id,
@@ -117,7 +125,8 @@ export function createMatch({
   flags,
   notes,
   played_at,
-  games
+  games,
+  card_events
 } = {}) {
   validateMatchInput({ deck_id, format, games })
 
@@ -130,6 +139,7 @@ export function createMatch({
      VALUES (@id, @deck_id, @opponent_name, @opponent_legend, @format, @flags, @notes, @played_at, @created_at)`
   )
   const insertGame = insertGamesStatement(db)
+  const insertCardEvent = insertMatchCardEventsStatement(db)
 
   const run = db.transaction(() => {
     insertMatch.run({
@@ -146,6 +156,11 @@ export function createMatch({
 
     games.forEach((game, index) => {
       insertGame.run(gameInsertParams(matchId, game, index))
+    })
+
+    ;(card_events ?? []).forEach((event) => {
+      const params = cardEventInsertParams(matchId, event)
+      if (params) insertCardEvent.run(params)
     })
   })
 
