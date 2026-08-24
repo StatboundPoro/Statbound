@@ -108,7 +108,12 @@ const SESSION_STATE_CHECK_SCRIPT = `
     selfScore: null,
     opponentScore: null,
     playedCardNames: [],
-    mulligan: { onScreen: false, cards: [] }
+    mulligan: { onScreen: false, cards: [] },
+    // Temporary diagnostics for the card-events feature, unverified
+    // against a real match as of this pass — see pollLobbyState below and
+    // CLAUDE.md's Decision Log. Safe to delete once real-match testing
+    // confirms both halves are actually finding real elements.
+    debug: { boardEntryCount: 0, boardEntrySamples: [], mulCandidateCount: 0, mulLandmarkFound: false }
   };
 
   try {
@@ -175,12 +180,16 @@ const SESSION_STATE_CHECK_SCRIPT = `
 
   try {
     const entries = document.querySelectorAll('[data-log-action-kind="board"]');
+    result.debug.boardEntryCount = entries.length;
+    const samples = [];
     for (const entry of entries) {
       const text = entry.textContent || '';
+      if (samples.length < 3) samples.push(text.trim().slice(0, 140));
       if (!/^\\s*Played\\s/i.test(text) || !/from hand to/i.test(text)) continue;
       const cardName = entry.getAttribute('data-log-card-name');
       if (cardName) result.playedCardNames.push(cardName);
     }
+    result.debug.boardEntrySamples = samples;
   } catch (err) {}
 
   try {
@@ -189,6 +198,8 @@ const SESSION_STATE_CHECK_SCRIPT = `
       const t = (b.textContent || '').trim();
       return /^Keep Hand$/i.test(t) || /^Mulligan\\s+\\d+$/i.test(t);
     });
+    result.debug.mulCandidateCount = cardEls.length;
+    result.debug.mulLandmarkFound = hasMulliganLandmark;
 
     if (cardEls.length > 0 && hasMulliganLandmark) {
       result.mulligan.onScreen = true;
@@ -275,6 +286,38 @@ let lobbyConfirmCount = 0
 // attachAutoCapture below, which is only ever called once for the view's
 // whole lifetime.
 let attachedWebContents = null
+
+// TEMPORARY diagnostics for the card-events feature (Most Played / Most
+// Mulliganed, see matchResultCapture.js and CLAUDE.md's Decision Log) —
+// neither the match log's `data-log-action-kind="board"` read nor the
+// mulligan screen's structural detection has been confirmed against a
+// real match yet. Logs to the main-process console (visible when running
+// `npm run dev`/`npm start` from a terminal) only when something actually
+// changes tick-to-tick, so a whole match doesn't flood the console with
+// one identical line per second. Safe to delete once real testing
+// confirms both reads are finding genuine elements.
+let lastCardEventsDebugKey = null
+
+function logCardEventsDebugIfChanged(debug, mulliganOnScreen, mulliganSelectedNames) {
+  if (!debug) return
+  const snapshot = {
+    boardEntryCount: debug.boardEntryCount ?? 0,
+    mulCandidateCount: debug.mulCandidateCount ?? 0,
+    mulLandmarkFound: debug.mulLandmarkFound ?? false,
+    mulliganOnScreen,
+    mulliganSelectedCount: mulliganSelectedNames?.length ?? 0
+  }
+  const key = JSON.stringify(snapshot)
+  if (key === lastCardEventsDebugKey) return
+  lastCardEventsDebugKey = key
+  console.log('[card events debug]', snapshot)
+  if (debug.boardEntrySamples?.length) {
+    console.log('[card events debug] sample board-log entries:', debug.boardEntrySamples)
+  }
+  if (mulliganSelectedNames?.length) {
+    console.log('[card events debug] mulligan selected:', mulliganSelectedNames)
+  }
+}
 
 /**
  * Remembers the main window so auto-start/auto-stop signals can be pushed
@@ -369,10 +412,13 @@ async function pollLobbyState() {
 
   ingestMatchLogState({ playedCardNames: domState?.playedCardNames ?? [] })
 
+  const mulliganSelectedNames = (domState?.mulligan?.cards ?? []).filter((c) => c.selected).map((c) => c.name)
   ingestMulliganState({
     onScreen: domState?.mulligan?.onScreen ?? false,
-    selectedCardNames: (domState?.mulligan?.cards ?? []).filter((c) => c.selected).map((c) => c.name)
+    selectedCardNames: mulliganSelectedNames
   })
+
+  logCardEventsDebugIfChanged(domState?.debug, domState?.mulligan?.onScreen ?? false, mulliganSelectedNames)
 
   if (!domState?.inLobby) {
     lobbyConfirmCount = 0
