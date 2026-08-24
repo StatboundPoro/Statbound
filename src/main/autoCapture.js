@@ -206,7 +206,7 @@ const SESSION_STATE_CHECK_SCRIPT = `
     for (const entry of entries) {
       const row = entry.closest('li');
       const rowText = row ? row.textContent || '' : '';
-      const isPlay = /Played\s/.test(rowText);
+      const isPlay = /Played\\s/.test(rowText);
       const cardName = isPlay ? row.querySelector('[data-log-card-name]')?.textContent?.trim() || null : null;
       if (samples.length < 5 && row) {
         samples.push({ isPlay, cardName, rowText: rowText.trim().slice(0, 160) });
