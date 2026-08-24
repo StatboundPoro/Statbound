@@ -205,17 +205,35 @@ const SESSION_STATE_CHECK_SCRIPT = `
     // name-bearing attribute -- the real card name is that element's own
     // TEXT CONTENT, and it can appear on more than one reference per row
     // (e.g. both a moved card and its destination), so it's only safe to
-    // read once "Played " has already been confirmed for this row.
+    // read once a row is confirmed to be a real play.
+    //
+    // A Chosen Champion doesn't start in hand (it "lives outside the
+    // deck"), so its entrance into play never logs as "Played ... from
+    // hand" -- confirmed via real markup to log as "Moved [Champion] to
+    // base." instead, using the same "board" kind and Moved verb an
+    // ordinary mid-game battlefield reposition also uses. The two are told
+    // apart by counting [data-log-card-name] references in the row: a real
+    // reposition always has TWO (the moved card, and the destination
+    // battlefield, both wrapped in their own card-preview button), while a
+    // Champion's "to base" entrance has only ONE -- "base" is plain text,
+    // never a card reference -- since the champion is never subsequently
+    // "played" again the way a hand card would be, this also naturally
+    // avoids ever double-counting a later, real reposition of that same
+    // champion (which becomes a normal two-reference "Moved X to
+    // [Battlefield]" row once it's already on board).
     const entries = document.querySelectorAll('[data-log-action-kind]');
     result.debug.boardEntryCount = entries.length;
     const samples = [];
     for (const entry of entries) {
       const row = entry.closest('li');
       const rowText = row ? row.textContent || '' : '';
-      const isPlay = /Played\\s/.test(rowText);
-      const cardName = isPlay ? row.querySelector('[data-log-card-name]')?.textContent?.trim() || null : null;
+      const cardRefs = row ? row.querySelectorAll('[data-log-card-name]') : [];
+      const isDirectPlay = /Played\\s/.test(rowText);
+      const isChampionEntry = /Moved\\s/.test(rowText) && cardRefs.length === 1;
+      const isPlay = isDirectPlay || isChampionEntry;
+      const cardName = isPlay ? cardRefs[0]?.textContent?.trim() || null : null;
       if (samples.length < 5 && isPlay) {
-        samples.push({ isPlay, cardName, rowText: rowText.trim().slice(0, 160) });
+        samples.push({ isDirectPlay, isChampionEntry, cardName, rowText: rowText.trim().slice(0, 160) });
       }
       if (cardName) result.playedCardNames.push(cardName);
     }
