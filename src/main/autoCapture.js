@@ -185,22 +185,28 @@ const SESSION_STATE_CHECK_SCRIPT = `
   } catch (err) {}
 
   try {
-    // Confirmed via real captured markup: data-log-action-kind="board"
-    // sits on a small decorative icon badge (aria-hidden="true") nested
-    // inside the real log row (the enclosing <li>, found via closest('li')
-    // -- the icon's own <p> parent sits directly inside that <li>, closer
-    // than the outer per-turn <li data-match-log-group="turn"> ancestor,
-    // so closest('li') correctly finds the entry row and not the turn
-    // group). "board" is NOT play-specific -- it also covers "Moved
-    // [Card] to [Battlefield]" (repositioning a card already in play), so
-    // the row's own text is checked for the "Played " verb (a plain text
-    // span, unlike the icon which has none) to tell the two apart. Also
+    // Confirmed via real captured markup: data-log-action-kind sits on a
+    // small decorative icon badge (aria-hidden="true") nested inside the
+    // real log row (the enclosing <li>, found via closest('li') -- the
+    // icon's own <p> parent sits directly inside that <li>, closer than
+    // the outer per-turn <li data-match-log-group="turn"> ancestor, so
+    // closest('li') correctly finds the entry row and not the turn
+    // group). Its VALUE is per card-type, not per-action -- "board" for
+    // Units (which also covers "Moved [Card] to [Battlefield]", not just
+    // plays), "spell" for Spells (which also covers "Chain resolved: X.",
+    // a different event from the spell actually being played), and
+    // presumably a further value for any other card type -- so matching
+    // is NOT scoped to a specific kind value at all; every
+    // data-log-action-kind element is inspected, and the row's own text
+    // (a plain "Played " verb span, unlike the icon which has none) is
+    // what actually confirms a real play, exactly the same standardized
+    // phrasing regardless of card type ("Played X from hand..."). Also
     // confirmed: data-log-card-name="true" is a boolean marker, not a
     // name-bearing attribute -- the real card name is that element's own
-    // TEXT CONTENT, and it appears on both the played/moved card AND (for
-    // a "Moved" entry) the destination battlefield, so it's only safe to
+    // TEXT CONTENT, and it can appear on more than one reference per row
+    // (e.g. both a moved card and its destination), so it's only safe to
     // read once "Played " has already been confirmed for this row.
-    const entries = document.querySelectorAll('[data-log-action-kind="board"]');
+    const entries = document.querySelectorAll('[data-log-action-kind]');
     result.debug.boardEntryCount = entries.length;
     const samples = [];
     for (const entry of entries) {
@@ -208,7 +214,7 @@ const SESSION_STATE_CHECK_SCRIPT = `
       const rowText = row ? row.textContent || '' : '';
       const isPlay = /Played\\s/.test(rowText);
       const cardName = isPlay ? row.querySelector('[data-log-card-name]')?.textContent?.trim() || null : null;
-      if (samples.length < 5 && row) {
+      if (samples.length < 5 && isPlay) {
         samples.push({ isPlay, cardName, rowText: rowText.trim().slice(0, 160) });
       }
       if (cardName) result.playedCardNames.push(cardName);
