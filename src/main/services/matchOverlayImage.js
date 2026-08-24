@@ -3,27 +3,29 @@ import path from 'path'
 import { randomUUID } from 'crypto'
 import { app, BrowserWindow } from 'electron'
 
-// The badge's fixed pixel footprint — a narrow, TALL vertical panel
-// (roughly half the width and double the height of this feature's first
-// pass, which was a wide/short 480x172) rather than a wide horizontal one.
-// The reshape exists specifically to fix a real truncation bug: a wide-but-
-// short panel didn't have enough width for a full "<my battlefield> vs
-// <opponent's battlefield>" line, which got cut off with an ellipsis. Going
-// vertical instead gives every row its own comfortable full-width line —
-// see buildOverlayHtml's own note on why the battlefield rows in particular
-// are now two separate stacked lines rather than one wide "X vs Y" line.
-// Still reads as a bounded corner annotation rather than covering
-// meaningful game content on a typical ~1920x1080 recording (see
-// capture.js's MAX_RECORDING_HEIGHT). videoOverlayBurn.js positions this
-// exact image at the bottom-right corner of the source video via ffmpeg's
-// own overlay expressions (main_w-overlay_w-32:main_h-overlay_h-32), so
-// this module never needs to know the source video's actual resolution.
-// The box stays this same fixed size regardless of how much content
-// actually renders (a header-only badge, or fewer stat blocks) — see
-// buildOverlayHtml's own note on why content is top-anchored rather than
-// vertically centered in this taller box.
-const OVERLAY_WIDTH = 260
-const OVERLAY_HEIGHT = 350
+// The badge's fixed pixel footprint. Grown from an initial 480x172 (wide,
+// short) to a 260x350 narrow/tall panel once "<mine> vs <theirs>" on one
+// line proved too narrow to fit a real long battlefield name, then widened
+// again to 380x400 once Bo3 started pairing each played game's two
+// battlefields back onto one "<mine> vs <theirs>" line (see
+// resolveBattlefieldBlocks() in videoOverlayBurn.js) — a Bo3's flagship
+// truncation example, "Forbidding Waste vs Hidden Battlefield" (39
+// characters), needs real width to sit on one line without wrapping, and
+// this width comfortably fits it with margin to spare. The extra height
+// covers a full 3-game Bo3's worth of "Game N:" blocks (each its own
+// label + pair line) plus the header, result, and Score rows, still with
+// slack even if a line wraps. Still reads as a bounded corner annotation
+// rather than covering meaningful game content on a typical ~1920x1080
+// recording (see capture.js's MAX_RECORDING_HEIGHT). videoOverlayBurn.js
+// positions this exact image at the bottom-right corner of the source
+// video via ffmpeg's own overlay expressions
+// (main_w-overlay_w-32:main_h-overlay_h-32), so this module never needs to
+// know the source video's actual resolution. The box stays this same
+// fixed size regardless of how much content actually renders (a
+// header-only badge, or fewer stat blocks) — see buildOverlayHtml's own
+// note on why content is top-anchored rather than vertically centered.
+const OVERLAY_WIDTH = 380
+const OVERLAY_HEIGHT = 400
 
 // Real, self-hosted app fonts rather than a system-font approximation — the
 // same three families this app already ships (see main.jsx's @fontsource
@@ -57,32 +59,20 @@ function escapeHtml(value) {
  * own cached Legend art thumbnail, omitted entirely if unavailable rather
  * than a placeholder; deck name; "vs <opponent legend>", omitted if there's
  * no opponent legend), a WIN/LOSS result line of its own below that, then
- * up to three stat blocks below a divider: **My Battlefield** and
- * **Opponent Battlefield** as two independently-optional, separately
- * labeled blocks (never one combined "X vs Y" line — see this function's
- * own note on why), and **Score** (a Bo1's real in-game 0-8 point score, or
- * a Bo3's final series score only — see videoOverlayBurn.js's
- * resolveBattlefields()/resolveScoreLine() for how each is derived and why
- * neither is a per-game breakdown). Any of the three stat blocks is simply
- * omitted when its data isn't available — graceful degradation, not a
- * blank gap — and the divider/stats block disappears entirely if none has
- * anything to show, leaving just the header.
+ * `battlefieldBlocks` (already fully resolved by videoOverlayBurn.js's
+ * resolveBattlefieldBlocks() — this function has no Bo1/Bo3 awareness of
+ * its own, it just renders whatever ordered `{ label, value }` list it's
+ * given) plus a trailing **Score** block, all below a divider. Any block
+ * is simply omitted when its data isn't available — graceful degradation,
+ * not a blank gap — and the divider/stats block disappears entirely if
+ * there's nothing to show at all, leaving just the header.
  *
- * **Why battlefields are two stacked, separately-labeled blocks, not one
- * "<mine> vs <theirs>" line**: this feature's first pass tried exactly
- * that in a wide/short panel, and real testing found long battlefield
- * names (e.g. "Forbidding Waste vs Hidden Battlefield") didn't fit that
- * line's available width and got cut off with an ellipsis — the actual bug
- * this panel's whole reshape (narrower, much taller) exists to fix. Giving
- * each battlefield its own full-width line, labeled "My Battlefield" /
- * "Opponent Battlefield" — the exact label wording and mine-before-
- * opponent's ordering `LogMatchModal`'s own "My Side"/"Opponent" columns
- * already establish elsewhere in this app — means neither name ever has to
- * share its line's width with anything else. `.stat-value` also allows
- * wrapping (`overflow-wrap: break-word`, no `nowrap`/ellipsis) rather than
- * truncating, as a defensive backstop: even a battlefield name longer than
- * this panel's generous width wraps to a second line instead of ever
- * being cut off.
+ * `.stat-value` allows wrapping (`overflow-wrap: break-word`, no
+ * `nowrap`/ellipsis) rather than truncating, as a defensive backstop: even
+ * a battlefield pair longer than this panel's generous width wraps to a
+ * second line instead of ever being cut off — see OVERLAY_WIDTH's own
+ * comment for the real truncation bug this panel has already been resized
+ * around once.
  *
  * The WIN/LOSS color is the app's own established win/loss pair —
  * `--calm`/`--fury` in styles.css, the exact same values `.result-badge`,
@@ -97,21 +87,11 @@ function escapeHtml(value) {
  * this renders completely outside the renderer's own CSS cascade, so
  * there's no `var(--x)` to inherit from.
  */
-function buildOverlayHtml({
-  deckName,
-  legendArtDataUri,
-  opponentLegend,
-  result,
-  myBattlefield,
-  opponentBattlefield,
-  scoreLine
-}) {
+function buildOverlayHtml({ deckName, legendArtDataUri, opponentLegend, result, battlefieldBlocks, scoreLine }) {
   const resultLabel = result === 'win' ? 'WIN' : result === 'loss' ? 'LOSS' : null
   const resultColor = result === 'win' ? '#4c9e68' : result === 'loss' ? '#d6483f' : '#ece9e2'
 
-  const statBlocks = []
-  if (myBattlefield) statBlocks.push({ label: 'My Battlefield', value: myBattlefield })
-  if (opponentBattlefield) statBlocks.push({ label: 'Opponent Battlefield', value: opponentBattlefield })
+  const statBlocks = [...battlefieldBlocks]
   if (scoreLine) statBlocks.push({ label: 'Score', value: scoreLine })
 
   return `<!DOCTYPE html>
@@ -226,12 +206,12 @@ html, body {
  * render-HTML/SVG-then-capturePage() approach this project's app icon work
  * already established for turning markup into a raster image, just done at
  * burn-in time instead of build time. `legendArtPath`, `opponentLegend`,
- * `result`, `myBattlefield`, `opponentBattlefield`, and `scoreLine` may all
- * individually be null (see videoOverlayBurn.js's own "usable data" gate
- * for when this whole function is skipped entirely, and its
- * resolveBattlefields()/resolveScoreLine() for how the latter three are
- * derived) — each is simply omitted from the rendered badge rather than
- * shown as a placeholder or leaving a blank gap.
+ * and `result` may all individually be null, and `battlefieldBlocks` may be
+ * an empty array (see videoOverlayBurn.js's own "usable data" gate for when
+ * this whole function is skipped entirely, and its
+ * resolveBattlefieldBlocks()/resolveScoreLine() for how battlefield/score
+ * content is derived) — each is simply omitted from the rendered badge
+ * rather than shown as a placeholder or leaving a blank gap.
  *
  * The window is created purely to rasterize static, self-contained markup —
  * it never touches app data or the network directly (everything it needs is
@@ -244,8 +224,7 @@ export async function renderMatchOverlayPng({
   legendArtPath,
   opponentLegend,
   result,
-  myBattlefield,
-  opponentBattlefield,
+  battlefieldBlocks,
   scoreLine
 }) {
   const legendArtDataUri = legendArtPath ? imageDataUri(legendArtPath) : null
@@ -254,8 +233,7 @@ export async function renderMatchOverlayPng({
     legendArtDataUri,
     opponentLegend,
     result,
-    myBattlefield,
-    opponentBattlefield,
+    battlefieldBlocks,
     scoreLine
   })
 

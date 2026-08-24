@@ -20,27 +20,55 @@ function hasUsableResultData(match) {
   return Boolean(match.opponent_legend) || Boolean(match.result)
 }
 
+// "<mine> vs <theirs>" on one line if both are known, whichever single side
+// is known if only one is, or null if neither is — shared by both formats'
+// battlefield resolution below.
+function formatBattlefieldPair(mine, theirs) {
+  if (mine && theirs) return `${mine} vs ${theirs}`
+  return mine || theirs || null
+}
+
 /**
- * The overlay's two Battlefield stat blocks — "My Battlefield" and
- * "Opponent Battlefield" — returned as `{ mine, theirs }`, each
- * independently possibly null (a match can have one battlefield recorded
- * without the other). Always drawn from the match's LAST recorded game
- * (matches.js's `games` array is ordered by game_number ASC), never a
- * per-game breakdown across a Bo3's games — the same "final, not
- * per-game" simplicity resolveScoreLine() below applies.
+ * The overlay's battlefield stat block(s), as an ordered `{ label, value }`
+ * array ready for matchOverlayImage.js to render directly (that file no
+ * longer needs to know anything about Bo1 vs. Bo3 — it just renders
+ * whatever's here) — the two formats are deliberately different, not the
+ * same layout reused:
  *
- * Deliberately returned as two separate values rather than one joined
- * "<mine> vs <theirs>" string: matchOverlayImage.js renders each as its
- * own full-width, separately-labeled line specifically because a joined
- * line didn't have enough width in this feature's first (wide/short)
- * panel shape and got truncated with an ellipsis on a real long
- * battlefield name — the actual bug the panel's reshape to narrow/tall
- * exists to fix. See that file's buildOverlayHtml() for the full story.
+ * - **Bo1** shows its one game's two battlefields as two separate blocks,
+ *   "My Battlefield" / "Opponent Battlefield" — unchanged from this
+ *   feature's earlier pass. Each is independently omitted if that side
+ *   wasn't recorded; a Bo1 with neither known contributes no blocks at all.
+ * - **Bo3** shows one block PER GAME ACTUALLY PLAYED (`match.games` only
+ *   ever contains rows for games that were really logged — LogMatchModal's
+ *   own accordion never creates a placeholder Game 3 row after a 2-0
+ *   sweep, so this needs no separate "was this game played" check beyond
+ *   iterating the array), labeled "Game 1:", "Game 2:", ... in play order,
+ *   each pairing that single game's two battlefields onto one
+ *   "<mine> vs <theirs>" line via formatBattlefieldPair() above — a
+ *   deliberately different shape from Bo1's split layout, since a Bo3
+ *   already has up to 3 separate labeled entries to keep visually apart;
+ *   pairing each game's own two names on one line keeps that from growing
+ *   to 6 separate always-on lines. A played game with no battlefield
+ *   recorded on it at all produces no block — never an empty "Game N:"
+ *   label with nothing shown under it.
  */
-function resolveBattlefields(match) {
+function resolveBattlefieldBlocks(match) {
+  if (match.format === 'Bo3') {
+    return match.games
+      .map((game) => ({
+        label: `Game ${game.game_number}:`,
+        value: formatBattlefieldPair(game.my_battlefield, game.opponent_battlefield)
+      }))
+      .filter((block) => block.value)
+  }
+
   const lastGame = match.games[match.games.length - 1]
-  if (!lastGame) return { mine: null, theirs: null }
-  return { mine: lastGame.my_battlefield ?? null, theirs: lastGame.opponent_battlefield ?? null }
+  if (!lastGame) return []
+  const blocks = []
+  if (lastGame.my_battlefield) blocks.push({ label: 'My Battlefield', value: lastGame.my_battlefield })
+  if (lastGame.opponent_battlefield) blocks.push({ label: 'Opponent Battlefield', value: lastGame.opponent_battlefield })
+  return blocks
 }
 
 /**
@@ -226,14 +254,12 @@ export async function burnMatchOverlayIfEnabled({ matchId, filePath }) {
     const deckName = deck?.name ?? 'Unknown Deck'
     const legendArtPath = deck?.legend_name ? await getLegendArtCachePath(deck.legend_name) : null
 
-    const { mine: myBattlefield, theirs: opponentBattlefield } = resolveBattlefields(match)
     const overlayPng = await renderMatchOverlayPng({
       deckName,
       legendArtPath,
       opponentLegend: match.opponent_legend,
       result: match.result,
-      myBattlefield,
-      opponentBattlefield,
+      battlefieldBlocks: resolveBattlefieldBlocks(match),
       scoreLine: resolveScoreLine(match)
     })
 
