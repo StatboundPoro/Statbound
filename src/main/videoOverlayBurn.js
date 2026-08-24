@@ -21,19 +21,26 @@ function hasUsableResultData(match) {
 }
 
 /**
- * The overlay's Battlefield row: "<mine> vs <theirs>", whichever single side
- * is known if only one is, or null if neither is — always drawn from the
- * match's LAST recorded game (matches.js's `games` array is ordered by
- * game_number ASC), never a per-game breakdown across a Bo3's games. This
- * mirrors resolveScoreLine()'s own "final, not per-game" simplicity below.
+ * The overlay's two Battlefield stat blocks — "My Battlefield" and
+ * "Opponent Battlefield" — returned as `{ mine, theirs }`, each
+ * independently possibly null (a match can have one battlefield recorded
+ * without the other). Always drawn from the match's LAST recorded game
+ * (matches.js's `games` array is ordered by game_number ASC), never a
+ * per-game breakdown across a Bo3's games — the same "final, not
+ * per-game" simplicity resolveScoreLine() below applies.
+ *
+ * Deliberately returned as two separate values rather than one joined
+ * "<mine> vs <theirs>" string: matchOverlayImage.js renders each as its
+ * own full-width, separately-labeled line specifically because a joined
+ * line didn't have enough width in this feature's first (wide/short)
+ * panel shape and got truncated with an ellipsis on a real long
+ * battlefield name — the actual bug the panel's reshape to narrow/tall
+ * exists to fix. See that file's buildOverlayHtml() for the full story.
  */
-function resolveBattlefieldLine(match) {
+function resolveBattlefields(match) {
   const lastGame = match.games[match.games.length - 1]
-  if (!lastGame) return null
-  const mine = lastGame.my_battlefield
-  const theirs = lastGame.opponent_battlefield
-  if (mine && theirs) return `${mine} vs ${theirs}`
-  return mine || theirs || null
+  if (!lastGame) return { mine: null, theirs: null }
+  return { mine: lastGame.my_battlefield ?? null, theirs: lastGame.opponent_battlefield ?? null }
 }
 
 /**
@@ -156,12 +163,14 @@ export async function burnMatchOverlayIfEnabled({ matchId, filePath }) {
     const deckName = deck?.name ?? 'Unknown Deck'
     const legendArtPath = deck?.legend_name ? await getLegendArtCachePath(deck.legend_name) : null
 
+    const { mine: myBattlefield, theirs: opponentBattlefield } = resolveBattlefields(match)
     const overlayPng = await renderMatchOverlayPng({
       deckName,
       legendArtPath,
       opponentLegend: match.opponent_legend,
       result: match.result,
-      battlefieldLine: resolveBattlefieldLine(match),
+      myBattlefield,
+      opponentBattlefield,
       scoreLine: resolveScoreLine(match)
     })
 
