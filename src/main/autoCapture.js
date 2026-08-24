@@ -193,8 +193,21 @@ const SESSION_STATE_CHECK_SCRIPT = `
     result.debug.boardEntryCount = entries.length;
     const samples = [];
     for (const entry of entries) {
-      const cardName = entry.getAttribute('data-log-card-name');
-      if (samples.length < 3) samples.push(cardName || '(no data-log-card-name attribute)');
+      // data-log-card-name isn't showing up on this element in practice
+      // (real testing found the attribute missing) -- until the real
+      // location is confirmed, also check the entry's own img[alt] (the
+      // same "read a card image's alt text" pattern every other card-name
+      // read in this app already uses) and its parent element's
+      // data-log-card-name, in case the name actually lives one level up
+      // or down from where data-log-action-kind sits.
+      const cardName =
+        entry.getAttribute('data-log-card-name') ||
+        entry.querySelector('img[alt]')?.alt ||
+        entry.parentElement?.getAttribute('data-log-card-name') ||
+        null;
+      if (samples.length < 3) {
+        samples.push((entry.outerHTML || '').slice(0, 600));
+      }
       if (cardName) result.playedCardNames.push(cardName);
     }
     result.debug.boardEntrySamples = samples;
