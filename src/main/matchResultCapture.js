@@ -33,11 +33,17 @@
 // separate addition on top of the same capture object and the same commit
 // timing — a stream of "played"/"mulliganed" card names accumulated across
 // the whole session, rather than a handful of static values known once.
-// PLAYED reads the match log's own `data-log-action-kind="board"` entries
-// ("Played [Name] from hand to [Zone]"), deduped by a monotonic
-// "entries already consumed" high-water mark under the assumption the log
-// only ever appends (never reorders/prunes) — see ingestMatchLogState's own
-// comment for what happens if that assumption ever turns out to be wrong.
+// PLAYED reads the match log's own `data-log-action-kind="board"` entries —
+// confirmed (via real testing) to reliably identify a played-to-board entry
+// by that attribute alone, with the card name from that same entry's
+// `data-log-card-name` attribute; an earlier pass also required the
+// entry's own rendered text to read "Played ... from hand to ...", but
+// that text comes back empty via textContent in practice (the log's
+// visible label isn't a plain text node), so the text check was dropped —
+// deduped by a monotonic "entries already consumed" high-water mark under
+// the assumption the log only ever appends (never reorders/prunes) — see
+// ingestMatchLogState's own comment for what happens if that assumption
+// ever turns out to be wrong.
 // MULLIGANED reads the mulligan screen's live selection state on the same
 // ~1s poll tick and commits whichever cards are selected the instant that
 // screen disappears. Unlike every other DOM read in this module, the
@@ -273,9 +279,9 @@ export function ingestDomState({
 }
 
 /**
- * Feeds one poll tick's worth of match-log "Played" entries —
+ * Feeds one poll tick's worth of match-log played-card entries —
  * `playedCardNames` is the FULL ordered list of every currently-visible
- * "Played [Name] from hand to [Zone]" entry's card name, in DOM order, not
+ * `data-log-action-kind="board"` entry's card name, in DOM order, not
  * just new ones (autoCapture.js's DOM script has no memory of its own
  * between ticks). Only the entries beyond `playedLogEntriesSeen` (the
  * count consumed as of the previous tick) are new, under the assumption

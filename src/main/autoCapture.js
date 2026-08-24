@@ -75,11 +75,13 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 // ingestMatchLogState/ingestMulliganState and CLAUDE.md's Decision Log):
 //
 //  - playedCardNames: the full ordered list of every currently-visible
-//    match-log "Played [Name] from hand to [Zone]" entry
-//    (`[data-log-action-kind="board"]`, card name from its own
-//    `data-log-card-name` attribute — both confirmed via real inspected
-//    markup) — deduped against already-counted entries in
-//    matchResultCapture.js itself, not here.
+//    match-log entry whose `data-log-action-kind="board"` (confirmed to
+//    reliably identify a played-to-board entry on its own — the entry's
+//    own rendered text was tried too and dropped: it comes back empty via
+//    textContent, since the log's visible label isn't a plain text node),
+//    card name from that same entry's own `data-log-card-name` attribute —
+//    deduped against already-counted entries in matchResultCapture.js
+//    itself, not here.
 //  - mulligan: whether the mulligan screen is currently showing, and if
 //    so, each candidate card's name and live selected state. Unlike every
 //    other read in this script, the mulligan screen has no confirmed
@@ -179,14 +181,20 @@ const SESSION_STATE_CHECK_SCRIPT = `
   } catch (err) {}
 
   try {
+    // data-log-action-kind="board" reliably identifies a played-to-board
+    // entry on its own (confirmed) -- an earlier pass also required the
+    // entry's own rendered text to match "Played ... from hand to ...",
+    // but real testing found that text comes back empty via textContent
+    // (the log's visible label isn't a plain text node, likely icon/image
+    // composed) -- the attribute-kind check alone is both necessary and
+    // sufficient, so the text requirement was dropped entirely rather than
+    // trying to read text that isn't actually there.
     const entries = document.querySelectorAll('[data-log-action-kind="board"]');
     result.debug.boardEntryCount = entries.length;
     const samples = [];
     for (const entry of entries) {
-      const text = entry.textContent || '';
-      if (samples.length < 3) samples.push(text.trim().slice(0, 140));
-      if (!/^\\s*Played\\s/i.test(text) || !/from hand to/i.test(text)) continue;
       const cardName = entry.getAttribute('data-log-card-name');
+      if (samples.length < 3) samples.push(cardName || '(no data-log-card-name attribute)');
       if (cardName) result.playedCardNames.push(cardName);
     }
     result.debug.boardEntrySamples = samples;
