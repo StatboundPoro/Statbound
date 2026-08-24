@@ -181,32 +181,27 @@ const SESSION_STATE_CHECK_SCRIPT = `
   } catch (err) {}
 
   try {
-    // data-log-action-kind="board" reliably identifies a played-to-board
-    // entry on its own (confirmed) -- an earlier pass also required the
-    // entry's own rendered text to match "Played ... from hand to ...",
-    // but real testing found that text comes back empty via textContent
-    // (the log's visible label isn't a plain text node, likely icon/image
-    // composed) -- the attribute-kind check alone is both necessary and
-    // sufficient, so the text requirement was dropped entirely rather than
-    // trying to read text that isn't actually there.
+    // data-log-action-kind="board" turns out (confirmed via real testing,
+    // its actual outerHTML captured through this same debug sample below)
+    // to sit on a small decorative icon badge (aria-hidden="true", an SVG
+    // "move" icon) NESTED INSIDE the real log row -- not on the row itself,
+    // contradicting the original assumption. The icon badge has neither a
+    // card name nor any real text of its own, so the real row has to be
+    // found by walking up from it.
     const entries = document.querySelectorAll('[data-log-action-kind="board"]');
     result.debug.boardEntryCount = entries.length;
     const samples = [];
     for (const entry of entries) {
-      // data-log-card-name isn't showing up on this element in practice
-      // (real testing found the attribute missing) -- until the real
-      // location is confirmed, also check the entry's own img[alt] (the
-      // same "read a card image's alt text" pattern every other card-name
-      // read in this app already uses) and its parent element's
-      // data-log-card-name, in case the name actually lives one level up
-      // or down from where data-log-action-kind sits.
+      const row =
+        entry.closest('li') ||
+        entry.parentElement?.parentElement?.parentElement?.parentElement ||
+        entry.parentElement;
       const cardName =
-        entry.getAttribute('data-log-card-name') ||
-        entry.querySelector('img[alt]')?.alt ||
-        entry.parentElement?.getAttribute('data-log-card-name') ||
+        row?.querySelector('[data-log-card-name]')?.getAttribute('data-log-card-name') ||
+        row?.querySelector('img[alt]')?.alt ||
         null;
-      if (samples.length < 3) {
-        samples.push((entry.outerHTML || '').slice(0, 600));
+      if (samples.length < 3 && row) {
+        samples.push((row.outerHTML || '').slice(0, 1200));
       }
       if (cardName) result.playedCardNames.push(cardName);
     }
