@@ -210,30 +210,50 @@ const SESSION_STATE_CHECK_SCRIPT = `
     // A Chosen Champion doesn't start in hand (it "lives outside the
     // deck"), so its entrance into play never logs as "Played ... from
     // hand" -- confirmed via real markup to log as "Moved [Champion] to
-    // base." instead, using the same "board" kind and Moved verb an
-    // ordinary mid-game battlefield reposition also uses. The two are told
-    // apart by counting [data-log-card-name] references in the row: a real
-    // reposition always has TWO (the moved card, and the destination
-    // battlefield, both wrapped in their own card-preview button), while a
-    // Champion's "to base" entrance has only ONE -- "base" is plain text,
-    // never a card reference -- since the champion is never subsequently
-    // "played" again the way a hand card would be, this also naturally
-    // avoids ever double-counting a later, real reposition of that same
-    // champion (which becomes a normal two-reference "Moved X to
-    // [Battlefield]" row once it's already on board).
+    // base." instead. Counting [data-log-card-name] references was tried
+    // as the way to tell that apart from an ordinary battlefield
+    // reposition (1 reference vs. 2) -- confirmed WRONG by real testing:
+    // entering play always logs an initial "Moved [Card] to base." row
+    // (also just 1 reference, "base" being plain text) alongside a real
+    // unit's own "Played ... from hand" row, for every card, not just the
+    // Champion, which double-counted every single ordinary play. The only
+    // reliable signal is whether that same card name ever has a genuine
+    // "Played ... from hand" row anywhere in the currently-visible log --
+    // the Champion never does, an ordinary unit always does -- so this now
+    // requires a two-pass read: first collect every row's own play/move
+    // signal, then classify a "Moved ... to base" row as a Champion entry
+    // only for a card name that never appears with a real "Played " row.
+    // Deduped to at most one Champion-entry event per card name per poll
+    // (championNamesThisPoll) so a stray duplicate "Moved ... to base" row
+    // for the same name can't itself inflate the count.
     const entries = document.querySelectorAll('[data-log-action-kind]');
     result.debug.boardEntryCount = entries.length;
-    const samples = [];
+
+    const rows = [];
     for (const entry of entries) {
       const row = entry.closest('li');
-      const rowText = row ? row.textContent || '' : '';
-      const cardRefs = row ? row.querySelectorAll('[data-log-card-name]') : [];
-      const isDirectPlay = /Played\\s/.test(rowText);
-      const isChampionEntry = /Moved\\s/.test(rowText) && cardRefs.length === 1;
-      const isPlay = isDirectPlay || isChampionEntry;
-      const cardName = isPlay ? cardRefs[0]?.textContent?.trim() || null : null;
+      if (!row) continue;
+      const rowText = row.textContent || '';
+      const cardName = row.querySelector('[data-log-card-name]')?.textContent?.trim() || null;
+      rows.push({
+        rowText,
+        cardName,
+        isDirectPlay: /Played\\s/.test(rowText),
+        isMovedToBase: /Moved\\s/.test(rowText) && /to base\\.?\\s*$/.test(rowText)
+      });
+    }
+
+    const playedFromHandNames = new Set(rows.filter((r) => r.isDirectPlay && r.cardName).map((r) => r.cardName));
+    const championNamesThisPoll = new Set();
+    const samples = [];
+    for (const r of rows) {
+      const isChampionEntry =
+        r.isMovedToBase && r.cardName && !playedFromHandNames.has(r.cardName) && !championNamesThisPoll.has(r.cardName);
+      if (isChampionEntry) championNamesThisPoll.add(r.cardName);
+      const isPlay = r.isDirectPlay || isChampionEntry;
+      const cardName = isPlay ? r.cardName : null;
       if (samples.length < 5 && isPlay) {
-        samples.push({ isDirectPlay, isChampionEntry, cardName, rowText: rowText.trim().slice(0, 160) });
+        samples.push({ isDirectPlay: r.isDirectPlay, isChampionEntry, cardName, rowText: r.rowText.trim().slice(0, 160) });
       }
       if (cardName) result.playedCardNames.push(cardName);
     }
