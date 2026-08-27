@@ -13,7 +13,11 @@ function makeEmptyGame(gameNumber) {
     seat: '',
     my_battlefield: '',
     opponent_battlefield: '',
-    extra_battlefields: []
+    extra_battlefields: [],
+    // Average Game Length's own source field (see insights.js) -- never a
+    // form field, same as card_events below: a manually-added game simply
+    // has no captured turn count.
+    turn_count: null
   }
 }
 
@@ -268,7 +272,12 @@ function gamesFromMatch(match) {
     seat: g.seat ?? '',
     my_battlefield: g.my_battlefield ?? '',
     opponent_battlefield: g.opponent_battlefield ?? '',
-    extra_battlefields: g.extra_battlefields ?? []
+    extra_battlefields: g.extra_battlefields ?? [],
+    // Carried through untouched on edit -- never a form field (see
+    // makeEmptyGame above), so an edit must round-trip whatever was already
+    // captured rather than silently wiping it via updateMatch's wholesale
+    // delete-then-reinsert of this match's games.
+    turn_count: g.turn_count ?? null
   }))
 }
 
@@ -293,7 +302,11 @@ function gamesFromAutoFill(autoFillResult) {
     seat: g.wentFirst === true ? 'went_1st' : g.wentFirst === false ? 'went_2nd' : '',
     my_battlefield: g.myBattlefield ?? '',
     opponent_battlefield: g.opponentBattlefield ?? '',
-    extra_battlefields: []
+    extra_battlefields: [],
+    // Average Game Length's own source field (see insights.js) -- not a
+    // form field, carried straight through to Save exactly like
+    // cardEvents below.
+    turn_count: Number.isInteger(g.turnCount) ? g.turnCount : null
   }))
 }
 
@@ -485,7 +498,10 @@ export default function LogMatchModal({
           seat: g.seat || null,
           my_battlefield: g.my_battlefield || null,
           opponent_battlefield: g.opponent_battlefield.trim() || null,
-          extra_battlefields: g.extra_battlefields
+          extra_battlefields: g.extra_battlefields,
+          // Average Game Length's own source field -- never user-editable,
+          // see makeEmptyGame/gamesFromMatch/gamesFromAutoFill above.
+          turn_count: Number.isInteger(g.turn_count) ? g.turn_count : null
         }))
       }
       const saved = isEdit

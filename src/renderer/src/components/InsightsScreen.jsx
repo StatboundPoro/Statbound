@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeMatchupBreakdown, computeStreak } from '../lib/stats.js'
 import MatchupBreakdownTable from './MatchupBreakdownTable.jsx'
+import CardPlayRateBreakdown from './CardPlayRateBreakdown.jsx'
 
 const DEFAULT_SORT = 'winRateDesc'
 
@@ -134,6 +135,14 @@ export default function InsightsScreen({ initialDeckId = null }) {
   const [status, setStatus] = useState('loading')
   const [battlefieldSort, setBattlefieldSort] = useState(DEFAULT_SORT)
   const [matchupSort, setMatchupSort] = useState(DEFAULT_SORT)
+  // "Play Rate vs. Deck Count" -- deck-specific only (see
+  // src/main/cardPlayRate.js), so this is fetched separately from
+  // insights:get and only when a real deck is selected, never for "All
+  // Decks". null covers both "not fetched/loading" and "fetched, but
+  // nothing meaningful to show" -- the card's own empty state doesn't need
+  // to tell those apart.
+  const [cardPlayRate, setCardPlayRate] = useState(null)
+  const [playRateLightboxOpen, setPlayRateLightboxOpen] = useState(false)
   const matchupSectionRef = useRef(null)
   const hasAutoScrolled = useRef(false)
 
@@ -194,9 +203,50 @@ export default function InsightsScreen({ initialDeckId = null }) {
     }
   }, [deckId])
 
+  // Fetched only when a real deck is selected -- "All Decks" clears it
+  // immediately rather than leaving a stale previous deck's breakdown
+  // around, since deck composition varies per deck and this stat has no
+  // meaningful cross-deck reading at all (see InsightsScreen's Play Rate
+  // card below, which hides/disables entirely for "All Decks"). Exposed as
+  // a function (not just fired once) for the same reason refetchMatches
+  // above is -- editing/deleting a match from inside the Matchup Breakdown
+  // table below can change (or, on delete, cascade-remove) this deck's
+  // match_card_events rows, so handleMatchupTableChanged below needs to be
+  // able to refresh this too, not just matches/insights.
+  function refetchCardPlayRate() {
+    if (deckId === 'all') {
+      setCardPlayRate(null)
+      setPlayRateLightboxOpen(false)
+      return Promise.resolve()
+    }
+    return window.api.cardPlayRate
+      .get(deckId)
+      .then(setCardPlayRate)
+      .catch((err) => console.error('Failed to load card play rate breakdown:', err))
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    if (deckId === 'all') {
+      setCardPlayRate(null)
+      setPlayRateLightboxOpen(false)
+      return
+    }
+    window.api.cardPlayRate
+      .get(deckId)
+      .then((result) => {
+        if (!cancelled) setCardPlayRate(result)
+      })
+      .catch((err) => console.error('Failed to load card play rate breakdown:', err))
+    return () => {
+      cancelled = true
+    }
+  }, [deckId])
+
   function handleMatchupTableChanged() {
     refetchMatches()
     refetchInsights()
+    refetchCardPlayRate()
   }
 
   // A sort order chosen for the previous deck's dataset isn't necessarily
@@ -331,6 +381,17 @@ export default function InsightsScreen({ initialDeckId = null }) {
                 {streak ? `${streak.result === 'win' ? 'W' : 'L'}${streak.count}` : '-'}
               </div>
             </div>
+            <div className="stat-cell insights-side-card">
+              <div className="label">Average Game Length</div>
+              <div className="value">
+                {insights.averageGameLength ? `${insights.averageGameLength.turns.toFixed(1)} turns` : 'Not enough data'}
+              </div>
+              {insights.averageGameLength && (
+                <div className="stat-cell-sub">
+                  ({insights.averageGameLength.gameCount} game{insights.averageGameLength.gameCount === 1 ? '' : 's'})
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="section-label">Seat Advantage</div>
@@ -429,7 +490,64 @@ export default function InsightsScreen({ initialDeckId = null }) {
                 <div className="insights-note">Not enough data yet.</div>
               )}
             </div>
+            <div className="insights-bestworst-card insights-cardstat-card">
+              <div className="label">Most-Scored-On Battlefield</div>
+              {insights.mostScoredOnBattlefield ? (
+                <>
+                  <div className="insights-bestworst-legend">{insights.mostScoredOnBattlefield.battlefieldName}</div>
+                  <div className="stat-cell-sub">
+                    scored on {insights.mostScoredOnBattlefield.count} time
+                    {insights.mostScoredOnBattlefield.count === 1 ? '' : 's'}
+                  </div>
+                </>
+              ) : (
+                <div className="insights-note">Not enough data yet.</div>
+              )}
+            </div>
+            <div className="insights-bestworst-card insights-cardstat-card">
+              <div className="label">Most Common Turn-1 Play</div>
+              {insights.mostCommonTurnOnePlay ? (
+                <>
+                  <div className="insights-bestworst-legend">{insights.mostCommonTurnOnePlay.cardName}</div>
+                  <div className="stat-cell-sub">
+                    played turn 1 in {insights.mostCommonTurnOnePlay.count} game
+                    {insights.mostCommonTurnOnePlay.count === 1 ? '' : 's'}
+                  </div>
+                </>
+              ) : (
+                <div className="insights-note">Not enough data yet.</div>
+              )}
+            </div>
           </div>
+
+          <div className="section-label">Card Efficiency</div>
+          <div className="insights-bestworst-card insights-playrate-card">
+            <div className="label">Play Rate vs. Deck Count</div>
+            {deckId === 'all' ? (
+              <div className="insights-note">Select a single deck to see this stat (deck composition varies per deck).</div>
+            ) : cardPlayRate?.mostUnderplayed ? (
+              <>
+                <div className="insights-bestworst-legend">{cardPlayRate.mostUnderplayed.cardName}</div>
+                <div className="stat-cell-sub">
+                  played {cardPlayRate.mostUnderplayed.timesPlayed} of{' '}
+                  {cardPlayRate.mostUnderplayed.copies * cardPlayRate.matchesWithCaptureData} possible times (
+                  {Math.round(cardPlayRate.mostUnderplayed.ratio * 100)}%), the most underplayed card in this deck
+                </div>
+                <button type="button" className="insights-playrate-link" onClick={() => setPlayRateLightboxOpen(true)}>
+                  View full breakdown
+                </button>
+              </>
+            ) : (
+              <div className="insights-note">Not enough data yet.</div>
+            )}
+          </div>
+          {playRateLightboxOpen && cardPlayRate && (
+            <CardPlayRateBreakdown
+              breakdown={cardPlayRate}
+              deckName={selectedDeckName}
+              onClose={() => setPlayRateLightboxOpen(false)}
+            />
+          )}
 
           <div className="section-label" ref={matchupSectionRef}>
             Matchup Breakdown

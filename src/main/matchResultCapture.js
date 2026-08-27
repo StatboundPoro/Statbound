@@ -31,8 +31,9 @@
 //
 // CARD EVENTS (ingestMatchLogState/ingestMulliganState below) are a later,
 // separate addition on top of the same capture object and the same commit
-// timing — a stream of "played"/"mulliganed" card names accumulated across
-// the whole session, rather than a handful of static values known once.
+// timing — a stream of "played"/"mulliganed"/"scored_on_battlefield" card
+// (or battlefield) names accumulated across the whole session, rather than
+// a handful of static values known once.
 // PLAYED reads the match log's own `[data-log-action-kind]` entries (any
 // value — see autoCapture.js for why this isn't scoped to a specific
 // value like "board"), confirming a real play via that row's own "Played "
@@ -47,6 +48,20 @@
 // earlier position-based approach badly enough that a single real play got
 // recorded over a dozen times — see ingestMatchLogState's own comment for
 // the full story.
+// SCORED_ON_BATTLEFIELD (added in a later pass, for Insights' Most-Scored-On
+// Battlefield stat) reads the same match log's "Conquered [Battlefield] and
+// scored 1" entries, same `[data-log-action-kind]`/`[data-log-card-name]`
+// read pattern as PLAYED, deduped the exact same per-name count-diff way —
+// just a second, independent name-count map so a card play and a
+// battlefield score can never cross-contaminate each other's dedup state.
+// Not yet confirmed against real match markup the way PLAYED's several
+// rounds of correction were (see CLAUDE.md's Decision Log) — built
+// defensively against the described log phrasing and flagged for real-match
+// verification.
+// Both PLAYED and SCORED_ON_BATTLEFIELD rows, as of that same later pass,
+// also carry a turn_number read off an ancestor `data-turn-number`
+// attribute (see autoCapture.js's SESSION_STATE_CHECK_SCRIPT) — also
+// unconfirmed against real markup and flagged the same way.
 // MULLIGANED reads the mulligan screen's live selection state on the same
 // ~1s poll tick and commits whichever cards are selected the instant that
 // screen disappears. Unlike every other DOM read in this module, the
@@ -57,10 +72,13 @@
 // three independent signals rather than a single hardcoded match, the same
 // "compare against the group's own baseline, never a hardcoded value"
 // posture this module's own opponent-score reading already established.
-// Both are flagged in CLAUDE.md as needing real-match confirmation before
-// being treated as fully reliable, the same standing as this project's
-// other DOM-dependent features that shipped without a live window to
-// verify against in this environment.
+// Mulligan events never carry a turn_number — the mulligan screen isn't
+// part of the turn-numbered match log at all, so there's no ancestor
+// `data-turn-number` to read for it.
+// Both PLAYED/MULLIGANED are flagged in CLAUDE.md as needing real-match
+// confirmation before being treated as fully reliable, the same standing as
+// this project's other DOM-dependent features that shipped without a live
+// window to verify against in this environment.
 
 // The live, in-progress capture for whatever session is currently
 // TRACKING/RECORDING — null whenever no session is active. Reset to a
@@ -93,15 +111,27 @@ function emptyCapture(selfPlayerId) {
     // entry for why this moved off the WebSocket fields it originally read.
     domBattlefield: { self: null, opponent: null },
     domScore: { self: null, opponent: null },
+    // The current game's highest observed turn number, Source B (DOM) —
+    // same live-overwrite treatment as domScore/domBattlefield above (the
+    // DOM only ever reflects the *current* game's state, reset for each new
+    // game of a Bo3 — see buildBo3Result's own comment), not an
+    // accumulated-forever running max. Feeds each game's turnCount field —
+    // see ingestDomState and buildBo1Result/buildBo3Result below.
+    domHighestTurn: null,
     // Card events — see the module comment above. Accumulated across the
     // whole session (every game of a Bo3 alike), each `{ gameNumber,
-    // cardName, eventType }`, committed straight into finalizeResult()'s
-    // returned `cardEvents` array with no further processing needed.
+    // cardName, eventType, turnNumber }`, committed straight into
+    // finalizeResult()'s returned `cardEvents` array with no further
+    // processing needed.
     cardEvents: [],
     // Per-card-name play counts already turned into cardEvents rows, keyed
     // by card name — see ingestMatchLogState below for why this is a
     // multiset diff rather than a position-based high-water mark.
     playedNameCounts: new Map(),
+    // Same idea as playedNameCounts, kept as a separate map so a card play
+    // and a battlefield score can never share (and corrupt) each other's
+    // dedup state — see ingestMatchLogState below.
+    scoredBattlefieldNameCounts: new Map(),
     // Whether the mulligan screen was present on the previous poll tick —
     // used only to detect the screen-just-disappeared transition that
     // commits mulliganLiveSelected. See ingestMulliganState below.
@@ -143,7 +173,8 @@ function snapshotCurrentGameState() {
     wins: { ...capture.winsByPlayerId },
     firstPlayerId: capture.firstPlayerId,
     domScore: { ...capture.domScore },
-    domBattlefield: { ...capture.domBattlefield }
+    domBattlefield: { ...capture.domBattlefield },
+    domHighestTurn: capture.domHighestTurn
   }
 }
 
@@ -252,7 +283,8 @@ export function ingestDomState({
   selfBattlefield,
   opponentBattlefield,
   selfScore,
-  opponentScore
+  opponentScore,
+  highestTurnNumber
 } = {}) {
   if (!capture) return
   try {
@@ -280,54 +312,90 @@ export function ingestDomState({
   } catch {
     // ignore
   }
+  try {
+    if (highestTurnNumber !== null && highestTurnNumber !== undefined) capture.domHighestTurn = highestTurnNumber
+  } catch {
+    // ignore
+  }
+}
+
+// Shared by the 'played' and 'scored_on_battlefield' streams below — both
+// are the exact same per-card(/battlefield)-name COUNT diff (a multiset),
+// not a position-based high-water mark (see ingestMatchLogState's own
+// comment for the full story of why). `entries` is the FULL list of every
+// currently-qualifying row of this event type, each `{ cardName,
+// turnNumber }`, not just new ones since the last poll (autoCapture.js's DOM
+// script has no memory of its own between ticks) — `nameCounts` is that
+// event type's own dedup map (capture.playedNameCounts or
+// capture.scoredBattlefieldNameCounts, kept separate per event type so
+// neither can corrupt the other's count state).
+function ingestCountedNameEvents(entries, eventType, nameCounts) {
+  const byName = new Map()
+  for (const entry of entries) {
+    if (!entry?.cardName) continue
+    if (!byName.has(entry.cardName)) byName.set(entry.cardName, [])
+    byName.get(entry.cardName).push(Number.isInteger(entry.turnNumber) ? entry.turnNumber : null)
+  }
+
+  const gameNumber = activeGameNumber(capture)
+  for (const [cardName, turnNumbers] of byName) {
+    const alreadyRecorded = nameCounts.get(cardName) ?? 0
+    for (let i = alreadyRecorded; i < turnNumbers.length; i++) {
+      capture.cardEvents.push({ gameNumber, cardName, eventType, turnNumber: turnNumbers[i] })
+    }
+    if (turnNumbers.length > alreadyRecorded) nameCounts.set(cardName, turnNumbers.length)
+  }
 }
 
 /**
- * Feeds one poll tick's worth of match-log played-card entries —
- * `playedCardNames` is the FULL list of every currently-qualifying play
- * (a "Played ..." row, or a Chosen Champion's "Moved ... to base" entry —
- * see autoCapture.js) found in the log right now, not just new ones
- * (autoCapture.js's DOM script has no memory of its own between ticks).
+ * Feeds one poll tick's worth of match-log entries — `playedCards` is the
+ * FULL list of every currently-qualifying play (a "Played ..." row, or a
+ * Chosen Champion's "Moved ... to base" entry — see autoCapture.js), each
+ * `{ cardName, turnNumber }`; `scoredBattlefieldCards` (added in a later
+ * pass, for Insights' Most-Scored-On Battlefield stat) is the same shape for
+ * "Conquered [Battlefield] and scored 1" rows, where `cardName` actually
+ * holds a battlefield name (see db.js's SCHEMA comment on this same reuse
+ * in match_card_events itself). Neither is just new entries since the last
+ * tick — autoCapture.js's DOM script has no memory of its own between polls.
  *
- * Deliberately a per-card-name COUNT diff (a multiset), not a
- * position-based high-water mark — an earlier version compared
- * `playedCardNames.length` against how many were consumed on the previous
- * tick and sliced off the assumed-new tail, on the assumption the log only
- * ever appends at a stable position. Real testing found that wrong: a
- * single real play (reported: one "Mirror Image") got recorded well over
- * a dozen times over the course of a match with a lot of other board
- * activity (repeated battlefield moves), which only makes sense if
- * entries already counted were later mistaken for new ones again — i.e.
- * the log's positions aren't as stable as assumed (real markup shows
- * entries grouped by turn, with an "Earlier activity" bucket that isn't in
- * simple chronological DOM order either, so a fixed "tail beyond N" slice
- * can't be trusted). Counting occurrences per card name sidesteps the
- * ordering question entirely: as long as a real play, once it appears in
- * the log, never actually disappears from the currently-qualifying list
- * (true per Part 0's confirmed finding that the log never collapses/
- * hides), comparing each name's current count against its previously
- * recorded count and only emitting the increase is correct regardless of
- * how the DOM reorders entries around it.
+ * Deliberately a per-name COUNT diff (a multiset), not a position-based
+ * high-water mark — an earlier version compared the played list's length
+ * against how many were consumed on the previous tick and sliced off the
+ * assumed-new tail, on the assumption the log only ever appends at a stable
+ * position. Real testing found that wrong: a single real play (reported:
+ * one "Mirror Image") got recorded well over a dozen times over the course
+ * of a match with a lot of other board activity (repeated battlefield
+ * moves), which only makes sense if entries already counted were later
+ * mistaken for new ones again — i.e. the log's positions aren't as stable
+ * as assumed (real markup shows entries grouped by turn, with an "Earlier
+ * activity" bucket that isn't in simple chronological DOM order either, so
+ * a fixed "tail beyond N" slice can't be trusted). Counting occurrences per
+ * name sidesteps the ordering question entirely: as long as a real entry,
+ * once it appears in the log, never actually disappears from the
+ * currently-qualifying list (true per Part 0's confirmed finding that the
+ * log never collapses/hides), comparing each name's current count against
+ * its previously recorded count and only emitting the increase is correct
+ * regardless of how the DOM reorders entries around it. See
+ * ingestCountedNameEvents above for the shared implementation both streams
+ * use — turnNumber rides along per occurrence (in DOM/array order, same
+ * order the previous name-only version already relied on) so the specific
+ * turn a given play/score happened on survives the dedup untouched.
  */
-export function ingestMatchLogState({ playedCardNames } = {}) {
-  if (!capture || !Array.isArray(playedCardNames)) return
+export function ingestMatchLogState({ playedCards, scoredBattlefieldCards } = {}) {
+  if (!capture) return
   try {
-    const currentCounts = new Map()
-    for (const cardName of playedCardNames) {
-      if (!cardName) continue
-      currentCounts.set(cardName, (currentCounts.get(cardName) ?? 0) + 1)
-    }
-
-    const gameNumber = activeGameNumber(capture)
-    for (const [cardName, count] of currentCounts) {
-      const alreadyRecorded = capture.playedNameCounts.get(cardName) ?? 0
-      for (let i = alreadyRecorded; i < count; i++) {
-        capture.cardEvents.push({ gameNumber, cardName, eventType: 'played' })
-      }
-      if (count > alreadyRecorded) capture.playedNameCounts.set(cardName, count)
+    if (Array.isArray(playedCards)) {
+      ingestCountedNameEvents(playedCards, 'played', capture.playedNameCounts)
     }
   } catch {
     // ignore — this poll's played-card read contributes nothing
+  }
+  try {
+    if (Array.isArray(scoredBattlefieldCards)) {
+      ingestCountedNameEvents(scoredBattlefieldCards, 'scored_on_battlefield', capture.scoredBattlefieldNameCounts)
+    }
+  } catch {
+    // ignore — this poll's scored-battlefield read contributes nothing
   }
 }
 
@@ -409,7 +477,8 @@ function buildBo3Result(c, result) {
     wins: {},
     firstPlayerId: null,
     domScore: { self: null, opponent: null },
-    domBattlefield: { self: null, opponent: null }
+    domBattlefield: { self: null, opponent: null },
+    domHighestTurn: null
   }
 
   for (let gameNumber = 1; gameNumber <= totalGames; gameNumber++) {
@@ -419,7 +488,8 @@ function buildBo3Result(c, result) {
       opponentBattlefield: null,
       won: null,
       wentFirst: null,
-      inGameScore: null
+      inGameScore: null,
+      turnCount: null
     }
 
     const entering = c.boundarySnapshots[gameNumber] ?? emptySnapshot
@@ -427,7 +497,8 @@ function buildBo3Result(c, result) {
       wins: c.winsByPlayerId,
       firstPlayerId: c.firstPlayerId,
       domScore: c.domScore,
-      domBattlefield: c.domBattlefield
+      domBattlefield: c.domBattlefield,
+      domHighestTurn: c.domHighestTurn
     }
 
     try {
@@ -464,6 +535,12 @@ function buildBo3Result(c, result) {
       // ignore
     }
 
+    try {
+      if (Number.isInteger(ending.domHighestTurn)) game.turnCount = ending.domHighestTurn
+    } catch {
+      // ignore
+    }
+
     result.games.push(game)
   }
 }
@@ -490,7 +567,14 @@ function buildBo1Result(c, result) {
     opponentBattlefield: c.domBattlefield.opponent ?? null,
     won: null,
     wentFirst: null,
-    inGameScore: null
+    inGameScore: null,
+    turnCount: null
+  }
+
+  try {
+    if (Number.isInteger(c.domHighestTurn)) game.turnCount = c.domHighestTurn
+  } catch {
+    // ignore
   }
 
   try {

@@ -12,6 +12,7 @@ import { cardArtFileUrl } from './cardArtProtocol.js'
 import { getCardArtFullCachePath } from './cardArtFullCache.js'
 import { cardArtFullFileUrl } from './cardArtFullProtocol.js'
 import { getInsights } from './insights.js'
+import { getCardPlayRateBreakdown } from './cardPlayRate.js'
 import { getMatchupMatrix } from './matchupMatrix.js'
 import {
   getPlayNavState,
@@ -136,6 +137,11 @@ export function registerIpcHandlers() {
   ipcMain.handle('theme:get', () => getThemePrefs().selectedTheme)
   ipcMain.handle('theme:set', (_event, themeId) => updateThemePrefs({ selectedTheme: themeId }).selectedTheme)
   ipcMain.handle('insights:get', (_event, params) => getInsights(params ?? {}))
+  // Insights' "Play Rate vs. Deck Count" card + lightbox — deliberately a
+  // separate channel from insights:get rather than folded into its return
+  // shape, since this is deck-specific only (see cardPlayRate.js) and
+  // returns a full per-card breakdown table, not a single aggregate.
+  ipcMain.handle('card-play-rate:get', (_event, deckId) => getCardPlayRateBreakdown(deckId))
   ipcMain.handle('matchup-matrix:get', () => getMatchupMatrix())
   ipcMain.handle('settings:export', () => exportBackup())
   ipcMain.handle('settings:pick-import-file', () => pickImportFile())

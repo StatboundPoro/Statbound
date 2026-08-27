@@ -85,11 +85,19 @@ function validateMatchInput({ deck_id, format, games }) {
 
 function insertGamesStatement(db) {
   return db.prepare(
-    `INSERT INTO games (id, match_id, game_number, result, my_score, opponent_score, seat, my_battlefield, opponent_battlefield, extra_battlefields)
-     VALUES (@id, @match_id, @game_number, @result, @my_score, @opponent_score, @seat, @my_battlefield, @opponent_battlefield, @extra_battlefields)`
+    `INSERT INTO games (id, match_id, game_number, result, my_score, opponent_score, seat, my_battlefield, opponent_battlefield, extra_battlefields, turn_count)
+     VALUES (@id, @match_id, @game_number, @result, @my_score, @opponent_score, @seat, @my_battlefield, @opponent_battlefield, @extra_battlefields, @turn_count)`
   )
 }
 
+// turn_count (Average Game Length's own source field -- see insights.js and
+// CLAUDE.md's Decision Log) is never a form field, exactly like card_events
+// -- it only ever arrives already-computed from match-result auto-fill's
+// autoFillResult.games[].turnCount, carried through LogMatchModal.jsx's
+// local game state with no UI of its own. Not user-editable, so there's
+// nothing to validate here beyond "is this actually an integer" -- anything
+// else (missing, NaN, a stray string) degrades to null rather than
+// rejecting the whole game row.
 function gameInsertParams(matchId, game, index) {
   return {
     id: randomUUID(),
@@ -101,7 +109,8 @@ function gameInsertParams(matchId, game, index) {
     seat: game.seat ?? null,
     my_battlefield: game.my_battlefield ?? null,
     opponent_battlefield: game.opponent_battlefield ?? null,
-    extra_battlefields: JSON.stringify(game.extra_battlefields ?? [])
+    extra_battlefields: JSON.stringify(game.extra_battlefields ?? []),
+    turn_count: Number.isInteger(game.turn_count) ? game.turn_count : null
   }
 }
 

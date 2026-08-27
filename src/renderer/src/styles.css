@@ -2705,13 +2705,16 @@ body {
   width: 240px;
 }
 
-/* Overall / Last N / Current Streak, three boxes in a row at the same
-   visual tier — the big headline card gets more room since it carries
-   more content (headline value + record + total), the two side cards
-   are simpler single-stat readouts. */
+/* Overall / Last N / Current Streak / Average Game Length, four boxes in a
+   row at the same visual tier — the big headline card gets more room since
+   it carries more content (headline value + record + total), the three
+   side cards are simpler single-stat readouts. Average Game Length was
+   added alongside the other three new card/game-level stats (see
+   CLAUDE.md's Decision Log) as a fourth side card rather than its own
+   section, since it's the same shape as Last N/Current Streak. */
 .insights-overview-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 32px;
 }
@@ -2776,9 +2779,17 @@ body {
   margin-bottom: 12px;
 }
 
+/* auto-fit rather than a fixed repeat(2, 1fr) -- this row is shared by
+   Best/Worst Matchup (2 cards) and Card Stats (4 cards, since Most-Scored-On
+   Battlefield/Most Common Turn-1 Play joined Most Played/Most Mulliganed —
+   see CLAUDE.md's Decision Log). At normal desktop widths this still lays
+   out as 2 even columns for a 2-card row (each 1fr track fills half the
+   available width once minmax's 200px floor is comfortably cleared) while
+   giving a 4-card row 4 columns, wrapping to fewer only if the window is
+   genuinely too narrow for that many. */
 .insights-bestworst-row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
 }
@@ -2909,6 +2920,107 @@ body {
   font-size: 12px;
   color: var(--text-faint);
   margin-bottom: 12px;
+}
+
+/* "Play Rate vs. Deck Count" -- a single card (not a row of its own, reuses
+   .insights-bestworst-card wholesale) plus a "View full breakdown" link
+   that opens CardPlayRateBreakdown.jsx's lightbox. Deck-specific only —
+   disabled/hidden entirely for "All Decks", see InsightsScreen.jsx. */
+.insights-playrate-card {
+  border-left-color: var(--accent-primary);
+  margin-bottom: 32px;
+}
+.insights-playrate-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 8px;
+  color: var(--accent-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.insights-playrate-link:hover {
+  text-decoration: underline;
+}
+
+/* Play Rate's own lightbox (CardPlayRateBreakdown.jsx) -- reuses
+   .lightbox-backdrop's fixed/inset/dismiss overlay wholesale (same outside
+   click/Escape/close-button conventions as CardLightbox.jsx), but the
+   content is a data panel with a sortable table, not an enlarged image, so
+   it gets its own content styling closer to .modal than .lightbox-content. */
+.playrate-lightbox-content {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 640px;
+  max-width: calc(100vw - 60px);
+  max-height: calc(100vh - 80px);
+  padding: 20px 22px 22px;
+  display: flex;
+  flex-direction: column;
+}
+.playrate-lightbox-content h2 {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  padding-right: 28px;
+}
+.playrate-lightbox-sub {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  margin: 6px 0 16px;
+}
+.playrate-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+}
+.playrate-table-wrap {
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+}
+.playrate-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.playrate-table th,
+.playrate-table td {
+  padding: 8px 14px;
+  text-align: left;
+}
+.playrate-table td.numeric,
+.playrate-table th.numeric {
+  text-align: right;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.playrate-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border-soft);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.playrate-table thead th:hover {
+  color: var(--text-dim);
+}
+.playrate-table tbody tr:not(:last-child) td {
+  border-bottom: 1px solid var(--border-soft);
+}
+.playrate-table tbody tr.playrate-row-lowest td {
+  color: var(--accent-primary);
 }
 
 /* ---------- MATCHUP MATRIX ---------- */

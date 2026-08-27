@@ -70,13 +70,33 @@ export function getInsights({ deckId } = {}) {
     battlefieldGroups.get(game.my_battlefield).push(game)
   }
 
-  // Most Played / Most Mulliganed: unlike everything above, not derived
-  // from listMatches()'s games at all — sourced from match_card_events,
-  // a separate table populated only from match-result auto-fill's DOM
+  // Most Played / Most Mulliganed / Most-Scored-On Battlefield / Most
+  // Common Turn-1 Play: unlike everything above, not derived from
+  // listMatches()'s games at all — sourced from match_card_events, a
+  // separate table populated only from match-result auto-fill's DOM
   // capture (see matchResultCapture.js and CLAUDE.md's Decision Log). Each
   // is null if no match in the current scope has any captured event data,
   // never a fabricated zero-count card.
-  const { mostPlayedCard, mostMulliganedCard } = getCardEventHighlights({ deckId })
+  const { mostPlayedCard, mostMulliganedCard, mostScoredOnBattlefield, mostCommonTurnOnePlay } =
+    getCardEventHighlights({ deckId })
+
+  // Average Game Length — unlike the four card-event stats above, this IS
+  // derived from listMatches()'s own games (games.turn_count, populated by
+  // match-result auto-fill's turnCount field — see db.js's SCHEMA comment),
+  // not match_card_events. Deliberately counts every game with a captured
+  // turn_count regardless of that game's own result — an in-progress or
+  // undecided game still reached however many turns it reached, and
+  // excluding it would just shrink the sample for no real benefit, unlike
+  // the match/game-level win-rate stats above where an undecided result
+  // has no win/loss to count either way.
+  const gamesWithTurnCount = matches.flatMap((match) => match.games).filter((game) => Number.isInteger(game.turn_count))
+  const averageGameLength =
+    gamesWithTurnCount.length > 0
+      ? {
+          turns: gamesWithTurnCount.reduce((sum, game) => sum + game.turn_count, 0) / gamesWithTurnCount.length,
+          gameCount: gamesWithTurnCount.length
+        }
+      : null
 
   return {
     totalDecidedMatches: overall.total,
@@ -104,6 +124,9 @@ export function getInsights({ deckId } = {}) {
       .sort((a, b) => b.total - a.total),
 
     mostPlayedCard,
-    mostMulliganedCard
+    mostMulliganedCard,
+    mostScoredOnBattlefield,
+    mostCommonTurnOnePlay,
+    averageGameLength
   }
 }

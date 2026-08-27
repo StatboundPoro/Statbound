@@ -140,6 +140,14 @@ contextBridge.exposeInMainWorld('api', {
   insights: {
     get: (params) => ipcRenderer.invoke('insights:get', params)
   },
+  // "Play Rate vs. Deck Count" -- a full per-card play-rate breakdown for
+  // one deck (see src/main/cardPlayRate.js), separate from insights:get
+  // above since it's deck-specific only and returns a full table, not a
+  // single aggregated number. Returns null if deckId is falsy or there's
+  // nothing meaningful to show yet.
+  cardPlayRate: {
+    get: (deckId) => ipcRenderer.invoke('card-play-rate:get', deckId)
+  },
   matchupMatrix: {
     get: () => ipcRenderer.invoke('matchup-matrix:get')
   },

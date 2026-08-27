@@ -46,6 +46,14 @@ const SCHEMA = `
     sync_status TEXT NOT NULL DEFAULT 'local_only'
   );
 
+  -- turn_count (added alongside the four new Insights stats -- see
+  -- CLAUDE.md's Decision Log) is the highest turn number match-result
+  -- auto-fill observed in that game, captured via matchResultCapture.js's
+  -- domHighestTurn the same way myBattlefield/opponentBattlefield already
+  -- are. Nullable, like every other auto-fill-only field here -- a
+  -- manually-logged match, or one recorded before this feature shipped,
+  -- simply has no turn_count. See migrateGamesTurnCountColumn() below for
+  -- how an existing install's games table picks this column up.
   CREATE TABLE IF NOT EXISTS games (
     id TEXT PRIMARY KEY,
     match_id TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
@@ -56,7 +64,8 @@ const SCHEMA = `
     seat TEXT CHECK (seat IN ('went_1st', 'went_2nd')),
     my_battlefield TEXT,
     opponent_battlefield TEXT,
-    extra_battlefields TEXT NOT NULL DEFAULT '[]'
+    extra_battlefields TEXT NOT NULL DEFAULT '[]',
+    turn_count INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS replays (
@@ -145,12 +154,37 @@ const SCHEMA = `
   -- deck_changelog and legends, this is derived/captured event data, not
   -- primary user-authored content a sync conflict could ever meaningfully
   -- apply to.
+  -- 'scored_on_battlefield' (added alongside Insights' Most-Scored-On
+  -- Battlefield stat -- see CLAUDE.md's Decision Log) is a THIRD event
+  -- type, from the match log's own "Conquered [Battlefield] and scored 1"
+  -- entries. It deliberately REUSES card_name to hold a BATTLEFIELD name
+  -- instead of a card name for this one event_type -- not a bug, a
+  -- conscious column reuse: the event shape (a name + turn + game + match)
+  -- is otherwise identical to 'played'/'mulliganed', so a second table just
+  -- to rename one column for one event type would be pure duplication.
+  -- Every reader that groups by card_name must be aware which event_type
+  -- it's querying to know whether the value it gets back is a card or a
+  -- battlefield name -- see matchCardEvents.js's topScoredOnBattlefield().
+  --
+  -- turn_number (also added in that same pass) is the match log's own
+  -- per-entry turn number, read off an ancestor data-turn-number
+  -- attribute -- populated for 'played' and 'scored_on_battlefield' rows
+  -- only (see matchResultCapture.js's ingestMatchLogState()); 'mulliganed'
+  -- rows have no equivalent concept (the mulligan screen isn't part of the
+  -- turn-numbered match log at all) and always store turn_number = null.
+  -- Nullable and NOT retroactively backfilled -- existing rows captured
+  -- before this pass keep turn_number = null forever, same as every other
+  -- "captured going forward only" field in this app. See
+  -- migrateMatchCardEventsSchema() below for how an existing install's
+  -- table (with the old two-value event_type CHECK) gets rebuilt to this
+  -- shape without losing any already-captured rows.
   CREATE TABLE IF NOT EXISTS match_card_events (
     id TEXT PRIMARY KEY,
     match_id TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
     game_number INTEGER NOT NULL CHECK (game_number IN (1, 2, 3)),
     card_name TEXT NOT NULL,
-    event_type TEXT NOT NULL CHECK (event_type IN ('played', 'mulliganed')),
+    event_type TEXT NOT NULL CHECK (event_type IN ('played', 'mulliganed', 'scored_on_battlefield')),
+    turn_number INTEGER,
     created_at TEXT NOT NULL
   );
 
@@ -245,13 +279,76 @@ function migrateLegacyDeckChangelogSchema(instance) {
   console.log('Dropped pre-version-numbering deck_changelog table (no real release ever shipped with that shape).')
 }
 
+// Real, data-preserving migration (unlike migrateLegacyDeckChangelogSchema
+// above, which can safely drop-and-recreate because no real release ever
+// shipped with that old shape) -- match_card_events HAS shipped real data
+// (Most Played / Most Mulliganed have been live and verified for a while),
+// so widening event_type's CHECK constraint to add 'scored_on_battlefield'
+// and adding turn_number can't just drop the table. SQLite has no ALTER
+// TABLE support for changing a CHECK constraint in place, so this rebuilds
+// the table under a temp name, copies every existing row across (turn_number
+// comes back NULL for all of them, per this feature's explicit "no
+// retroactive backfill" decision), and drops the temp copy. Must run BEFORE
+// SCHEMA's own CREATE TABLE IF NOT EXISTS, which would otherwise see the
+// table already exists (old shape and all) and leave it untouched forever.
+// A brand-new install has no match_card_events table yet at all -- this is
+// a no-op for it, and SCHEMA below creates the new shape directly.
+function migrateMatchCardEventsSchema(instance) {
+  const table = instance
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'match_card_events'")
+    .get()
+  if (!table) return
+
+  const columns = instance.prepare('PRAGMA table_info(match_card_events)').all()
+  const hasTurnNumber = columns.some((col) => col.name === 'turn_number')
+  if (hasTurnNumber) return
+
+  instance.exec(`
+    ALTER TABLE match_card_events RENAME TO match_card_events_old;
+    CREATE TABLE match_card_events (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      game_number INTEGER NOT NULL CHECK (game_number IN (1, 2, 3)),
+      card_name TEXT NOT NULL,
+      event_type TEXT NOT NULL CHECK (event_type IN ('played', 'mulliganed', 'scored_on_battlefield')),
+      turn_number INTEGER,
+      created_at TEXT NOT NULL
+    );
+    INSERT INTO match_card_events (id, match_id, game_number, card_name, event_type, turn_number, created_at)
+      SELECT id, match_id, game_number, card_name, event_type, NULL, created_at FROM match_card_events_old;
+    DROP TABLE match_card_events_old;
+  `)
+  console.log(
+    'Migrated match_card_events to widen event_type (added scored_on_battlefield) and add turn_number -- existing rows keep turn_number = null.'
+  )
+}
+
+// A plain additive column, unlike the rebuild above -- games' schema has no
+// CHECK constraint on anything turn_count touches, so a real ALTER TABLE ADD
+// COLUMN is sufficient (per CLAUDE.md's standing rule that matches/games
+// schema changes must be a real migration, never drop-and-recreate). Must
+// run AFTER SCHEMA's own CREATE TABLE IF NOT EXISTS: a brand-new install's
+// games table already includes turn_count (see SCHEMA above) by the time
+// this runs, so PRAGMA table_info finds it and this is a no-op; an existing
+// install's pre-existing games table does not, and picks the column up here.
+function migrateGamesTurnCountColumn(instance) {
+  const columns = instance.prepare('PRAGMA table_info(games)').all()
+  const hasTurnCount = columns.some((col) => col.name === 'turn_count')
+  if (hasTurnCount) return
+
+  instance.exec('ALTER TABLE games ADD COLUMN turn_count INTEGER')
+  console.log('Added games.turn_count column (existing rows keep turn_count = null).')
+}
+
 function openDatabase(dbPath) {
   const instance = new Database(dbPath)
   instance.pragma('journal_mode = WAL')
   instance.pragma('foreign_keys = ON')
 
   migrateLegacyDeckChangelogSchema(instance)
+  migrateMatchCardEventsSchema(instance)
   instance.exec(SCHEMA)
+  migrateGamesTurnCountColumn(instance)
 
   return instance
 }

@@ -74,18 +74,44 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 // Most Played / Most Mulliganed card stats (see matchResultCapture.js's
 // ingestMatchLogState/ingestMulliganState and CLAUDE.md's Decision Log):
 //
-//  - playedCardNames: the full ordered list of every currently-visible
-//    match-log entry actually confirmed to be a play. `data-log-action-
-//    kind="board"` sits on a small decorative icon nested inside the real
-//    log row (found via `closest('li')`), not the row itself, and is NOT
-//    play-specific — it also covers "Moved [Card] to [Battlefield]"
-//    (repositioning a card already in play), so the row's own text is
-//    checked for the "Played " verb to tell the two apart. Card name comes
-//    from the row's `[data-log-card-name]` element's own TEXT CONTENT
-//    (that attribute is a boolean marker, not a name-bearing one — a
-//    wrong assumption caught by real testing, see matchResultCapture.js's
-//    own comment and CLAUDE.md's Decision Log) — deduped against
-//    already-counted entries in matchResultCapture.js itself, not here.
+//  - playedCards: the full ordered list of every currently-visible
+//    match-log entry actually confirmed to be a play, each `{ cardName,
+//    turnNumber }`. `data-log-action-kind="board"` sits on a small
+//    decorative icon nested inside the real log row (found via
+//    `closest('li')`), not the row itself, and is NOT play-specific — it
+//    also covers "Moved [Card] to [Battlefield]" (repositioning a card
+//    already in play), so the row's own text is checked for the "Played "
+//    verb to tell the two apart. Card name comes from the row's
+//    `[data-log-card-name]` element's own TEXT CONTENT (that attribute is
+//    a boolean marker, not a name-bearing one — a wrong assumption caught
+//    by real testing, see matchResultCapture.js's own comment and
+//    CLAUDE.md's Decision Log) — deduped against already-counted entries
+//    in matchResultCapture.js itself, not here.
+//  - scoredBattlefieldCards (added in a later pass, for Insights'
+//    Most-Scored-On Battlefield stat): the same shape, for
+//    `data-log-action-kind="battle"` rows whose text reads "Conquered
+//    [Battlefield] and scored 1" — same row-detection/card-name-read
+//    pattern as playedCards above, just a different confirming phrase.
+//    NOT yet confirmed against real match markup the way playedCards' own
+//    "board"/"spell" handling was (see CLAUDE.md's Decision Log) — built
+//    defensively against the described log phrasing and flagged for
+//    real-match verification.
+//  - turnNumber (on both playedCards and scoredBattlefieldCards entries,
+//    same later pass): each entry's own turn number, read off the nearest
+//    ancestor carrying a `data-turn-number` attribute — presumed to be the
+//    per-turn `<li data-match-log-group="turn">` wrapper already known to
+//    exist around log entries (see the Chosen Champion comment below), but
+//    NOT yet confirmed to be where that attribute actually lives. Flagged
+//    for real-match verification alongside scoredBattlefieldCards above.
+//  - highestTurnNumber: the highest `data-turn-number` value found
+//    anywhere in the currently-visible log (not scoped to played/battle
+//    rows — any turn-numbered entry counts), feeding
+//    matchResultCapture.js's per-game turnCount. A plain "current max over
+//    everything visible right now" read, the same live-overwrite treatment
+//    already established for selfScore/opponentScore above (never an
+//    accumulate-forever running max) — correct as long as turn numbers
+//    only increase within one game and the log never collapses/hides
+//    entries (Part 0's confirmed finding — see CLAUDE.md's Decision Log).
 //  - mulligan: whether the mulligan screen is currently showing, and if
 //    so, each candidate card's name and live selected state. Unlike every
 //    other read in this script, the mulligan screen has no confirmed
@@ -104,6 +130,8 @@ const LOBBY_LOGO_SELECTOR = 'img[src*="rift-atlas-mark-hollow-gold"]'
 //    never a hardcoded value" approach this script's own opponentScore
 //    reading already uses, since a class-driven transform doesn't reliably
 //    round-trip through getComputedStyle back to literal scale() syntax).
+//    Mulligan events never carry a turn number — the mulligan screen isn't
+//    part of the turn-numbered match log at all.
 const SESSION_STATE_CHECK_SCRIPT = `
 (() => {
   const result = {
@@ -113,7 +141,9 @@ const SESSION_STATE_CHECK_SCRIPT = `
     opponentBattlefield: null,
     selfScore: null,
     opponentScore: null,
-    playedCardNames: [],
+    playedCards: [],
+    scoredBattlefieldCards: [],
+    highestTurnNumber: null,
     mulligan: { onScreen: false, cards: [] }
   };
 
@@ -229,11 +259,25 @@ const SESSION_STATE_CHECK_SCRIPT = `
       if (!row) continue;
       const rowText = row.textContent || '';
       const cardName = row.querySelector('[data-log-card-name]')?.textContent?.trim() || null;
+      // Turn number -- read off the nearest ancestor carrying
+      // data-turn-number, presumed (not yet confirmed against real markup)
+      // to be the per-turn <li data-match-log-group="turn"> wrapper these
+      // entries already sit inside of. See the module comment above this
+      // script.
+      const turnEl = entry.closest('[data-turn-number]');
+      const turnNumRaw = turnEl ? Number(turnEl.getAttribute('data-turn-number')) : NaN;
+      const turnNumber = Number.isFinite(turnNumRaw) ? turnNumRaw : null;
       rows.push({
         rowText,
         cardName,
+        turnNumber,
         isDirectPlay: /Played\\s/.test(rowText),
-        isMovedToBase: /Moved\\s/.test(rowText) && /to base\\.?\\s*$/.test(rowText)
+        isMovedToBase: /Moved\\s/.test(rowText) && /to base\\.?\\s*$/.test(rowText),
+        // "Conquered [Battlefield] and scored 1." -- a battlefield being
+        // scored on, a different event from a card play. Not yet confirmed
+        // against real markup the way the play/move checks above are; see
+        // the module comment above this script.
+        isScoredOnBattlefield: /Conquered\\s/.test(rowText) && /scored/i.test(rowText)
       });
     }
 
@@ -244,8 +288,25 @@ const SESSION_STATE_CHECK_SCRIPT = `
         r.isMovedToBase && r.cardName && !playedFromHandNames.has(r.cardName) && !championNamesThisPoll.has(r.cardName);
       if (isChampionEntry) championNamesThisPoll.add(r.cardName);
       const isPlay = r.isDirectPlay || isChampionEntry;
-      if (isPlay && r.cardName) result.playedCardNames.push(r.cardName);
+      if (isPlay && r.cardName) result.playedCards.push({ cardName: r.cardName, turnNumber: r.turnNumber });
+      if (r.isScoredOnBattlefield && r.cardName) {
+        result.scoredBattlefieldCards.push({ cardName: r.cardName, turnNumber: r.turnNumber });
+      }
     }
+  } catch (err) {}
+
+  try {
+    // Highest turn number visible anywhere in the log right now -- not
+    // scoped to played/battle rows, any data-turn-number-bearing element
+    // counts. See the module comment above this script for why this is a
+    // plain "current max" read, not an accumulate-forever running one.
+    const turnEls = document.querySelectorAll('[data-turn-number]');
+    let highest = null;
+    for (const el of turnEls) {
+      const n = Number(el.getAttribute('data-turn-number'));
+      if (Number.isFinite(n) && (highest === null || n > highest)) highest = n;
+    }
+    result.highestTurnNumber = highest;
   } catch (err) {}
 
   try {
@@ -428,10 +489,14 @@ async function pollLobbyState() {
     selfBattlefield: domState?.selfBattlefield ?? null,
     opponentBattlefield: domState?.opponentBattlefield ?? null,
     selfScore: domState?.selfScore ?? null,
-    opponentScore: domState?.opponentScore ?? null
+    opponentScore: domState?.opponentScore ?? null,
+    highestTurnNumber: domState?.highestTurnNumber ?? null
   })
 
-  ingestMatchLogState({ playedCardNames: domState?.playedCardNames ?? [] })
+  ingestMatchLogState({
+    playedCards: domState?.playedCards ?? [],
+    scoredBattlefieldCards: domState?.scoredBattlefieldCards ?? []
+  })
 
   ingestMulliganState({
     onScreen: domState?.mulligan?.onScreen ?? false,
