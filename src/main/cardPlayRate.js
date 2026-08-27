@@ -32,8 +32,11 @@ import { getDeckById } from './decks.js'
  * ratio = timesPlayed / (copies * matchesWithCaptureData) — how often a
  * card has actually been played relative to how often it theoretically
  * could have been (once per copy, in every match this deck's plays were
- * actually captured for). Lower is more underplayed. Ties break
- * alphabetically, same convention as every other Card Stats highlight.
+ * actually captured for). Lower is more underplayed, higher is more
+ * overplayed (played close to, or above, its theoretical maximum — a ratio
+ * over 1 is real, not clamped, e.g. a card that returns to hand and gets
+ * replayed). Ties break alphabetically, same convention as every other
+ * Card Stats highlight.
  *
  * Returns null when there's nothing meaningful to show: no deckId (this
  * stat is deck-specific, see Insights' own "hide for All Decks" handling),
@@ -87,10 +90,19 @@ export function getCardPlayRateBreakdown(deckId) {
   })
   rows.sort((a, b) => a.ratio - b.ratio || a.cardName.localeCompare(b.cardName))
 
+  // mostOverplayed is deliberately NOT just rows[rows.length - 1] -- that
+  // would tie-break a shared max ratio alphabetically DESCENDING (since
+  // `rows` itself is sorted ascending), the opposite of the alphabetically
+  // ASCENDING tie-break every other highlight in this app uses. A second,
+  // independently-sorted copy keeps that convention consistent for both
+  // ends of the same ratio spectrum.
+  const mostOverplayed = [...rows].sort((a, b) => b.ratio - a.ratio || a.cardName.localeCompare(b.cardName))[0] ?? null
+
   return {
     deckId,
     matchesWithCaptureData,
     rows,
-    mostUnderplayed: rows[0] ?? null
+    mostUnderplayed: rows[0] ?? null,
+    mostOverplayed
   }
 }

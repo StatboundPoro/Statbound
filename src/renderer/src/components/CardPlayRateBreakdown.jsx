@@ -55,6 +55,7 @@ export default function CardPlayRateBreakdown({ breakdown, deckName, onClose }) 
 
   const sortedRows = sortRows(breakdown.rows, sortKey, sortDir)
   const lowestRatio = breakdown.rows.length > 0 ? Math.min(...breakdown.rows.map((r) => r.ratio)) : null
+  const highestRatio = breakdown.rows.length > 0 ? Math.max(...breakdown.rows.map((r) => r.ratio)) : null
 
   return (
     <div className="lightbox-backdrop">
@@ -95,14 +96,22 @@ export default function CardPlayRateBreakdown({ breakdown, deckName, onClose }) 
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map((row) => (
-                <tr key={row.cardName} className={row.ratio === lowestRatio ? 'playrate-row-lowest' : ''}>
-                  <td>{row.cardName}</td>
-                  <td className="numeric">{row.copies}</td>
-                  <td className="numeric">{row.timesPlayed}</td>
-                  <td className="numeric">{Math.round(row.ratio * 100)}%</td>
-                </tr>
-              ))}
+              {sortedRows.map((row) => {
+                const rowClasses = [
+                  row.ratio === lowestRatio && 'playrate-row-lowest',
+                  row.ratio === highestRatio && 'playrate-row-highest'
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+                return (
+                  <tr key={row.cardName} className={rowClasses}>
+                    <td>{row.cardName}</td>
+                    <td className="numeric">{row.copies}</td>
+                    <td className="numeric">{row.timesPlayed}</td>
+                    <td className="numeric">{Math.round(row.ratio * 100)}%</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -2978,19 +2978,22 @@ body {
   margin-bottom: 12px;
 }
 
-/* "Play Rate vs. Deck Count" -- a single card (not a row of its own, reuses
-   .insights-bestworst-card wholesale) plus a "View full breakdown" link
-   that opens CardPlayRateBreakdown.jsx's lightbox. Deck-specific only —
+/* "Card Efficiency" -- Most Overplayed / Most Underplayed, a two-card row
+   (reusing .insights-bestworst-row/.insights-cardstat-card wholesale, same
+   neutral accent-primary treatment as Card Stats above -- a high or low
+   play rate isn't inherently good/bad the way a match win/loss is, so this
+   deliberately doesn't reuse Best/Worst Matchup's --calm/--fury coloring)
+   plus a single shared "View full breakdown" link below both cards, since
+   it opens the same full table either way. Deck-specific only --
    disabled/hidden entirely for "All Decks", see InsightsScreen.jsx. */
-.insights-playrate-card {
-  border-left-color: var(--accent-primary);
+.insights-playrate-section {
   margin-bottom: 32px;
 }
 .insights-playrate-link {
   background: none;
   border: none;
   padding: 0;
-  margin-top: 8px;
+  margin-top: 12px;
   color: var(--accent-primary);
   font-size: 12px;
   font-weight: 600;
@@ -3077,6 +3080,9 @@ body {
 }
 .playrate-table tbody tr.playrate-row-lowest td {
   color: var(--accent-primary);
+}
+.playrate-table tbody tr.playrate-row-highest td {
+  color: var(--accent-secondary);
 }
 
 /* ---------- MATCHUP MATRIX ---------- */

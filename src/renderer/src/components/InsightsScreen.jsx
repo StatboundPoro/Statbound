@@ -296,13 +296,15 @@ export default function InsightsScreen({ initialDeckId = null }) {
     if (insights?.mostScoredOnBattlefield) names.add(insights.mostScoredOnBattlefield.battlefieldName)
     if (insights?.mostCommonTurnOnePlay) names.add(insights.mostCommonTurnOnePlay.cardName)
     if (cardPlayRate?.mostUnderplayed) names.add(cardPlayRate.mostUnderplayed.cardName)
+    if (cardPlayRate?.mostOverplayed) names.add(cardPlayRate.mostOverplayed.cardName)
     return Array.from(names, (name) => ({ name, cropMode: 'none' }))
   }, [
     insights?.mostPlayedCard?.cardName,
     insights?.mostMulliganedCard?.cardName,
     insights?.mostScoredOnBattlefield?.battlefieldName,
     insights?.mostCommonTurnOnePlay?.cardName,
-    cardPlayRate?.mostUnderplayed?.cardName
+    cardPlayRate?.mostUnderplayed?.cardName,
+    cardPlayRate?.mostOverplayed?.cardName
   ])
   useCardArtResolution(cardStatEntries)
 
@@ -581,29 +583,47 @@ export default function InsightsScreen({ initialDeckId = null }) {
           </div>
 
           <div className="section-label">Card Efficiency</div>
-          <div className="insights-bestworst-card insights-playrate-card">
-            <div className="label">Play Rate vs. Deck Count</div>
-            {deckId === 'all' ? (
-              <div className="insights-note">Select a single deck to see this stat (deck composition varies per deck).</div>
-            ) : cardPlayRate?.mostUnderplayed ? (
-              <div className="insights-cardstat-row">
-                <div className="insights-cardstat-info">
-                  <div className="insights-bestworst-legend">{cardPlayRate.mostUnderplayed.cardName}</div>
-                  <div className="stat-cell-sub">
-                    played {cardPlayRate.mostUnderplayed.timesPlayed} of{' '}
-                    {cardPlayRate.mostUnderplayed.copies * cardPlayRate.matchesWithCaptureData} possible times (
-                    {Math.round(cardPlayRate.mostUnderplayed.ratio * 100)}%), the most underplayed card in this deck
+          {deckId === 'all' ? (
+            <div className="insights-note">Select a single deck to see this stat (deck composition varies per deck).</div>
+          ) : cardPlayRate?.mostOverplayed && cardPlayRate?.mostUnderplayed ? (
+            <div className="insights-playrate-section">
+              <div className="insights-bestworst-row">
+                <div className="insights-bestworst-card insights-cardstat-card">
+                  <div className="label">Most Overplayed</div>
+                  <div className="insights-cardstat-row">
+                    <div className="insights-cardstat-info">
+                      <div className="insights-bestworst-legend">{cardPlayRate.mostOverplayed.cardName}</div>
+                      <div className="stat-cell-sub">
+                        played {cardPlayRate.mostOverplayed.timesPlayed} of{' '}
+                        {cardPlayRate.mostOverplayed.copies * cardPlayRate.matchesWithCaptureData} possible times (
+                        {Math.round(cardPlayRate.mostOverplayed.ratio * 100)}%)
+                      </div>
+                    </div>
+                    <CardStatThumb name={cardPlayRate.mostOverplayed.cardName} />
                   </div>
-                  <button type="button" className="insights-playrate-link" onClick={() => setPlayRateLightboxOpen(true)}>
-                    View full breakdown
-                  </button>
                 </div>
-                <CardStatThumb name={cardPlayRate.mostUnderplayed.cardName} />
+                <div className="insights-bestworst-card insights-cardstat-card">
+                  <div className="label">Most Underplayed</div>
+                  <div className="insights-cardstat-row">
+                    <div className="insights-cardstat-info">
+                      <div className="insights-bestworst-legend">{cardPlayRate.mostUnderplayed.cardName}</div>
+                      <div className="stat-cell-sub">
+                        played {cardPlayRate.mostUnderplayed.timesPlayed} of{' '}
+                        {cardPlayRate.mostUnderplayed.copies * cardPlayRate.matchesWithCaptureData} possible times (
+                        {Math.round(cardPlayRate.mostUnderplayed.ratio * 100)}%)
+                      </div>
+                    </div>
+                    <CardStatThumb name={cardPlayRate.mostUnderplayed.cardName} />
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="insights-note">Not enough data yet.</div>
-            )}
-          </div>
+              <button type="button" className="insights-playrate-link" onClick={() => setPlayRateLightboxOpen(true)}>
+                View full breakdown
+              </button>
+            </div>
+          ) : (
+            <div className="insights-note">Not enough data yet.</div>
+          )}
           {playRateLightboxOpen && cardPlayRate && (
             <CardPlayRateBreakdown
               breakdown={cardPlayRate}
