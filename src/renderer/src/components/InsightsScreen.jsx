@@ -78,24 +78,28 @@ function sortMatchupRows(rows, sortKey) {
   return sorted
 }
 
-// A small (fixed-size, never bigger than a stat card's own line height plus
-// a little) art thumbnail next to a Card Stats/Play Rate highlight's name --
-// reuses the exact same lazy, disk-cached art pipeline Deck Detail's Grid
-// view already established (see DecklistCardArt.jsx and
-// src/main/cardArtCache.js), not a new fetch/cache of its own. `name` works
-// for a battlefield name too (Most-Scored-On Battlefield) -- the underlying
-// card-art resolution already handles any card type, not just Main Deck
-// cards. Renders a fixed-size placeholder box (not the name/text) while
-// still resolving or if art is unavailable, so the row's height/spacing
-// never shifts once art streams in -- deliberately simpler than
-// CardArtTile's own placeholder (which shows a name+count) since these
-// stat cards already show the full name as text right next to this thumb.
-function CardStatThumb({ name }) {
+// A fixed-height art thumbnail sitting to the right of a Card Stats/Play
+// Rate highlight's info column -- reuses the exact same lazy, disk-cached
+// art pipeline Deck Detail's Grid view already established
+// (DecklistCardArt.jsx / src/main/cardArtCache.js), not a new fetch/cache
+// of its own. `landscape` must be passed for a battlefield name (Most-
+// Scored-On Battlefield is the only caller that does) -- a battlefield's
+// source art is landscape-oriented, unlike every other card here, so it
+// gets its own class (`object-fit: contain`, natural width, no crop) so the
+// full card stays visible instead of being cropped down to a narrow
+// portrait-shaped strip the way `object-fit: cover` would. Renders a
+// fixed-size placeholder box (not the name/text) while still resolving or
+// if art is unavailable, so the row's height/spacing never shifts once art
+// streams in -- deliberately simpler than CardArtTile's own placeholder
+// (which shows a name+count) since these stat cards already show the full
+// name as text in the info column right next to this thumb.
+function CardStatThumb({ name, landscape = false }) {
   const entry = getCardArtEntry(name)
+  const className = `insights-card-thumb${landscape ? ' insights-card-thumb-landscape' : ''}`
   if (entry?.url) {
-    return <img src={entry.url} alt="" className="insights-card-thumb" />
+    return <img src={entry.url} alt="" className={className} />
   }
-  return <span className="insights-card-thumb insights-card-thumb-placeholder" aria-hidden="true" />
+  return <span className={`${className} insights-card-thumb-placeholder`} aria-hidden="true" />
 }
 
 function SortControl({ value, onChange, options = SORT_OPTIONS }) {
@@ -510,15 +514,15 @@ export default function InsightsScreen({ initialDeckId = null }) {
             <div className="insights-bestworst-card insights-cardstat-card">
               <div className="label">Most Played</div>
               {insights.mostPlayedCard ? (
-                <>
-                  <div className="insights-cardstat-row">
-                    <CardStatThumb name={insights.mostPlayedCard.cardName} />
+                <div className="insights-cardstat-row">
+                  <div className="insights-cardstat-info">
                     <div className="insights-bestworst-legend">{insights.mostPlayedCard.cardName}</div>
+                    <div className="stat-cell-sub">
+                      played {insights.mostPlayedCard.count} time{insights.mostPlayedCard.count === 1 ? '' : 's'}
+                    </div>
                   </div>
-                  <div className="stat-cell-sub">
-                    played {insights.mostPlayedCard.count} time{insights.mostPlayedCard.count === 1 ? '' : 's'}
-                  </div>
-                </>
+                  <CardStatThumb name={insights.mostPlayedCard.cardName} />
+                </div>
               ) : (
                 <div className="insights-note">Not enough data yet.</div>
               )}
@@ -526,16 +530,16 @@ export default function InsightsScreen({ initialDeckId = null }) {
             <div className="insights-bestworst-card insights-cardstat-card">
               <div className="label">Most Mulliganed</div>
               {insights.mostMulliganedCard ? (
-                <>
-                  <div className="insights-cardstat-row">
-                    <CardStatThumb name={insights.mostMulliganedCard.cardName} />
+                <div className="insights-cardstat-row">
+                  <div className="insights-cardstat-info">
                     <div className="insights-bestworst-legend">{insights.mostMulliganedCard.cardName}</div>
+                    <div className="stat-cell-sub">
+                      mulliganed {insights.mostMulliganedCard.count} time
+                      {insights.mostMulliganedCard.count === 1 ? '' : 's'}
+                    </div>
                   </div>
-                  <div className="stat-cell-sub">
-                    mulliganed {insights.mostMulliganedCard.count} time
-                    {insights.mostMulliganedCard.count === 1 ? '' : 's'}
-                  </div>
-                </>
+                  <CardStatThumb name={insights.mostMulliganedCard.cardName} />
+                </div>
               ) : (
                 <div className="insights-note">Not enough data yet.</div>
               )}
@@ -543,16 +547,16 @@ export default function InsightsScreen({ initialDeckId = null }) {
             <div className="insights-bestworst-card insights-cardstat-card">
               <div className="label">Most-Scored-On Battlefield</div>
               {insights.mostScoredOnBattlefield ? (
-                <>
-                  <div className="insights-cardstat-row">
-                    <CardStatThumb name={insights.mostScoredOnBattlefield.battlefieldName} />
+                <div className="insights-cardstat-row">
+                  <div className="insights-cardstat-info">
                     <div className="insights-bestworst-legend">{insights.mostScoredOnBattlefield.battlefieldName}</div>
+                    <div className="stat-cell-sub">
+                      scored on {insights.mostScoredOnBattlefield.count} time
+                      {insights.mostScoredOnBattlefield.count === 1 ? '' : 's'}
+                    </div>
                   </div>
-                  <div className="stat-cell-sub">
-                    scored on {insights.mostScoredOnBattlefield.count} time
-                    {insights.mostScoredOnBattlefield.count === 1 ? '' : 's'}
-                  </div>
-                </>
+                  <CardStatThumb name={insights.mostScoredOnBattlefield.battlefieldName} landscape />
+                </div>
               ) : (
                 <div className="insights-note">Not enough data yet.</div>
               )}
@@ -560,16 +564,16 @@ export default function InsightsScreen({ initialDeckId = null }) {
             <div className="insights-bestworst-card insights-cardstat-card">
               <div className="label">Most Common Turn-1 Play</div>
               {insights.mostCommonTurnOnePlay ? (
-                <>
-                  <div className="insights-cardstat-row">
-                    <CardStatThumb name={insights.mostCommonTurnOnePlay.cardName} />
+                <div className="insights-cardstat-row">
+                  <div className="insights-cardstat-info">
                     <div className="insights-bestworst-legend">{insights.mostCommonTurnOnePlay.cardName}</div>
+                    <div className="stat-cell-sub">
+                      played turn 1 in {insights.mostCommonTurnOnePlay.count} game
+                      {insights.mostCommonTurnOnePlay.count === 1 ? '' : 's'}
+                    </div>
                   </div>
-                  <div className="stat-cell-sub">
-                    played turn 1 in {insights.mostCommonTurnOnePlay.count} game
-                    {insights.mostCommonTurnOnePlay.count === 1 ? '' : 's'}
-                  </div>
-                </>
+                  <CardStatThumb name={insights.mostCommonTurnOnePlay.cardName} />
+                </div>
               ) : (
                 <div className="insights-note">Not enough data yet.</div>
               )}
@@ -582,20 +586,20 @@ export default function InsightsScreen({ initialDeckId = null }) {
             {deckId === 'all' ? (
               <div className="insights-note">Select a single deck to see this stat (deck composition varies per deck).</div>
             ) : cardPlayRate?.mostUnderplayed ? (
-              <>
-                <div className="insights-cardstat-row">
-                  <CardStatThumb name={cardPlayRate.mostUnderplayed.cardName} />
+              <div className="insights-cardstat-row">
+                <div className="insights-cardstat-info">
                   <div className="insights-bestworst-legend">{cardPlayRate.mostUnderplayed.cardName}</div>
+                  <div className="stat-cell-sub">
+                    played {cardPlayRate.mostUnderplayed.timesPlayed} of{' '}
+                    {cardPlayRate.mostUnderplayed.copies * cardPlayRate.matchesWithCaptureData} possible times (
+                    {Math.round(cardPlayRate.mostUnderplayed.ratio * 100)}%), the most underplayed card in this deck
+                  </div>
+                  <button type="button" className="insights-playrate-link" onClick={() => setPlayRateLightboxOpen(true)}>
+                    View full breakdown
+                  </button>
                 </div>
-                <div className="stat-cell-sub">
-                  played {cardPlayRate.mostUnderplayed.timesPlayed} of{' '}
-                  {cardPlayRate.mostUnderplayed.copies * cardPlayRate.matchesWithCaptureData} possible times (
-                  {Math.round(cardPlayRate.mostUnderplayed.ratio * 100)}%), the most underplayed card in this deck
-                </div>
-                <button type="button" className="insights-playrate-link" onClick={() => setPlayRateLightboxOpen(true)}>
-                  View full breakdown
-                </button>
-              </>
+                <CardStatThumb name={cardPlayRate.mostUnderplayed.cardName} />
+              </div>
             ) : (
               <div className="insights-note">Not enough data yet.</div>
             )}

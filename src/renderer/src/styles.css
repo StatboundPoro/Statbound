@@ -2827,34 +2827,60 @@ body {
   margin-bottom: 4px;
 }
 
-/* Card Stats/Play Rate's small art thumbnail (see InsightsScreen.jsx's
-   CardStatThumb) -- deliberately small and fixed-size so it reads as a
-   quick visual identifier next to the name, never a layout-changing
-   feature image. Height-first sizing (not width-first) since a card's
-   natural aspect ratio is portrait and a battlefield's is landscape --
-   capping height keeps both from ever growing taller than one line of the
-   surrounding text needs, while object-fit: cover crops width overflow
-   instead of squashing either shape. */
+/* Card Stats/Play Rate's art thumbnail (see InsightsScreen.jsx's
+   CardStatThumb) -- sits to the right of the card's own text (name, stat
+   line, and for Play Rate its "View full breakdown" button), the card's
+   own info column stretching to fill the remaining space on the left.
+   min-width: 0 on the info column is load-bearing -- without it a long
+   card name can force the flex item wider than its share, pushing the
+   thumbnail out past the card's own edge instead of wrapping. */
 .insights-cardstat-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
+  gap: 14px;
 }
-.insights-cardstat-row .insights-bestworst-legend {
-  margin-bottom: 0;
+.insights-cardstat-info {
+  min-width: 0;
+  flex: 1;
 }
+/* Portrait (the default -- every card except a battlefield): a fixed
+   width/height box, object-fit: cover crops any width overflow. Sized
+   roughly double the original 30x36px pass. */
 .insights-card-thumb {
-  height: 36px;
-  width: 30px;
+  height: 88px;
+  width: 68px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid var(--border-soft);
   flex-shrink: 0;
   display: block;
 }
+/* Landscape (Most-Scored-On Battlefield only, via CardStatThumb's
+   `landscape` prop): a battlefield's source art is landscape-oriented, so
+   forcing it into the same narrow portrait box as every other card here
+   would crop it down to an unrecognizable vertical strip. Height-capped,
+   width auto (its own natural aspect ratio, never cropped) instead --
+   object-fit: contain is a safety net for the rare source image wider than
+   the max-width cap, which would otherwise stretch instead of letterbox. */
+.insights-card-thumb-landscape {
+  height: 80px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  border-radius: 6px;
+}
 .insights-card-thumb-placeholder {
   background: var(--bg);
+}
+/* The landscape thumb's own width is normally `auto` (whatever the
+   resolved image's natural aspect works out to) -- a placeholder has no
+   resolved image to size against yet, so it needs an explicit best-guess
+   width reserved instead, or it would collapse to 0 and disappear until
+   art loads. This two-class selector's higher specificity wins over
+   .insights-card-thumb-landscape's own `width: auto` above. */
+.insights-card-thumb-placeholder.insights-card-thumb-landscape {
+  width: 140px;
+  border: 1px solid var(--border-soft);
 }
 .insights-bestworst-rate {
   font-family: 'IBM Plex Mono', monospace;
