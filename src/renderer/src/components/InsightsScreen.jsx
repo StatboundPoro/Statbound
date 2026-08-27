@@ -589,16 +589,7 @@ export default function InsightsScreen({ initialDeckId = null }) {
             <div className="insights-playrate-section">
               <div className="insights-bestworst-row">
                 <div className="insights-bestworst-card insights-cardstat-card">
-                  {/* Labeled "Most Played" per explicit request, even though
-                      Card Stats above already has its own "Most Played" card
-                      -- that one is a raw play COUNT across every logged
-                      match, this one is a per-copy RATIO within just this
-                      deck (cardPlayRate.js's mostOverplayed); the two can
-                      legitimately name different cards. Kept as
-                      `mostOverplayed` internally (see cardPlayRate.js) since
-                      that's still the accurate technical description of the
-                      metric -- only the on-screen label changed. */}
-                  <div className="label">Most Played</div>
+                  <div className="label">Most Overplayed</div>
                   <div className="insights-cardstat-row">
                     <div className="insights-cardstat-info">
                       <div className="insights-bestworst-legend">{cardPlayRate.mostOverplayed.cardName}</div>
