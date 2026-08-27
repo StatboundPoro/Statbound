@@ -2826,6 +2826,36 @@ body {
   font-weight: 600;
   margin-bottom: 4px;
 }
+
+/* Card Stats/Play Rate's small art thumbnail (see InsightsScreen.jsx's
+   CardStatThumb) -- deliberately small and fixed-size so it reads as a
+   quick visual identifier next to the name, never a layout-changing
+   feature image. Height-first sizing (not width-first) since a card's
+   natural aspect ratio is portrait and a battlefield's is landscape --
+   capping height keeps both from ever growing taller than one line of the
+   surrounding text needs, while object-fit: cover crops width overflow
+   instead of squashing either shape. */
+.insights-cardstat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.insights-cardstat-row .insights-bestworst-legend {
+  margin-bottom: 0;
+}
+.insights-card-thumb {
+  height: 36px;
+  width: 30px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border-soft);
+  flex-shrink: 0;
+  display: block;
+}
+.insights-card-thumb-placeholder {
+  background: var(--bg);
+}
 .insights-bestworst-rate {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 22px;

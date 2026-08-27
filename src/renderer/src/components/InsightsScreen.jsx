@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeMatchupBreakdown, computeStreak } from '../lib/stats.js'
 import MatchupBreakdownTable from './MatchupBreakdownTable.jsx'
 import CardPlayRateBreakdown from './CardPlayRateBreakdown.jsx'
+import { getCardArtEntry, useCardArtResolution } from './DecklistCardArt.jsx'
 
 const DEFAULT_SORT = 'winRateDesc'
 
@@ -75,6 +76,26 @@ function sortMatchupRows(rows, sortKey) {
     return sortKey === 'winRateAsc' ? a.winRate - b.winRate : b.winRate - a.winRate
   })
   return sorted
+}
+
+// A small (fixed-size, never bigger than a stat card's own line height plus
+// a little) art thumbnail next to a Card Stats/Play Rate highlight's name --
+// reuses the exact same lazy, disk-cached art pipeline Deck Detail's Grid
+// view already established (see DecklistCardArt.jsx and
+// src/main/cardArtCache.js), not a new fetch/cache of its own. `name` works
+// for a battlefield name too (Most-Scored-On Battlefield) -- the underlying
+// card-art resolution already handles any card type, not just Main Deck
+// cards. Renders a fixed-size placeholder box (not the name/text) while
+// still resolving or if art is unavailable, so the row's height/spacing
+// never shifts once art streams in -- deliberately simpler than
+// CardArtTile's own placeholder (which shows a name+count) since these
+// stat cards already show the full name as text right next to this thumb.
+function CardStatThumb({ name }) {
+  const entry = getCardArtEntry(name)
+  if (entry?.url) {
+    return <img src={entry.url} alt="" className="insights-card-thumb" />
+  }
+  return <span className="insights-card-thumb insights-card-thumb-placeholder" aria-hidden="true" />
 }
 
 function SortControl({ value, onChange, options = SORT_OPTIONS }) {
@@ -257,6 +278,29 @@ export default function InsightsScreen({ initialDeckId = null }) {
     setBattlefieldSort(DEFAULT_SORT)
     setMatchupSort(DEFAULT_SORT)
   }, [deckId])
+
+  // Card Stats/Play Rate thumbnails (see CardStatThumb above) -- gathers
+  // just the handful of names actually shown as highlights right now (never
+  // a bulk fetch of anything else on this screen), deduped since Most
+  // Played and Most Common Turn-1 Play could plausibly name the same card.
+  // Called unconditionally, before the status early-returns below, since
+  // it's a hook -- insights/cardPlayRate may still be null while loading.
+  const cardStatEntries = useMemo(() => {
+    const names = new Set()
+    if (insights?.mostPlayedCard) names.add(insights.mostPlayedCard.cardName)
+    if (insights?.mostMulliganedCard) names.add(insights.mostMulliganedCard.cardName)
+    if (insights?.mostScoredOnBattlefield) names.add(insights.mostScoredOnBattlefield.battlefieldName)
+    if (insights?.mostCommonTurnOnePlay) names.add(insights.mostCommonTurnOnePlay.cardName)
+    if (cardPlayRate?.mostUnderplayed) names.add(cardPlayRate.mostUnderplayed.cardName)
+    return Array.from(names, (name) => ({ name, cropMode: 'none' }))
+  }, [
+    insights?.mostPlayedCard?.cardName,
+    insights?.mostMulliganedCard?.cardName,
+    insights?.mostScoredOnBattlefield?.battlefieldName,
+    insights?.mostCommonTurnOnePlay?.cardName,
+    cardPlayRate?.mostUnderplayed?.cardName
+  ])
+  useCardArtResolution(cardStatEntries)
 
   const sortedDecks = useMemo(() => [...decks].sort((a, b) => a.name.localeCompare(b.name)), [decks])
   const decksById = useMemo(() => new Map(decks.map((deck) => [deck.id, deck])), [decks])
@@ -467,7 +511,10 @@ export default function InsightsScreen({ initialDeckId = null }) {
               <div className="label">Most Played</div>
               {insights.mostPlayedCard ? (
                 <>
-                  <div className="insights-bestworst-legend">{insights.mostPlayedCard.cardName}</div>
+                  <div className="insights-cardstat-row">
+                    <CardStatThumb name={insights.mostPlayedCard.cardName} />
+                    <div className="insights-bestworst-legend">{insights.mostPlayedCard.cardName}</div>
+                  </div>
                   <div className="stat-cell-sub">
                     played {insights.mostPlayedCard.count} time{insights.mostPlayedCard.count === 1 ? '' : 's'}
                   </div>
@@ -480,7 +527,10 @@ export default function InsightsScreen({ initialDeckId = null }) {
               <div className="label">Most Mulliganed</div>
               {insights.mostMulliganedCard ? (
                 <>
-                  <div className="insights-bestworst-legend">{insights.mostMulliganedCard.cardName}</div>
+                  <div className="insights-cardstat-row">
+                    <CardStatThumb name={insights.mostMulliganedCard.cardName} />
+                    <div className="insights-bestworst-legend">{insights.mostMulliganedCard.cardName}</div>
+                  </div>
                   <div className="stat-cell-sub">
                     mulliganed {insights.mostMulliganedCard.count} time
                     {insights.mostMulliganedCard.count === 1 ? '' : 's'}
@@ -494,7 +544,10 @@ export default function InsightsScreen({ initialDeckId = null }) {
               <div className="label">Most-Scored-On Battlefield</div>
               {insights.mostScoredOnBattlefield ? (
                 <>
-                  <div className="insights-bestworst-legend">{insights.mostScoredOnBattlefield.battlefieldName}</div>
+                  <div className="insights-cardstat-row">
+                    <CardStatThumb name={insights.mostScoredOnBattlefield.battlefieldName} />
+                    <div className="insights-bestworst-legend">{insights.mostScoredOnBattlefield.battlefieldName}</div>
+                  </div>
                   <div className="stat-cell-sub">
                     scored on {insights.mostScoredOnBattlefield.count} time
                     {insights.mostScoredOnBattlefield.count === 1 ? '' : 's'}
@@ -508,7 +561,10 @@ export default function InsightsScreen({ initialDeckId = null }) {
               <div className="label">Most Common Turn-1 Play</div>
               {insights.mostCommonTurnOnePlay ? (
                 <>
-                  <div className="insights-bestworst-legend">{insights.mostCommonTurnOnePlay.cardName}</div>
+                  <div className="insights-cardstat-row">
+                    <CardStatThumb name={insights.mostCommonTurnOnePlay.cardName} />
+                    <div className="insights-bestworst-legend">{insights.mostCommonTurnOnePlay.cardName}</div>
+                  </div>
                   <div className="stat-cell-sub">
                     played turn 1 in {insights.mostCommonTurnOnePlay.count} game
                     {insights.mostCommonTurnOnePlay.count === 1 ? '' : 's'}
@@ -527,7 +583,10 @@ export default function InsightsScreen({ initialDeckId = null }) {
               <div className="insights-note">Select a single deck to see this stat (deck composition varies per deck).</div>
             ) : cardPlayRate?.mostUnderplayed ? (
               <>
-                <div className="insights-bestworst-legend">{cardPlayRate.mostUnderplayed.cardName}</div>
+                <div className="insights-cardstat-row">
+                  <CardStatThumb name={cardPlayRate.mostUnderplayed.cardName} />
+                  <div className="insights-bestworst-legend">{cardPlayRate.mostUnderplayed.cardName}</div>
+                </div>
                 <div className="stat-cell-sub">
                   played {cardPlayRate.mostUnderplayed.timesPlayed} of{' '}
                   {cardPlayRate.mostUnderplayed.copies * cardPlayRate.matchesWithCaptureData} possible times (
